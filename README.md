@@ -14,12 +14,6 @@ Everyday tasks are often:
 - Too urgent to delay
 - Too local for large platforms to solve well
 
-Existing solutions struggle with:
-- Low trust
-- Poor local availability
-- Over-engineered flows
-- Weak repeat usage
-
 HireBuddy is built **from zero**, with a focus on:
 - Local density
 - Trust-first design
