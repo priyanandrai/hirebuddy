@@ -45,5 +45,7 @@ class User:
     @classmethod
     def from_dict(cls, data):
         """Create user from dictionary"""
+        # Create a copy to avoid mutating the input
+        data = data.copy()
         data["created_at"] = datetime.fromisoformat(data["created_at"])
         return cls(**data)

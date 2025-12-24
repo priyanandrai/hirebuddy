@@ -49,9 +49,13 @@ class Helper:
         if self.rating is None:
             self.rating = new_rating
         else:
-            # Calculate weighted average
+            # Calculate weighted average using current task count
+            # This should be called after complete_task() to get accurate results
             total_tasks = self.total_tasks_completed
-            self.rating = ((self.rating * total_tasks) + new_rating) / (total_tasks + 1)
+            if total_tasks > 0:
+                self.rating = ((self.rating * total_tasks) + new_rating) / (total_tasks + 1)
+            else:
+                self.rating = new_rating
     
     def complete_task(self):
         """Increment task completion counter"""
@@ -77,5 +81,7 @@ class Helper:
     @classmethod
     def from_dict(cls, data):
         """Create helper from dictionary"""
+        # Create a copy to avoid mutating the input
+        data = data.copy()
         data["created_at"] = datetime.fromisoformat(data["created_at"])
         return cls(**data)

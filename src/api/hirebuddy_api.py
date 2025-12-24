@@ -172,7 +172,14 @@ class HireBuddyAPI:
                 helper = self.helpers.get(task.helper_id)
                 if helper:
                     helper.complete_task()
+        elif status_enum == TaskStatus.CANCELLED:
+            # Allow cancellation from any state
+            task.status = status_enum
         else:
+            # For other statuses, validate that it makes sense
+            # ASSIGNED status should only be set via assign_task()
+            if status_enum == TaskStatus.ASSIGNED:
+                raise ValueError("Use assign_task() to assign tasks to helpers")
             task.status = status_enum
         
         return task

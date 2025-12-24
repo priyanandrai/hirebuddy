@@ -96,6 +96,8 @@ class Task:
     @classmethod
     def from_dict(cls, data):
         """Create task from dictionary"""
+        # Create a copy to avoid mutating the input
+        data = data.copy()
         data["category"] = TaskCategory(data["category"])
         data["status"] = TaskStatus(data["status"])
         data["created_at"] = datetime.fromisoformat(data["created_at"])
