@@ -1,0 +1,11 @@
+# HireBuddy - Python Dependencies
+# No external dependencies required for the MVP
+# Standard library only
+
+# Future dependencies (for reference):
+# flask>=2.0.0          # For REST API
+# fastapi>=0.68.0       # Alternative API framework
+# sqlalchemy>=1.4.0     # For database ORM
+# pydantic>=1.8.0       # For data validation
+# pytest>=6.2.0         # For testing
+# requests>=2.26.0      # For HTTP requests
