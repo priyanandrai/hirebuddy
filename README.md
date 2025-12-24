@@ -76,6 +76,14 @@ That's it! The demo will show you how to:
 - Assign and complete tasks
 - Search for helpers
 
+👉 **New to the project?** Check out our [Quick Start Guide](docs/QUICKSTART.md) for a detailed walkthrough!
+
+### Run Validation Tests
+
+```bash
+python examples/validate.py
+```
+
 ---
 
 ## 📁 Project Structure
