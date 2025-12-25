@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata = {
   title: "HireBuddy",
-  description: "Hirebuddy app ",
+  description: "Hirebuddy app: Help for daily life ",
 };
 
 export default function RootLayout({ children }) {
@@ -15,7 +15,7 @@ export default function RootLayout({ children }) {
           {/* <Sidebar /> */}
           <div className="flex flex-col flex-1">
             {/* <Header /> */}
-            <main className="p-6 overflow-y-auto">{children}</main>
+            <main className="p-2 overflow-y-auto">{children}</main>
           </div>
         </div>
       </body>
