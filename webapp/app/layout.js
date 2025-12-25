@@ -12,9 +12,9 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className="bg-gray-50">
         <div className="flex h-screen">
-          <Sidebar />
+          {/* <Sidebar /> */}
           <div className="flex flex-col flex-1">
-            <Header />
+            {/* <Header /> */}
             <main className="p-6 overflow-y-auto">{children}</main>
           </div>
         </div>
