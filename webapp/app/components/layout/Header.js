@@ -32,17 +32,17 @@ export default function Header() {
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-700">
-          <Link href="#" className="hover:text-black">
+          <Link href="/post-task" className="hover:text-black">
             Post a Task
           </Link>
-          <Link href="#" className="hover:text-black">
+          <Link href="/how-it-works" className="hover:text-black">
             How it Works
           </Link>
-          <Link href="#" className="hover:text-black">
+          <Link href="/login" className="hover:text-black">
             Log In
           </Link>
           <Link
-            href="#"
+            href="/become-a-helper"
             className="px-4 py-2 bg-green-700 text-white rounded-md hover:bg-green-800"
           >
             Become a Helper
