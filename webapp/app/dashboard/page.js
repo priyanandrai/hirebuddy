@@ -1,24 +1,15 @@
+import Footer from "../components/layout/Footer";
+import Header from "../components/layout/HeaderAfterlogin";
+
 export default function DashboardPage() {
   return (
+    <>   <Header></Header>
     <main className="min-h-screen bg-gray-50 px-6 py-6">
+     
       {/* Header */}
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-800">
-          Hi Rahul 👋
-        </h1>
-        <button className="rounded-md bg-green-600 px-4 py-2 text-white hover:bg-green-700">
-          Post a New Task
-        </button>
-      </header>
+   
 
-      {/* Search */}
-      <div className="mb-8">
-        <input
-          type="text"
-          placeholder="Search services or tasks..."
-          className="w-full rounded-md border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
-        />
-      </div>
+ 
 
       {/* Quick Actions */}
       <section className="mb-10">
@@ -105,6 +96,8 @@ export default function DashboardPage() {
         </button>
       </section>
     </main>
+    <Footer></Footer>
+      </>
   );
 }
 
@@ -136,16 +129,21 @@ function TaskItem({ title, time, price, helper }) {
 
 function HelperCard({ name, rating, tasks, skills }) {
   return (
-    <div className="rounded-lg bg-white p-4 shadow-sm">
-      <h3 className="font-semibold text-gray-800">{name}</h3>
-      <p className="text-sm text-gray-600">
-        ⭐ {rating} • {tasks} tasks
-      </p>
-      <p className="mt-1 text-sm text-gray-500">{skills}</p>
+    <>
+     
+      <div className="rounded-lg bg-white p-4 shadow-sm">
 
-      <button className="mt-3 w-full rounded-md bg-green-600 px-3 py-2 text-white hover:bg-green-700">
-        View Profile
-      </button>
-    </div>
+        <h3 className="font-semibold text-gray-800">{name}</h3>
+        <p className="text-sm text-gray-600">
+          ⭐ {rating} • {tasks} tasks
+        </p>
+        <p className="mt-1 text-sm text-gray-500">{skills}</p>
+
+        <button className="mt-3 w-full rounded-md bg-green-600 px-3 py-2 text-white hover:bg-green-700">
+          View Profile
+        </button>
+      </div>
+    </>
+  
   );
 }
