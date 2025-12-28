@@ -20,7 +20,7 @@ export default function Header() {
     <header
       className={`w-full z-50 transition-all ${
         isSticky
-          ? "fixed top-0 bg-white shadow-sm border-b"
+          ? "fixed top-0 bg-white shadow-sm "
           : "relative bg-white"
       }`}
     >
