@@ -4,18 +4,36 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
 export default function Header() {
-  const [open, setOpen] = useState(false);
-  const dropdownRef = useRef(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
 
-  // Close dropdown on outside click
+  const unreadCount = 3; // example
+
+  const wrapperRef = useRef(null);
+
+  // Close dropdowns on outside click
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setOpen(false);
+    function handleClickOutside(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setProfileOpen(false);
+        setNotifOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Close on ESC
+  useEffect(() => {
+    function onEsc(e) {
+      if (e.key === "Escape") {
+        setProfileOpen(false);
+        setNotifOpen(false);
+      }
+    }
+    document.addEventListener("keydown", onEsc);
+    return () => document.removeEventListener("keydown", onEsc);
   }, []);
 
   return (
@@ -27,8 +45,8 @@ export default function Header() {
           HireBuddy
         </Link>
 
-        {/* Search (Center) */}
-        <div className="flex flex-1 justify-center px-4">
+        {/* Desktop Search */}
+        <div className="hidden flex-1 justify-center px-4 sm:flex">
           <div className="relative w-full max-w-md">
             <input
               type="text"
@@ -42,68 +60,198 @@ export default function Header() {
         </div>
 
         {/* Right Section */}
-        <div className="relative flex items-center gap-4" ref={dropdownRef}>
-          
+        <div className="relative flex items-center gap-4" ref={wrapperRef}>
+
+          {/* Mobile Search Toggle */}
+          <button
+            onClick={() => setShowMobileSearch(!showMobileSearch)}
+            className="sm:hidden text-gray-600 hover:text-black"
+          >
+            🔍
+          </button>
+
           {/* Post Task */}
           <Link
-            href="/post-task"
-            className="hidden rounded-md bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 sm:block"
+            href="/dashboard/create-task"
+            className="hidden sm:block rounded-md bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700"
           >
             Post a Task
           </Link>
 
           {/* Notifications */}
-          <button
-            aria-label="Notifications"
-            className="relative text-gray-600 hover:text-black"
-          >
-            🔔
-            <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500"></span>
-          </button>
+          <div className="relative">
+            <button
+              aria-label="Notifications"
+              onClick={() => {
+                setNotifOpen(!notifOpen);
+                setProfileOpen(false);
+              }}
+              className={`relative text-gray-600 hover:text-black ${
+                notifOpen ? "ring-2 ring-green-200 rounded-full" : ""
+              }`}
+            >
+              🔔
+              {unreadCount > 0 && (
+                <span className="absolute -right-2 -top-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-xs font-semibold text-white">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
 
-          {/* Profile Button */}
-          <button
-            onClick={() => setOpen(!open)}
-            className="flex items-center gap-2 rounded-full border px-3 py-1 hover:bg-gray-100"
-          >
-            <div className="h-8 w-8 rounded-full bg-green-100 text-center text-sm font-semibold leading-8 text-green-700">
-              R
-            </div>
-            <span className="hidden text-sm text-gray-700 sm:block">
-              Rahul
-            </span>
-          </button>
+            {/* Notification Dropdown */}
+            {notifOpen && (
+              <div className="absolute right-0 top-12 w-80 animate-scaleIn">
+                
+                {/* Arrow */}
+                <div className="absolute -top-2 right-4 h-4 w-4 rotate-45 border-l border-t bg-white"></div>
 
-          {/* Dropdown */}
-          {open && (
-            <div className="absolute right-0 top-12 w-52 rounded-lg border bg-white shadow-lg">
-              <DropdownItem href="/dashboard">Dashboard</DropdownItem>
-              <DropdownItem href="/tasks">My Tasks</DropdownItem>
-              <DropdownItem href="/services">Services</DropdownItem>
-              <DropdownItem href="/support">Support</DropdownItem>
+                <div className="rounded-2xl border bg-white shadow-xl overflow-hidden">
+                  <div className="border-b px-4 py-3 text-sm font-semibold">
+                    Notifications
+                  </div>
 
-              <div className="my-1 border-t" />
+                  {/* Notification Items */}
+                  <div className="max-h-72 overflow-y-auto">
+                    <NotificationItem
+                      title="Task accepted"
+                      desc="A helper accepted your grocery task"
+                      time="2m ago"
+                      unread
+                    />
+                    <NotificationItem
+                      title="Task completed"
+                      desc="Your medicine delivery is done"
+                      time="1h ago"
+                    />
+                    <NotificationItem
+                      title="New message"
+                      desc="Helper sent you a message"
+                      time="Yesterday"
+                    />
+                  </div>
 
-              <button className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-50">
-                Logout
-              </button>
-            </div>
-          )}
+                  <div className="border-t text-center">
+                    <Link
+                      href="/dashboard/notifications"
+                      className="block px-4 py-3 text-sm text-green-600 hover:bg-gray-50"
+                    >
+                      View all notifications
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Profile */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                setProfileOpen(!profileOpen);
+                setNotifOpen(false);
+              }}
+              className={`flex items-center gap-2 rounded-full border px-3 py-1 transition ${
+                profileOpen
+                  ? "bg-gray-100 ring-2 ring-green-200"
+                  : "hover:bg-gray-100"
+              }`}
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-sm font-semibold text-green-700">
+                R
+              </div>
+              <span className="hidden sm:block text-sm text-gray-700">
+                Rahul
+              </span>
+            </button>
+
+            {/* Profile Dropdown */}
+            {profileOpen && (
+              <div className="absolute right-0 top-14 w-64 animate-scaleIn">
+                
+                <div className="absolute -top-2 right-6 h-4 w-4 rotate-45 border-l border-t bg-white"></div>
+
+                <div className="rounded-2xl border bg-white shadow-xl overflow-hidden">
+                  <div className="flex items-center gap-3 border-b px-4 py-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 font-semibold text-green-700">
+                      R
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">Rahul</p>
+                      <p className="text-xs text-gray-500">
+                        rahul@email.com
+                      </p>
+                    </div>
+                  </div>
+
+                  <DropdownItem href="/dashboard" setOpen={setProfileOpen}>
+                    📊 Dashboard
+                  </DropdownItem>
+                  <DropdownItem href="/dashboard/my-tasks" setOpen={setProfileOpen}>
+                    📝 My Tasks
+                  </DropdownItem>
+                  <DropdownItem href="/dashboard/services" setOpen={setProfileOpen}>
+                    🧰 Services
+                  </DropdownItem>
+                  <DropdownItem href="/dashboard/support" setOpen={setProfileOpen}>
+                    💬 Support
+                  </DropdownItem>
+
+                  <div className="border-t">
+                    <button className="w-full px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50">
+                      🚪 Logout
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
+
+      {/* Mobile Search */}
+      {showMobileSearch && (
+        <div className="border-t bg-white px-4 py-3 sm:hidden animate-slideDown">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search services, tasks, helpers..."
+              className="w-full rounded-full border px-4 py-2 pl-10 text-sm"
+            />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              🔍
+            </span>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
 
-/* ---------- Dropdown Item ---------- */
+/* ---------- Components ---------- */
 
-function DropdownItem({ href, children }) {
+function DropdownItem({ href, children, setOpen }) {
   return (
     <Link
       href={href}
-      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+      onClick={() => setOpen(false)}
+      className="flex items-center gap-2 px-4 py-3 text-sm hover:bg-gray-100"
     >
       {children}
     </Link>
+  );
+}
+
+function NotificationItem({ title, desc, time, unread }) {
+  return (
+    <div
+      className={`px-4 py-3 text-sm hover:bg-gray-50 ${
+        unread ? "bg-green-50" : ""
+      }`}
+    >
+      <p className="font-medium">{title}</p>
+      <p className="text-xs text-gray-600">{desc}</p>
+      <p className="mt-1 text-xs text-gray-400">{time}</p>
+    </div>
   );
 }

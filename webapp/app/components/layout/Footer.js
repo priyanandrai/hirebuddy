@@ -23,7 +23,7 @@ export default function Footer() {
             </a>
 
             <a
-              href="/become-helper"
+              href="/become-a-helper"
               className="rounded-lg border border-gray-700 px-5 py-2.5 text-sm font-medium text-gray-300 hover:bg-gray-800 transition"
             >
               Become a Helper
