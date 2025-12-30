@@ -13,15 +13,16 @@ model User {
   phone     String   @unique
   role      Role
   createdAt DateTime @default(now())
+  tasks     Task[] // 👈 REQUIRED opposite relation
 }
 
 model Task {
-  id          String   @id @default(uuid())
+  id          String     @id @default(uuid())
   title       String
   description String?
   status      TaskStatus @default(OPEN)
   userId      String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime   @default(now())
 
   user User @relation(fields: [userId], references: [id])
 }

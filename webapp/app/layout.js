@@ -1,6 +1,7 @@
 import Header from "./components/layout/Header";
 import Sidebar from "./components/layout/Sidebar";
 import "./globals.css";
+import Providers from "./providers";
 
 export const metadata = {
   title: "HireBuddy",
@@ -14,9 +15,9 @@ export default function RootLayout({ children }) {
         {/* <Sidebar /> */}
 
         {/* <Header /> */}
-        <main className="overflow-y-auto">{children}</main>
-
-
+        <Providers>
+          <main className="overflow-y-auto">{children}</main>
+        </Providers>
       </body>
     </html>
   );
