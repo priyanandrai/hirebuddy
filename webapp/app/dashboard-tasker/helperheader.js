@@ -24,7 +24,7 @@ export default function HelperHeader() {
 
         {/* Logo */}
         <Link
-          href="/dashboard/helper"
+          href="/dashboard-tasker"
           className="text-lg font-bold text-green-600"
         >
           HireBuddy
@@ -37,7 +37,7 @@ export default function HelperHeader() {
         >
           {/* Earnings (important for helper) */}
           <Link
-            href="/dashboard/helper/earnings"
+            href="/dashboard-tasker/earnings"
             className="text-sm font-medium text-gray-700 hover:text-black"
           >
             ₹ Earnings
@@ -45,7 +45,7 @@ export default function HelperHeader() {
 
           {/* Tasks */}
           <Link
-            href="/dashboard/helper/tasks"
+            href="/dashboard-tasker/tasks"
             className="text-sm font-medium text-gray-700 hover:text-black"
           >
             Tasks
@@ -69,7 +69,7 @@ export default function HelperHeader() {
             <div className="absolute right-0 top-12 w-48 rounded-xl border bg-white shadow-lg">
               
               <Link
-                href="/dashboard/helper/profile"
+                href="/dashboard-tasker/profile"
                 className="block px-4 py-3 text-sm hover:bg-gray-100"
                 onClick={() => setOpen(false)}
               >
@@ -77,7 +77,7 @@ export default function HelperHeader() {
               </Link>
 
               <Link
-                href="/dashboard/support"
+                href="/dashboard-tasker/support"
                 className="block px-4 py-3 text-sm hover:bg-gray-100"
                 onClick={() => setOpen(false)}
               >
