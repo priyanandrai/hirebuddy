@@ -22,14 +22,14 @@ export default function HelperDashboardPage() {
         <PrimaryAction
           title="See Available Tasks"
           desc="New work near you"
-          href="/dashboard-tasker/helper/tasks"
+          href="/dashboard-tasker/tasks"
           bg="bg-green-600"
         />
 
         <PrimaryAction
           title="My Accepted Tasks"
           desc="Work you already accepted"
-          href="/dashboard-tasker/helper/my-tasks"
+          href="/dashboard-tasker/my-tasks"
           bg="bg-blue-600"
         />
       </section>
@@ -52,7 +52,7 @@ export default function HelperDashboardPage() {
           </p>
 
           <Link
-            href="/dashboard-tasker/helper/my-tasks"
+            href="/dashboard-tasker/my-tasks"
             className="mt-4 block rounded-md bg-green-600 px-4 py-3 text-center text-white"
           >
             View Task Details
