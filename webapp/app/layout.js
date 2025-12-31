@@ -12,9 +12,6 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className="bg-gray-50">
-        {/* <Sidebar /> */}
-
-        {/* <Header /> */}
         <Providers>
           <main className="overflow-y-auto">{children}</main>
         </Providers>
