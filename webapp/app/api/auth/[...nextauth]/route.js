@@ -21,11 +21,20 @@ export const authOptions = {
 
   callbacks: {
     async jwt({ token, user }) {
-      if (user) token.id = user.id;
+      // Runs on login
+      if (user) {
+        token.name = user.name;
+        token.email = user.email;
+        token.picture = user.image;
+      }
       return token;
     },
+
     async session({ session, token }) {
-      session.user.id = token.id;
+      // Attach token data to session
+      session.user.name = token.name;
+      session.user.email = token.email;
+      session.user.image = token.picture;
       return session;
     },
   },

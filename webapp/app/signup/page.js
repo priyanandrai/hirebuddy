@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Header from "../components/layout/Header";
 import Footer from "../components/layout/Footer";
-import { signIn } from "next-auth/react";
+import { useSession, signIn, signOut } from "next-auth/react";
+import AuthenticatedHeader from "../components/layout/HeaderAfterlogin";
 
 export default function SignupPage() {
   const [phone, setPhone] = useState("");
@@ -14,10 +15,24 @@ export default function SignupPage() {
       setPhone(value);
     }
   };
+  const { data: session, status } = useSession();
+
+  useEffect(() => {
+    console.log("session",session);
+    
+    // if (status === "authenticated") {
+    //   if(session?.admin?.logintype == "ohc"){
+    //   router.replace("/hitl/preils"); // 👈 redirect if not logged in
+    //   }else{
+    //   router.replace("/hitl"); // 👈 redirect if not logged in
+    //   }
+    // }
+    
+  }, [status]);
 
   return (
     <>
-      <Header />
+     {status === "authenticated" ? <AuthenticatedHeader/>:<Header />}
 
       <div className="min-h-screen bg-[#f6f8fa] flex items-center justify-center px-6">
         <div className="w-full max-w-md bg-white border border-gray-200 rounded-2xl shadow-sm p-8">

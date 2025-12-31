@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
-export default function Header() {
+export default function AuthenticatedHeader() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
