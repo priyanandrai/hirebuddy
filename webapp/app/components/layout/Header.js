@@ -1,4 +1,5 @@
 "use client";
+import { useSession, signIn, signOut } from "next-auth/react";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -6,7 +7,11 @@ import Link from "next/link";
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isSticky, setIsSticky] = useState(false);
-
+  const { data: session, status } = useSession();
+  useEffect(() => {
+    console.log("Session 👉", session);
+    console.log("Status 👉", status);
+  }, [session, status]);
   // Sticky on scroll
   useEffect(() => {
     const onScroll = () => {
