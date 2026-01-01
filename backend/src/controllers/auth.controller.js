@@ -3,6 +3,11 @@ import {
     verifyOtpService,
     googleAuthService
   } from "../services/auth.service.js";
+  import prisma from "../utils/prisma.js";
+  import bcrypt from "bcrypt";
+  import jwt from "jsonwebtoken";
+
+
   
   export const sendOtp = async (req, res) => {
     try {
@@ -87,6 +92,8 @@ export const signup = async (req, res) => {
       },
     });
   } catch (error) {
+    console.log("signup eror", error);
+    
     res.status(500).json({ message: "Signup failed" });
   }
 };
