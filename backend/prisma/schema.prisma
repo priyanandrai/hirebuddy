@@ -14,6 +14,7 @@ model User {
   name       String?
   image      String?
   role       Role?
+  password  String?
  // HELPER-specific fields
   skills      String?   // e.g. "Plumbing, Electrician"
   experience  Int?      // years
@@ -22,7 +23,9 @@ model User {
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  tasks     Task[] // 👈 REQUIRED opposite relation
+ 
+  tasksCreated Task[] @relation("CreatedTasks")
+  tasksAssigned Task[] @relation("AssignedTasks")
 }
 
 model Otp {
@@ -35,14 +38,23 @@ model Otp {
 }
 
 model Task {
-  id          String     @id @default(uuid())
+  id          String   @id @default(uuid())
   title       String
   description String?
+  category    String
+  location    String
+  budget      Int
+  preferredAt DateTime?
   status      TaskStatus @default(OPEN)
-  userId      String
-  createdAt   DateTime   @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  createdById String
+  assignedToId String?
+
+  createdBy  User @relation("CreatedTasks", fields: [createdById], references: [id])
+  assignedTo User? @relation("AssignedTasks", fields: [assignedToId], references: [id])
+
+  createdAt DateTime @default(now())
+
 }
 
 enum Role {

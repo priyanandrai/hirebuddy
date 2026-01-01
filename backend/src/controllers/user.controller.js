@@ -12,4 +12,10 @@ import {
     const user = await updateHelperProfileService(req.user.id, req.body);
     res.json(user);
   };
-  
+  export const getHelperById = async (req, res) => {
+    const helper = await userService.getHelper(req.params.id);
+    if (!helper) {
+      return res.status(404).json({ message: "Helper not found" });
+    }
+    res.json(helper);
+  };

@@ -18,3 +18,14 @@ export const updateHelperProfileService = (userId, data) => {
     },
   });
 };
+
+export const getHelper = (id) => {
+  return prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      role: true,
+    },
+  });
+};

@@ -21,3 +21,20 @@ export const googleBackendLogin = async (session) => {
 
   return res.json();
 };
+export async function manualSignup(payload) {
+  const res = await fetch(`${API_BASE_URL}/api/signup`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.message || "Signup failed");
+  }
+
+  return data;
+}
