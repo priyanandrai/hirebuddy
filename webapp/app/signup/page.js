@@ -5,9 +5,12 @@ import Header from "../components/layout/Header";
 import Footer from "../components/layout/Footer";
 import { useSession, signIn, signOut } from "next-auth/react";
 import AuthenticatedHeader from "../components/layout/HeaderAfterlogin";
+import { useRouter } from "next/navigation";
+import { googleBackendLogin } from "../components/lib/api";
 
 export default function SignupPage() {
   const [phone, setPhone] = useState("");
+  const router = useRouter();
 
   const handlePhoneChange = (e) => {
     const value = e.target.value.replace(/\D/g, "");
@@ -16,19 +19,33 @@ export default function SignupPage() {
     }
   };
   const { data: session, status } = useSession();
-
+  
   useEffect(() => {
-    console.log("session",session);
-    
-    // if (status === "authenticated") {
-    //   if(session?.admin?.logintype == "ohc"){
-    //   router.replace("/hitl/preils"); // 👈 redirect if not logged in
-    //   }else{
-    //   router.replace("/hitl"); // 👈 redirect if not logged in
-    //   }
-    // }
-    
-  }, [status]);
+    if (status === "authenticated" && session) {
+      (async () => {
+        try {
+          const data = await googleBackendLogin(session);
+  
+          // Save backend JWT
+          localStorage.setItem("token", data.token);
+          router.push("/dashboard");
+  
+          // Redirect based on role
+          // if (!data.user.role) {
+          //   router.push("/select-role");
+          // } else
+          //  if (data.user.role === "HELPER") {
+          //   router.push("/dashboard-tasker");
+          // } else {
+          //   router.push("/dashboard");
+          // }
+        } catch (err) {
+          console.error(err);
+        }
+      })();
+    }
+  }, [status, session]);
+  
 
   return (
     <>

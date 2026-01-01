@@ -2,11 +2,31 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { signOut, useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 export default function AuthenticatedHeader() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const router = useRouter();
+  const { data: session, status } = useSession();
+
+  const handleLogout = async () => {
+    // 1. Clear backend JWT
+    localStorage.removeItem("token");
+
+    // 2. Close dropdown
+    setProfileOpen(false);
+
+    // 3. Sign out from NextAuth (Google)
+    await signOut({
+      redirect: false,
+    });
+
+    // 4. Redirect to signup / home
+    router.push("/");
+  };
 
   const unreadCount = 3; // example
 
@@ -37,9 +57,8 @@ export default function AuthenticatedHeader() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-white">
+    <header className="fixed top-0 z-50 w-full bg-white shadow-sm">
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
-        
         {/* Logo */}
         <Link href="/dashboard" className="text-xl font-bold text-green-600">
           HireBuddy
@@ -61,7 +80,6 @@ export default function AuthenticatedHeader() {
 
         {/* Right Section */}
         <div className="relative flex items-center gap-4" ref={wrapperRef}>
-
           {/* Mobile Search Toggle */}
           <button
             onClick={() => setShowMobileSearch(!showMobileSearch)}
@@ -101,7 +119,6 @@ export default function AuthenticatedHeader() {
             {/* Notification Dropdown */}
             {notifOpen && (
               <div className="absolute right-0 top-12 w-80 animate-scaleIn">
-                
                 {/* Arrow */}
                 <div className="absolute -top-2 right-4 h-4 w-4 rotate-45 border-l border-t bg-white"></div>
 
@@ -157,17 +174,16 @@ export default function AuthenticatedHeader() {
               }`}
             >
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-sm font-semibold text-green-700">
-                R
+              {session?.user?.name?.charAt(0).toUpperCase()}
               </div>
-              <span className="hidden sm:block text-sm text-gray-700">
-                Rahul
+              <span className="hidden sm:block text-sm text-gray-700 capitalize">
+                {session?.user?.name}
               </span>
             </button>
 
             {/* Profile Dropdown */}
             {profileOpen && (
               <div className="absolute right-0 top-14 w-64 animate-scaleIn">
-                
                 <div className="absolute -top-2 right-6 h-4 w-4 rotate-45 border-l border-t bg-white"></div>
 
                 <div className="rounded-2xl border bg-white shadow-xl overflow-hidden">
@@ -177,27 +193,37 @@ export default function AuthenticatedHeader() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold">Rahul</p>
-                      <p className="text-xs text-gray-500">
-                        rahul@email.com
-                      </p>
+                      <p className="text-xs text-gray-500">rahul@email.com</p>
                     </div>
                   </div>
 
                   <DropdownItem href="/dashboard" setOpen={setProfileOpen}>
                     📊 Dashboard
                   </DropdownItem>
-                  <DropdownItem href="/dashboard/my-tasks" setOpen={setProfileOpen}>
+                  <DropdownItem
+                    href="/dashboard/my-tasks"
+                    setOpen={setProfileOpen}
+                  >
                     📝 My Tasks
                   </DropdownItem>
-                  <DropdownItem href="/dashboard/services" setOpen={setProfileOpen}>
+                  <DropdownItem
+                    href="/dashboard/services"
+                    setOpen={setProfileOpen}
+                  >
                     🧰 Services
                   </DropdownItem>
-                  <DropdownItem href="/dashboard/support" setOpen={setProfileOpen}>
+                  <DropdownItem
+                    href="/dashboard/support"
+                    setOpen={setProfileOpen}
+                  >
                     💬 Support
                   </DropdownItem>
 
                   <div className="border-t">
-                    <button className="w-full px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50">
+                    <button
+                      onClick={handleLogout}
+                      className="w-full px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50"
+                    >
                       🚪 Logout
                     </button>
                   </div>
@@ -205,7 +231,6 @@ export default function AuthenticatedHeader() {
               </div>
             )}
           </div>
-
         </div>
       </div>
 
