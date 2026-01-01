@@ -6,10 +6,14 @@ import Footer from "../components/layout/Footer";
 import { useSession, signIn, signOut } from "next-auth/react";
 import AuthenticatedHeader from "../components/layout/HeaderAfterlogin";
 import { useRouter } from "next/navigation";
-import { googleBackendLogin } from "../components/lib/api";
+import { googleBackendLogin, manualSignup } from "../components/lib/api";
 
 export default function SignupPage() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+
   const router = useRouter();
 
   const handlePhoneChange = (e) => {
@@ -19,17 +23,17 @@ export default function SignupPage() {
     }
   };
   const { data: session, status } = useSession();
-  
+
   useEffect(() => {
     if (status === "authenticated" && session) {
       (async () => {
         try {
           const data = await googleBackendLogin(session);
-  
+
           // Save backend JWT
           localStorage.setItem("token", data.token);
           router.push("/dashboard");
-  
+
           // Redirect based on role
           // if (!data.user.role) {
           //   router.push("/select-role");
@@ -45,11 +49,32 @@ export default function SignupPage() {
       })();
     }
   }, [status, session]);
+
+  const handleManualSignup = async (e) => {
+    e.preventDefault();
+  
+    try {
+      const data = await manualSignup({
+        name,
+        email,
+        phone,
+        password,
+      });
+  
+      // Save JWT
+      localStorage.setItem("token", data.token);
+  
+      // Redirect
+      router.push("/dashboard");
+    } catch (error) {
+      alert(error.message);
+    }
+  };
   
 
   return (
     <>
-     {status === "authenticated" ? <AuthenticatedHeader/>:<Header />}
+      {status === "authenticated" ? <AuthenticatedHeader /> : <Header />}
 
       <div className="min-h-screen bg-[#f6f8fa] flex items-center justify-center px-6">
         <div className="w-full max-w-md bg-white border border-gray-200 rounded-2xl shadow-sm p-8">
@@ -64,7 +89,7 @@ export default function SignupPage() {
           </div>
 
           {/* Form */}
-          <form className="space-y-5">
+          <form className="space-y-5" onSubmit={handleManualSignup}>
             {/* Full Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -73,6 +98,8 @@ export default function SignupPage() {
               <input
                 type="text"
                 placeholder="Your full name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -85,6 +112,8 @@ export default function SignupPage() {
               <input
                 type="email"
                 placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -117,6 +146,8 @@ export default function SignupPage() {
               <input
                 type="password"
                 placeholder="Create a password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
