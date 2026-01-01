@@ -24,11 +24,11 @@ export default function HomePage() {
           // if (!data.user.role) {
           //   router.push("/select-role");
           // } else
-          //  if (data.user.role === "HELPER") {
-          //   router.push("/dashboard-tasker");
-          // } else {
-          //   router.push("/dashboard");
-          // }
+           if (data.user.role === "HELPER") {
+            router.push("/dashboard-tasker");
+          } else {
+            router.push("/dashboard");
+          }
         } catch (err) {
           console.error(err);
         }
