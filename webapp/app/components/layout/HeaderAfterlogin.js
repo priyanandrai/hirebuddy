@@ -57,7 +57,7 @@ export default function AuthenticatedHeader() {
   }, []);
 
   return (
-    <header className="fixed top-0 z-50 w-full bg-white shadow-sm">
+    <header className="fixed top-0 z-50 w-full bg-white shadow-sm h-16">
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
         {/* Logo */}
         <Link href="/dashboard" className="text-xl font-bold text-green-600">
@@ -174,7 +174,7 @@ export default function AuthenticatedHeader() {
               }`}
             >
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-sm font-semibold text-green-700">
-              {session?.user?.name?.charAt(0).toUpperCase()}
+              <img src={session?.user?.image}></img>
               </div>
               <span className="hidden sm:block text-sm text-gray-700 capitalize">
                 {session?.user?.name}
@@ -189,11 +189,11 @@ export default function AuthenticatedHeader() {
                 <div className="rounded-2xl border bg-white shadow-xl overflow-hidden">
                   <div className="flex items-center gap-3 border-b px-4 py-4">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 font-semibold text-green-700">
-                      R
+                     <img src={session?.user?.image}></img>
                     </div>
                     <div>
-                      <p className="text-sm font-semibold">Rahul</p>
-                      <p className="text-xs text-gray-500">rahul@email.com</p>
+                      <p className="text-sm font-semibold">{session?.user?.name}</p>
+                      <p className="text-xs text-gray-500">{session?.user?.email}</p>
                     </div>
                   </div>
 
