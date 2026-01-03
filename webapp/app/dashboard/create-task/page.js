@@ -1,12 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { createTask } from "@/app/components/services/task.service";
 
 export default function CreateTaskPage() {
   const searchParams = useSearchParams();
   const helperId = searchParams.get("helper"); // 👈 NEW
   const prefilledCategory = searchParams.get("category") || "";
+  const { data: session, status } = useSession();
+  console.log("session",session);
+  const router = useRouter()
+  
 
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState([]);
@@ -42,27 +48,42 @@ export default function CreateTaskPage() {
 
   function handleSubmit(e) {
     e.preventDefault();
+  
+    // if (!session?.accessToken) {
+    //   alert("Please login to create a task");
+    //   return;
+    // }
+  
     setLoading(true);
-
-    const payload = new FormData();
-    Object.entries(form).forEach(([key, value]) =>
-      value !== null && payload.append(key, value)
-    );
-    files.forEach((file) => payload.append("attachments", file));
-
-    console.log("Create Task Payload:");
-    console.log("Form:", form);
-    console.log("Files:", files);
-
-    setTimeout(() => {
-      setLoading(false);
-      alert(
-        helperId
-          ? "Task created and sent to selected helper!"
-          : "Task created successfully!"
-      );
-    }, 1000);
+  
+    const payload = {
+      title: form.title,
+      category: form.category,
+      description: form.description,
+      location: form.location,
+      budget: Number(form.budget),
+      preferredAt: form.date,
+      helperId: form.helperId,
+    };
+  
+    createTask(payload, session?.token)
+      .then(() => {
+        alert(
+          helperId
+            ? "Task created and sent to selected helper!"
+            : "Task created successfully!"
+        );
+        router.push("/dashboard/tasks");
+      })
+      .catch((err) => {
+        console.error("Create task failed", err);
+        alert(err.message || "Failed to create task");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }
+  
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">

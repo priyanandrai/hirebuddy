@@ -1,6 +1,6 @@
 import prisma from "../utils/prisma.js";
 
-export const createTask = (user, data) => {
+export const createTask = (data, user) => {
   const {
     title,
     description,

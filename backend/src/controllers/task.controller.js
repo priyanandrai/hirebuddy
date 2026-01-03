@@ -1,7 +1,9 @@
 import * as taskService from "../services/task.service.js";
 
 export const createTask = async (req, res) => {
-  const task = await taskService.createTask(req.user, req.body);
+    console.log("res=q user", req.user);
+    
+  const task = await taskService.createTask(req.body,req.user);
   res.status(201).json(task);
 };
 
