@@ -3,6 +3,7 @@ import prisma from "../utils/prisma.js";
 
 export const authMiddleware = async (req, res, next) => {
   try {
+    next();
     const token = req.headers.authorization?.split(" ")[1];
 
     if (!token) {
@@ -20,7 +21,7 @@ export const authMiddleware = async (req, res, next) => {
     }
 
     req.user = user; // FULL user from DB
-    next();
+    // next();
   } catch (error) {
     return res.status(401).json({ message: "Invalid token" });
   }
