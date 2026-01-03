@@ -103,15 +103,15 @@ export default function HelpersPage() {
             </div>
 
             <div className="mt-4 text-sm text-gray-600">
-              Skills: {helper.skills.join(", ")}
+              Skills: {helper?.skills?.join(", ")}
             </div>
 
             <div className="mt-2 text-sm">
-              ⭐ {helper.rating} · {helper.jobs} jobs
+              ⭐ {helper?.rating} · {helper?.jobs} jobs
             </div>
 
             <Link
-              href={`/dashboard/helpers/${helper.id}`}
+              href={`/dashboard/helpers/${helper?.id}`}
               className="mt-4 block rounded-md bg-green-600 px-4 py-2 text-center text-sm text-white hover:bg-green-700"
             >
               View Profile
