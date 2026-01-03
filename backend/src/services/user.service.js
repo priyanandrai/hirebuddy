@@ -34,28 +34,32 @@ export const getHelpersListService = async (req, res) => {
     const helpers = await prisma.user.findMany({
       where: {
         role: "HELPER",
-        isActive: true,
+        isAvailable: true,
       },
       select: {
         id: true,
         name: true,
         email: true,
         phone: true,
-        profileImage: true,
+        image: true,
         skills: true,
-        rating: true,
+        // rating: true,
         city: true,
       },
       orderBy: {
         createdAt: "desc",
       },
     });
+console.log("helpers",helpers);
+console.log("res",res);
 
     res.status(200).json({
       success: true,
       data: helpers,
     });
   } catch (error) {
+    console.log("fetch all helpere error",error);
+    
     res.status(500).json({
       success: false,
       message: "Failed to fetch helpers",
