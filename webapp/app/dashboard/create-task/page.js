@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { createTask } from "@/app/components/services/task.service";
+import { getHelperByID } from "@/app/components/services/user.service";
 
 export default function CreateTaskPage() {
   const searchParams = useSearchParams();
@@ -28,15 +29,27 @@ export default function CreateTaskPage() {
   });
 
   // Mock helper (later replace with API fetch)
-  const selectedHelper = helperId
-    ? {
-        id: helperId,
-        name: "Rahul Kumar",
-        rating: 4.8,
-        jobs: 120,
-        location: "Noida",
-      }
-    : null;
+   const [selectedHelper, setSelectedHelper] = useState();
+  useEffect(() => {
+
+    if (helperId)
+      fetchHelpers(helperId);
+  }, [helperId]);
+
+  const fetchHelpers = async (id) => {
+    try {
+      const res = await getHelperByID(id);
+      console.log("fetch helper res", res);
+     
+
+      // assuming API returns array   
+      setSelectedHelper(res.data || res);
+    } catch (error) {
+      console.error("Failed to fetch helpers", error);
+    } finally {
+      // setLoading(false);
+    }
+  };
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
