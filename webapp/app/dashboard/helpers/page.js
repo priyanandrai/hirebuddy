@@ -57,8 +57,8 @@ export default function HelpersPage() {
 
   const filtered = helpers.filter(
     (h) =>
-      h.name.toLowerCase().includes(query.toLowerCase()) ||
-      h.skills.join(" ").toLowerCase().includes(query.toLowerCase())
+      h?.name?.toLowerCase().includes(query.toLowerCase()) ||
+      h?.skills?.join(" ").toLowerCase().includes(query.toLowerCase())
   );
   if (loading) {
     return <p className="text-center mt-10">Loading helpers...</p>;
