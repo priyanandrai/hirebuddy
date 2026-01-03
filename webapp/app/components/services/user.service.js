@@ -6,3 +6,11 @@ export const getHelpers = () => {
       method: "GET"
     });
   };
+
+export const getHelperByID = (id) => {
+    return apiClient(AUTH_ENDPOINTS.GET_ALL_HELPER_BY_ID+id, {
+      method: "GET"
+    });
+  };
+
+  

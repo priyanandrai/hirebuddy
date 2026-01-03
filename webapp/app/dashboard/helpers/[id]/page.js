@@ -1,13 +1,13 @@
 "use client";
 
+import { getHelperByID, getHelpers } from "@/app/components/services/user.service";
 import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function HelperProfilePage() {
   const { id } = useParams();
   const router = useRouter();
-
-  // Mock helper
-  const helper = {
+  const [helper, setHelper] = useState({
     id,
     name: "Rahul Kumar",
     rating: 4.8,
@@ -15,11 +15,33 @@ export default function HelperProfilePage() {
     location: "Noida",
     skills: ["Shopping", "Delivery", "Home Help"],
     bio: "Experienced helper with 3+ years in daily errands and delivery.",
+  });
+
+
+  useEffect(() => {
+
+    if (id)
+      fetchHelpers(id);
+  }, [id]);
+
+  const fetchHelpers = async (id) => {
+    try {
+      const res = await getHelperByID(id);
+      console.log("fetch helper res", res);
+     
+
+      // assuming API returns array   
+      setHelper(res.data || res);
+    } catch (error) {
+      console.error("Failed to fetch helpers", error);
+    } finally {
+      // setLoading(false);
+    }
   };
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
-      
+
       {/* Profile Card */}
       <div className="rounded-2xl border bg-white p-6 shadow-sm">
         <div className="flex items-center gap-4">
@@ -56,7 +78,7 @@ export default function HelperProfilePage() {
             Services
           </h3>
           <div className="mt-2 flex flex-wrap gap-2">
-            {helper.skills.map((skill) => (
+            {helper?.skills?.map((skill) => (
               <span
                 key={skill}
                 className="rounded-full bg-green-100 px-3 py-1 text-xs text-green-700"
