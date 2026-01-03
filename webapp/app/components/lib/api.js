@@ -1,8 +1,6 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export const googleBackendLogin = async (session) => {
-    console.log("calling api");
-    
   const res = await fetch(`${API_BASE_URL}/api/auth/google`, {
     method: "POST",
     headers: {

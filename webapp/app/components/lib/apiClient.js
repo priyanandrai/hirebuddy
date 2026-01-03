@@ -1,3 +1,5 @@
+import { getAuthToken } from "./getSessionToken";
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api";
 
@@ -6,10 +8,10 @@ export async function apiClient(
   {
     method = "GET",
     body,
-    token,
     headers = {},
   } = {}
 ) {
+    const token = await getAuthToken();
   const config = {
     method,
     headers: {

@@ -4,5 +4,6 @@ export const AUTH_ENDPOINTS = {
     SEND_OTP: "/send-otp",
     VERIFY_OTP: "/verify-otp",
     GOOGLE_AUTH: "/google",
+    GET_ALL_HELPERS:"/user/helpers"
   };
   

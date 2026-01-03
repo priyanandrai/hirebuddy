@@ -1,52 +1,73 @@
 "use client";
 
+import { getHelpers } from "@/app/components/services/user.service";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function HelpersPage() {
   const [query, setQuery] = useState("");
+  const [helpers, setHelpers] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const helpers = [
-    {
-      id: 1,
-      name: "Rahul Kumar",
-      skills: ["Shopping", "Delivery"],
-      rating: 4.8,
-      jobs: 120,
-      location: "Noida",
-    },
-    {
-      id: 2,
-      name: "Amit Singh",
-      skills: ["Doctor Visit", "Travel Assistance"],
-      rating: 4.6,
-      jobs: 78,
-      location: "Delhi",
-    },
-    {
-      id: 3,
-      name: "Suresh Yadav",
-      skills: ["Home Help", "Shopping"],
-      rating: 4.9,
-      jobs: 210,
-      location: "Ghaziabad",
-    },
-  ];
+  // 🔥 Fetch helpers on page load
+  useEffect(() => {
+    const fetchHelpers = async () => {
+      try {
+        const res = await getHelpers();
+        console.log("fetch helper res",res);
+        
+        // assuming API returns array
+        setHelpers(res.data || res);
+      } catch (error) {
+        console.error("Failed to fetch helpers", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHelpers();
+  }, []);
+
+  // const helpers = [
+  //   {
+  //     id: 1,
+  //     name: "Rahul Kumar",
+  //     skills: ["Shopping", "Delivery"],
+  //     rating: 4.8,
+  //     jobs: 120,
+  //     location: "Noida",
+  //   },
+  //   {
+  //     id: 2,
+  //     name: "Amit Singh",
+  //     skills: ["Doctor Visit", "Travel Assistance"],
+  //     rating: 4.6,
+  //     jobs: 78,
+  //     location: "Delhi",
+  //   },
+  //   {
+  //     id: 3,
+  //     name: "Suresh Yadav",
+  //     skills: ["Home Help", "Shopping"],
+  //     rating: 4.9,
+  //     jobs: 210,
+  //     location: "Ghaziabad",
+  //   },
+  // ];
 
   const filtered = helpers.filter(
     (h) =>
       h.name.toLowerCase().includes(query.toLowerCase()) ||
       h.skills.join(" ").toLowerCase().includes(query.toLowerCase())
   );
-
+  if (loading) {
+    return <p className="text-center mt-10">Loading helpers...</p>;
+  }
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Find Helpers
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-900">Find Helpers</h1>
         <p className="mt-1 text-sm text-gray-600">
           Browse helpers and view their profiles before hiring
         </p>
@@ -76,12 +97,8 @@ export default function HelpersPage() {
               </div>
 
               <div>
-                <p className="font-medium text-gray-900">
-                  {helper.name}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {helper.location}
-                </p>
+                <p className="font-medium text-gray-900">{helper.name}</p>
+                <p className="text-xs text-gray-500">{helper.location}</p>
               </div>
             </div>
 
