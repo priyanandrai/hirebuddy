@@ -27,3 +27,14 @@ export const getCategories = async (req, res) => {
     "Moving",
   ]);
 };
+
+export const getTaskById = async (req, res) => {
+    console.log("req.params ", req.params.id);
+    
+    const task = await taskService.getTaskById(req.user, req.params.id);
+    console.log("task ", task);
+    
+    res.json(task);
+  };
+  
+

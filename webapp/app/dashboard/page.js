@@ -3,7 +3,32 @@
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 
+import { myTask } from "../components/services/task.service";
+import { useEffect, useState } from "react";
+
 export default function DashboardPage() {
+
+  const [myCreatedTask, setMyCreatedTask] = useState([])
+
+   // 🔥 Fetch helpers on page load
+   useEffect(() => {
+    getMyTask();
+  }, []);
+
+  const getMyTask = async () => {
+    try {
+      const res = await myTask();
+      console.log("fetch  res",res);
+      
+      // assuming API returns array
+      setMyCreatedTask(res.data || res);
+    } catch (error) {
+      console.error("Failed to fetch helpers", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const { data: session, status } = useSession();
   return (
     <main className="min-h-screen bg-gray-50 px-6 py-6">
@@ -66,19 +91,21 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-3">
-          <TaskItem
-            title="Cleaning Living Room"
-            time="Today, 10:00 AM"
-            price="₹400"
-            helper="Rahim B."
-          />
+          {
+            myCreatedTask.map((task)=>
+              
+                (<TaskItem
+                title={task.title}
+                time="Today, 10:00 AM"
+                price={task.budget}
+                helper="Rahim B."
+              />)
+              
+            )
+          }
+         
 
-          <TaskItem
-            title="Driver for Doctor Visit"
-            time="Wed, Apr 24"
-            price="₹1,200"
-            helper="Assigned"
-          />
+          
         </div>
       </section>
 

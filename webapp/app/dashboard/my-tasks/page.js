@@ -1,35 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { myTask } from "@/app/components/services/task.service";
 
 export default function MyTasksPage() {
-  const [tasks] = useState([
-    {
-      id: 1,
-      title: "Buy groceries",
-      category: "Shopping",
-      status: "Open",
-      date: "Today",
-      budget: 500,
-    },
-    {
-      id: 2,
-      title: "Doctor visit assistance",
-      category: "Health",
-      status: "In Progress",
-      date: "Tomorrow",
-      budget: 800,
-    },
-    {
-      id: 3,
-      title: "Deliver documents",
-      category: "Delivery",
-      status: "Completed",
-      date: "Yesterday",
-      budget: 300,
-    },
-  ]);
+  
+
+  const [tasks, setTasks] = useState([])
+
+  // 🔥 Fetch helpers on page load
+  useEffect(() => {
+   getMyTask();
+ }, []);
+
+ const getMyTask = async () => {
+   try {
+     const res = await myTask();
+     console.log("fetch  res",res);
+     
+     // assuming API returns array
+     setTasks(res.data || res);
+   } catch (error) {
+     console.error("Failed to fetch helpers", error);
+   } finally {
+   //  setLoading(false);
+   }
+ };
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
@@ -78,7 +75,7 @@ export default function MyTasksPage() {
                 {task.title}
               </p>
               <Link
-                href={`/dashboard/tasks/${task.id}`}
+                href={`/dashboard/my-tasks/${task.id}`}
                 className="mt-1 inline-block text-xs text-green-600 hover:underline"
               >
                 View details
