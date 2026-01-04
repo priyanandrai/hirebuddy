@@ -6,6 +6,7 @@ export const AUTH_ENDPOINTS = {
     GOOGLE_AUTH: "/google",
     GET_ALL_HELPERS:"/user/helpers",
     CRETAE_TASK:"/tasks",
-    GET_ALL_HELPER_BY_ID:"/user/helper/"
+    GET_ALL_HELPER_BY_ID:"/user/helper/",
+    MY_TASK: "/tasks/my"
   };
   

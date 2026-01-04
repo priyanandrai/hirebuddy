@@ -47,3 +47,24 @@ export const assignHelper = async (user, taskId) => {
     },
   });
 };
+
+// task.service.js
+export const getTaskById = ( userId,taskId) => {
+    console.log("taskId ", taskId);
+    
+    return prisma.task.findFirst({
+      where: {
+        id: taskId,
+        createdById: userId.id, // 🔒 security
+      },
+      include: {
+        assignedTo: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+  };
+  
