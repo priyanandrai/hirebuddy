@@ -50,8 +50,6 @@ export const assignHelper = async (user, taskId) => {
 
 // task.service.js
 export const getTaskById = ( userId,taskId) => {
-    console.log("taskId ", taskId);
-    
     return prisma.task.findFirst({
       where: {
         id: taskId,
@@ -67,4 +65,46 @@ export const getTaskById = ( userId,taskId) => {
       },
     });
   };
+
+  import prisma from "../utils/prisma.js";
+
+export const getTasksAssignedToHelper = (helperId) => {
+  return prisma.task.findMany({
+    where: {
+      assignedToId: helperId,
+    },
+    include: {
+      createdBy: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+};
+
+export const getTasksCreatedByUser = (userId) => {
+    return prisma.task.findMany({
+      where: {
+        createdById: userId,
+      },
+      include: {
+        assignedTo: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+  };
+
+  
   

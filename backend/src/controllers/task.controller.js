@@ -38,3 +38,27 @@ export const getTaskById = async (req, res) => {
   };
   
 
+  export const getAssignedTasks = async (req, res) => {
+    try {
+      // 🔒 Only helpers allowed
+      if (req.user.role !== "HELPER") {
+        return res.status(403).json({ message: "Only helpers can access this" });
+      }
+  
+      const tasks = await taskService.getTasksAssignedToHelper(req.user.id);
+      res.json(tasks);
+    } catch (error) {
+      console.error("Get assigned tasks error:", error);
+      res.status(500).json({ message: "Failed to fetch assigned tasks" });
+    }
+  };
+
+  export const getCreatedTasks = async (req, res) => {
+    try {
+      const tasks = await taskService.getTasksCreatedByUser(req.user.id);
+      res.json(tasks);
+    } catch (error) {
+      console.error("Get created tasks error:", error);
+      res.status(500).json({ message: "Failed to fetch tasks" });
+    }
+  };
