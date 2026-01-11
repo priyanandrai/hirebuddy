@@ -5,7 +5,8 @@ import {
   acceptTask,
   getCategories,
   getTaskById,
-  getAssignedTasks
+  getAssignedTasks,
+  getCreatedTasks
 } from "../controllers/task.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { allowRoles } from "../middlewares/role.middleware.js";
