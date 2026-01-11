@@ -50,8 +50,6 @@ export const getHelpersListService = async (req, res) => {
         createdAt: "desc",
       },
     });
-console.log("helpers",helpers);
-console.log("res",res);
 
     res.status(200).json({
       success: true,
@@ -66,3 +64,18 @@ console.log("res",res);
     });
   }
 };
+
+// export const getHelperTaskCountsForUser = async (userId) => {
+//   return prisma.task.groupBy({
+//     by: ["assignedToId"],
+//     where: {
+//       createdById: userId,
+//       assignedToId: {
+//         not: null, // only assigned tasks
+//       },
+//     },
+//     count: {
+//      all: true, // total tasks per helper
+//     },
+//   });
+// };

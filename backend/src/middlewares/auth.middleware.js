@@ -11,16 +11,16 @@ export const authMiddleware = async (req, res, next) => {
     // }
 
     // const decoded = jwt.verify(token, process.env.JWT_SECRET);
-const user = {id:"7b569ad4-9c5c-475a-b569-3d9acfedde9f"}
-    // const user = await prisma.user.findUnique({
-    //   where: { id: decoded.id },
-    // });
+// const user = {id:"b89912b8-19c3-4dbf-a6b8-87a955f31f53"}
+    const user = await prisma.user.findUnique({
+      where: { id: "7b569ad4-9c5c-475a-b569-3d9acfedde9f" },
+    });
 
     // if (!user) {
     //   return res.status(401).json({ message: "User not found" });
     // }
 
-     req.user = user || {id:"7b569ad4-9c5c-475a-b569-3d9acfedde9f"}; // FULL user from DB
+     req.user = user; // FULL user from DB
     // next();
     next();
   } catch (error) {

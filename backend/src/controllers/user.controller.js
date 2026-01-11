@@ -36,3 +36,14 @@ import {
       });
     }
   };
+  // export const getAssignedHelpers = async (req, res) => {
+  //   try {
+  //     const helpers = await getHelpersAssignedToUserTasks(
+  //       req.user.id
+  //     );
+  //     res.json(helpers);
+  //   } catch (error) {
+  //     console.error("Get assigned helpers error:", error);
+  //     res.status(500).json({ message: "Failed to fetch helpers" });
+  //   }
+  // };
