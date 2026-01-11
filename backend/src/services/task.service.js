@@ -66,8 +66,6 @@ export const getTaskById = ( userId,taskId) => {
     });
   };
 
-  import prisma from "../utils/prisma.js";
-
 export const getTasksAssignedToHelper = (helperId) => {
   return prisma.task.findMany({
     where: {
