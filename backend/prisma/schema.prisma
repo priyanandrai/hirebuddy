@@ -8,24 +8,25 @@ generator client {
 }
 
 model User {
-  id         String   @id @default(uuid())
-  email      String?  @unique
-  phone      String?  @unique   // ✅ OPTIONAL
-  name       String?
-  image      String?
-  role       Role?
-  password  String?
- // HELPER-specific fields
-  skills      String?   // e.g. "Plumbing, Electrician"
-  experience  Int?      // years
+  id          String  @id @default(uuid())
+  email       String? @unique
+  phone       String? @unique // ✅ OPTIONAL
+  name        String?
+  image       String?
+  role        Role?
+  password    String?
+  // HELPER-specific fields
+  skills      String? // e.g. "Plumbing, Electrician"
+  experience  Int? // years
   city        String?
-  isAvailable Boolean   @default(true)
+  isAvailable Boolean @default(true)
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
- 
-  tasksCreated Task[] @relation("CreatedTasks")
-  tasksAssigned Task[] @relation("AssignedTasks")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasksCreated  Task[]         @relation("CreatedTasks")
+  tasksAssigned Task[]         @relation("AssignedTasks")
+  notifications Notification[]
 }
 
 model Otp {
@@ -34,11 +35,11 @@ model Otp {
   code      String
   expiresAt DateTime
   verified  Boolean  @default(false)
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 }
 
 model Task {
-  id          String   @id @default(uuid())
+  id          String     @id @default(uuid())
   title       String
   description String?
   category    String
@@ -47,14 +48,34 @@ model Task {
   preferredAt DateTime?
   status      TaskStatus @default(OPEN)
 
-  createdById String
+  createdById  String
   assignedToId String?
 
-  createdBy  User @relation("CreatedTasks", fields: [createdById], references: [id])
+  createdBy  User  @relation("CreatedTasks", fields: [createdById], references: [id])
   assignedTo User? @relation("AssignedTasks", fields: [assignedToId], references: [id])
 
   createdAt DateTime @default(now())
+}
 
+model Notification {
+  id      String           @id @default(uuid())
+  userId  String
+  title   String
+  message String
+  type    NotificationType
+  isRead  Boolean          @default(false)
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+enum NotificationType {
+  TASK_CREATED
+  TASK_ASSIGNED
+  TASK_ACCEPTED
+  TASK_COMPLETED
+  SYSTEM
 }
 
 enum Role {
