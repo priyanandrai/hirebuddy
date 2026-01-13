@@ -4,6 +4,7 @@ import {
   updateHelperProfile,
   getHelperById,
   getHelpersList,
+  getAssignedHelpersFromMyTasks,
 } from "../controllers/user.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 
@@ -14,6 +15,6 @@ router.post("/helper-profile", updateHelperProfile);
 router.get("/helper/:id", getHelperById); //
 router.get("/helpers", authMiddleware, getHelpersList);
 // 👇 helpers assigned to my tasks
-// router.get("/assigned-helpers", authMiddleware, getAssignedHelpers);
+router.get("/assigned-helpers", authMiddleware, getAssignedHelpersFromMyTasks);
 
 export default router;
