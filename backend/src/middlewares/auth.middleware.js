@@ -1,31 +1,41 @@
-import jwt from "jsonwebtoken";
 import prisma from "../utils/prisma.js";
+import { verifyUserToken } from "../utils/jwt.js";
 
 export const authMiddleware = async (req, res, next) => {
   try {
-   
-    // const token = req.headers.authorization?.split(" ")[1];
+    const authorization = req.headers.authorization || "";
+    const [scheme, token] = authorization.split(" ");
 
-    // if (!token) {
-    //   return res.status(401).json({ message: "Unauthorized" });
-    // }
+    if (scheme !== "Bearer" || !token) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
-    // const decoded = jwt.verify(token, process.env.JWT_SECRET);
-const user = {id:"7b569ad4-9c5c-475a-b569-3d9acfedde9f"}
-    // const user = await prisma.user.findUnique({
-    //   where: { id: decoded.id },
-    // });
+    const decoded = verifyUserToken(token);
+    const userId = decoded.id || decoded.userId;
 
-    // if (!user) {
-    //   return res.status(401).json({ message: "User not found" });
-    // }
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
 
-     req.user = user || {id:"7b569ad4-9c5c-475a-b569-3d9acfedde9f"}; // FULL user from DB
-    // next();
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        phone: true,
+        name: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    req.user = user;
     next();
   } catch (error) {
-    console.log("create task error", error);
-    
+    console.log("auth middleware error", error);
     return res.status(401).json({ message: "Invalid token" });
   }
 };

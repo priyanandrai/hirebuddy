@@ -1,14 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { createTask } from "@/app/components/services/task.service";
 import { getHelperByID } from "@/app/components/services/user.service";
 
 export default function CreateTaskPage() {
+  return (
+    <Suspense fallback={<CreateTaskFallback />}>
+      <CreateTaskContent />
+    </Suspense>
+  );
+}
+
+function CreateTaskContent() {
   const searchParams = useSearchParams();
-  const helperId = searchParams.get("helper"); // 👈 NEW
+  const helperId = searchParams.get("helper"); 
   const prefilledCategory = searchParams.get("category") || "";
   const { data: session, status } = useSession();
   console.log("session",session);
@@ -275,6 +283,16 @@ export default function CreateTaskPage() {
           </button>
         </div>
       </form>
+    </main>
+  );
+}
+
+function CreateTaskFallback() {
+  return (
+    <main className="mx-auto max-w-3xl px-6 py-8">
+      <div className="rounded-2xl border bg-white p-6 shadow-sm">
+        <p className="text-sm text-gray-600">Loading create task form...</p>
+      </div>
     </main>
   );
 }

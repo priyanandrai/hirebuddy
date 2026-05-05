@@ -5,7 +5,7 @@ import {
   } from "../services/auth.service.js";
   import prisma from "../utils/prisma.js";
   import bcrypt from "bcrypt";
-  import jwt from "jsonwebtoken";
+  import { signUserToken } from "../utils/jwt.js";
 
 
   
@@ -76,11 +76,7 @@ export const signup = async (req, res) => {
     });
 
     // Issue JWT
-    const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = signUserToken(user);
 
     res.status(201).json({
       message: "Signup successful",
@@ -114,11 +110,7 @@ export const login = async (req, res) => {
     return res.status(401).json({ message: "Invalid credentials" });
   }
 
-  const token = jwt.sign(
-    { id: user.id, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
+  const token = signUserToken(user);
 
   res.json({ token, user });
 };
@@ -129,7 +121,7 @@ export const login = async (req, res) => {
 export const becomeHelper = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { city, skills, hourlyRate } = req.body;
+    const { city, skills, experience } = req.body;
 
     const helper = await prisma.user.update({
       where: { id: userId },
@@ -137,7 +129,7 @@ export const becomeHelper = async (req, res) => {
         role: "HELPER",
         city,
         skills,
-        hourlyRate,
+        experience,
       },
     });
 
