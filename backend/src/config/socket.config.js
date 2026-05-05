@@ -1,6 +1,6 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
-import { prisma } from './utils/prisma.js';
+import prisma  from '../utils/prisma.js';
 
 // Store active users and their socket connections
 const userSockets = new Map();

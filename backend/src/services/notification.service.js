@@ -1,4 +1,4 @@
-import { prisma } from '../utils/prisma.js';
+import  prisma  from '../utils/prisma.js';
 
 /**
  * Send a notification to a user
