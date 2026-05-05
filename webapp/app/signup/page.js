@@ -13,6 +13,8 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const router = useRouter();
 
@@ -22,6 +24,14 @@ export default function SignupPage() {
       setPhone(value);
     }
   };
+  const redirectByRole = (role) => {
+    if (role === "HELPER") {
+      router.push("/dashboard-tasker");
+    } else {
+      router.push("/dashboard");
+    }
+  };
+
   const { data: session, status } = useSession();
 
   useEffect(() => {
@@ -29,22 +39,10 @@ export default function SignupPage() {
       (async () => {
         try {
           const data = await googleBackendLogin(session);
-
-          // Save backend JWT
           localStorage.setItem("token", data.token);
-          router.push("/dashboard");
-
-          // Redirect based on role
-          // if (!data.user.role) {
-          //   router.push("/select-role");
-          // } else
-          //  if (data.user.role === "HELPER") {
-          //   router.push("/dashboard-tasker");
-          // } else {
-          //   router.push("/dashboard");
-          // }
+          redirectByRole(data.user.role);
         } catch (err) {
-          console.error(err);
+          setError("Google signup failed. Please try again.");
         }
       })();
     }
@@ -52,22 +50,22 @@ export default function SignupPage() {
 
   const handleManualSignup = async (e) => {
     e.preventDefault();
-  
+
+    if (!name.trim() || !email.trim() || phone.length !== 10 || !password.trim()) {
+      setError("Please fill in all fields correctly.");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
     try {
-      const data = await manualSignup({
-        name,
-        email,
-        phone,
-        password,
-      });
-  
-      // Save JWT
+      const data = await manualSignup({ name, email, phone, password });
       localStorage.setItem("token", data.token);
-  
-      // Redirect
-      router.push("/dashboard");
-    } catch (error) {
-      alert(error.message);
+      redirectByRole(data.user.role);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
   
@@ -87,6 +85,13 @@ export default function SignupPage() {
               Join HireBuddy and get help for everyday tasks
             </p>
           </div>
+
+          {/* Form */}
+          {error && (
+            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-2.5 text-sm text-red-600">
+              {error}
+            </div>
+          )}
 
           {/* Form */}
           <form className="space-y-5" onSubmit={handleManualSignup}>
@@ -155,15 +160,15 @@ export default function SignupPage() {
             {/* CTA */}
             <button
               type="submit"
-              disabled={phone.length !== 10}
+              disabled={!name.trim() || !email.trim() || phone.length !== 10 || !password.trim() || loading}
               className={`w-full rounded-lg py-2.5 text-sm font-medium text-white transition
                 ${
-                  phone.length === 10
+                  !loading && name.trim() && email.trim() && phone.length === 10 && password.trim()
                     ? "bg-blue-600 hover:bg-blue-700"
                     : "bg-gray-300 cursor-not-allowed"
                 }`}
             >
-              Sign Up
+              {loading ? "Creating account..." : "Sign Up"}
             </button>
           </form>
 

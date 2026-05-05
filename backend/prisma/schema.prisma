@@ -8,6 +8,7 @@ generator client {
 }
 
 model User {
+<<<<<<< HEAD
   id          String  @id @default(uuid())
   email       String? @unique
   phone       String? @unique // ✅ OPTIONAL
@@ -27,6 +28,48 @@ model User {
   tasksCreated  Task[]         @relation("CreatedTasks")
   tasksAssigned Task[]         @relation("AssignedTasks")
   notifications Notification[]
+=======
+  id         String   @id @default(uuid())
+  email      String?  @unique
+  phone      String?  @unique
+  name       String?
+  image      String?
+  role       Role?
+  password  String?
+  
+  // Location fields
+  latitude   Float?
+  longitude  Float?
+  city       String?
+  address    String?
+  
+  // HELPER-specific fields
+  skills      String?   // e.g. "Plumbing, Electrician"
+  experience  Int?      // years
+  hourlyRate  Int?      // in paise
+  isAvailable Boolean   @default(true)
+  
+  // Ratings & Reviews
+  averageRating Float?   @default(0)
+  totalReviews  Int      @default(0)
+  
+  // Wallet
+  walletBalance Int      @default(0) // in paise
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+ 
+  tasksCreated Task[] @relation("CreatedTasks")
+  tasksAssigned Task[] @relation("AssignedTasks")
+  messagesFrom Message[] @relation("SenderMessages")
+  messagesTo Message[] @relation("ReceiverMessages")
+  reviewsGiven Review[] @relation("ReviewsGiven")
+  reviewsReceived Review[] @relation("ReviewsReceived")
+  paymentsFrom Payment[] @relation("PayerPayments")
+  paymentsTo Payment[] @relation("PayeePayments")
+  notificationsSent Notification[] @relation("SentNotifications")
+  notificationsReceived Notification[] @relation("ReceivedNotifications")
+>>>>>>> 0785a70a79c72691a31cb3cf5c9e3b317bfce658
 }
 
 model Otp {
@@ -44,13 +87,20 @@ model Task {
   description String?
   category    String
   location    String
-  budget      Int
+  latitude    Float?
+  longitude   Float?
+  budget      Int      // in paise
   preferredAt DateTime?
   status      TaskStatus @default(OPEN)
+  
+  // Payment tracking
+  paymentStatus PaymentStatus @default(PENDING)
+  razorpayOrderId String?
 
   createdById  String
   assignedToId String?
 
+<<<<<<< HEAD
   createdBy  User  @relation("CreatedTasks", fields: [createdById], references: [id])
   assignedTo User? @relation("AssignedTasks", fields: [assignedToId], references: [id])
 
@@ -76,6 +126,19 @@ enum NotificationType {
   TASK_ACCEPTED
   TASK_COMPLETED
   SYSTEM
+=======
+  createdBy  User @relation("CreatedTasks", fields: [createdById], references: [id], onDelete: Cascade)
+  assignedTo User? @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: SetNull)
+  
+  // Relations
+  messages   Message[]
+  reviews    Review[]
+  payments   Payment[]
+  notifications Notification[]
+
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+>>>>>>> 0785a70a79c72691a31cb3cf5c9e3b317bfce658
 }
 
 enum Role {
@@ -86,5 +149,123 @@ enum Role {
 enum TaskStatus {
   OPEN
   ASSIGNED
+  IN_PROGRESS
   COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  INITIATED
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  OFFER
+}
+
+// ===== MESSAGE MODEL =====
+model Message {
+  id        String   @id @default(uuid())
+  taskId    String
+  senderId  String
+  receiverId String
+  
+  message   String?
+  type      MessageType @default(TEXT)
+  mediaUrl  String?
+  
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  sender    User     @relation("SenderMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver  User     @relation("ReceiverMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  
+  @@index([taskId])
+  @@index([senderId])
+  @@index([receiverId])
+}
+
+// ===== REVIEW & RATING MODEL =====
+model Review {
+  id        String   @id @default(uuid())
+  taskId    String
+  
+  givenById String
+  givenToId String
+  
+  rating    Int      // 1-5 stars
+  comment   String?
+  
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  givenBy   User     @relation("ReviewsGiven", fields: [givenById], references: [id], onDelete: Cascade)
+  givenTo   User     @relation("ReviewsReceived", fields: [givenToId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  
+  @@unique([taskId, givenById])
+  @@index([givenToId])
+}
+
+// ===== PAYMENT MODEL (RAZORPAY) =====
+model Payment {
+  id        String   @id @default(uuid())
+  taskId    String
+  
+  payerId   String
+  payeeId   String
+  
+  amount    Int      // in paise
+  currency  String   @default("INR")
+  
+  // Razorpay fields
+  razorpayOrderId String?
+  razorpayPaymentId String?
+  razorpaySignature String?
+  
+  status    PaymentStatus @default(PENDING)
+  method    String   @default("razorpay")
+  
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  payer     User     @relation("PayerPayments", fields: [payerId], references: [id], onDelete: Cascade)
+  payee     User     @relation("PayeePayments", fields: [payeeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  completedAt DateTime?
+  
+  @@index([taskId])
+  @@index([payerId])
+  @@index([payeeId])
+}
+
+// ===== NOTIFICATION MODEL =====
+model Notification {
+  id        String   @id @default(uuid())
+  taskId    String
+  
+  senderId  String
+  receiverId String
+  
+  type      String   // "task_accepted", "task_completed", "payment_received", etc.
+  title     String
+  message   String?
+  
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  sender    User     @relation("SentNotifications", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver  User     @relation("ReceivedNotifications", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  
+  @@index([taskId])
+  @@index([receiverId])
 }

@@ -70,7 +70,7 @@ export default function HomePage() {
             <div className="mt-6">
               <select className="w-64 px-4 py-3 rounded-lg border border-gray-300 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                 {/* <option>Select City or Pin Code</option> */}
-                <option>Modipuram Meerut</option>
+                <option>Modipuram, Meerut</option>
                 {/* <option>Noida</option>
                 <option>Bangalore</option> */}
               </select>

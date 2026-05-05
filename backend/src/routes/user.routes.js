@@ -10,8 +10,8 @@ import { authMiddleware } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-router.post("/set-role", setRole);
-router.post("/helper-profile", updateHelperProfile);
+router.post("/set-role", authMiddleware, setRole);
+router.post("/helper-profile", authMiddleware, updateHelperProfile);
 router.get("/helper/:id", getHelperById); //
 router.get("/helpers", authMiddleware, getHelpersList);
 // 👇 helpers assigned to my tasks

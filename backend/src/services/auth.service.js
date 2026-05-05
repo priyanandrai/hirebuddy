@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import jwt from "jsonwebtoken";
+import { signUserToken } from "../utils/jwt.js";
 
 const prisma = new PrismaClient();
 
@@ -46,16 +46,12 @@ export const verifyOtpService = async (phone, otp) => {
     user = await prisma.user.create({
       data: {
         phone,
-        isVerified: true,
+        role: "USER",
       },
     });
   }
 
-  const token = jwt.sign(
-    { userId: user.id, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
+  const token = signUserToken(user);
 
   return { token, user };
 };
@@ -80,14 +76,7 @@ export const googleAuthService = async ({ email, name, image }) => {
     });
   }
 
-  const token = jwt.sign(
-    {
-      userId: user.id,
-      role: user.role,
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
+  const token = signUserToken(user);
 
   return { token, user };
 };

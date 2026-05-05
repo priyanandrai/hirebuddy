@@ -25,11 +25,11 @@ import {
 
   export const getHelpersList = async (req, res) => {
     try {
-      const helper = await getHelpersListService(req, res);
-    if (!helper) {
-      return res.status(404).json({ message: "Helper not found" });
-    }
-    res.json(helper);
+      const helpers = await getHelpersListService();
+      res.json({
+        success: true,
+        data: helpers,
+      });
     } catch (error) {
       res.status(500).json({
         success: false,

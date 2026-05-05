@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSession, signIn } from "next-auth/react";
 import Header from "../components/layout/Header";
 import Footer from "../components/layout/Footer";
+import { googleBackendLogin, sendOtpApi, verifyOtpApi } from "../components/lib/api";
 
 export default function OtpLoginPage() {
   const [step, setStep] = useState("phone");
@@ -10,6 +13,34 @@ export default function OtpLoginPage() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timer, setTimer] = useState(30);
   const [isResendEnabled, setIsResendEnabled] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const router = useRouter();
+  const { data: session, status } = useSession();
+
+  /* Handle Google login after NextAuth callback */
+  useEffect(() => {
+    if (status === "authenticated" && session) {
+      (async () => {
+        try {
+          const data = await googleBackendLogin(session);
+          localStorage.setItem("token", data.token);
+          redirectByRole(data.user.role);
+        } catch (err) {
+          setError("Google login failed. Please try again.");
+        }
+      })();
+    }
+  }, [status, session]);
+
+  const redirectByRole = (role) => {
+    if (role === "HELPER") {
+      router.push("/dashboard-tasker");
+    } else {
+      router.push("/dashboard");
+    }
+  };
 
   /* Countdown timer */
   useEffect(() => {
@@ -38,11 +69,40 @@ export default function OtpLoginPage() {
   };
 
   /* Send OTP */
-  const sendOtp = () => {
-    setStep("otp");
-    setTimer(30);
-    setIsResendEnabled(false);
-    // 🔐 Call OTP API here
+  const sendOtp = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      await sendOtpApi(phone);
+      setStep("otp");
+      setTimer(30);
+      setIsResendEnabled(false);
+      setOtp(["", "", "", "", "", ""]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* Verify OTP & login */
+  const handleVerifyOtp = async () => {
+    const otpCode = otp.join("");
+    if (otpCode.length !== 6) {
+      setError("Please enter the complete 6-digit OTP.");
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const data = await verifyOtpApi(phone, otpCode);
+      localStorage.setItem("token", data.token);
+      redirectByRole(data.user.role);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   /* Handle OTP input */
@@ -55,6 +115,13 @@ export default function OtpLoginPage() {
 
     if (value && index < 5) {
       document.getElementById(`otp-${index + 1}`).focus();
+    }
+  };
+
+  /* Handle OTP backspace navigation */
+  const handleOtpKeyDown = (e, index) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      document.getElementById(`otp-${index - 1}`).focus();
     }
   };
 
@@ -76,6 +143,13 @@ export default function OtpLoginPage() {
                 : `OTP sent to +91 ${phone}`}
             </p>
           </div>
+
+          {/* Error banner */}
+          {error && (
+            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-2.5 text-sm text-red-600">
+              {error}
+            </div>
+          )}
 
           {/* PHONE STEP */}
           {step === "phone" && (
@@ -102,14 +176,14 @@ export default function OtpLoginPage() {
 
               <button
                 onClick={sendOtp}
-                disabled={phone.length !== 10}
+                disabled={phone.length !== 10 || loading}
                 className={`w-full rounded-lg py-2.5 text-sm font-medium text-white transition
-                  ${phone.length === 10
+                  ${phone.length === 10 && !loading
                     ? "bg-blue-600 hover:bg-blue-700"
                     : "bg-gray-300 cursor-not-allowed"
                   }`}
               >
-                Send OTP
+                {loading ? "Sending..." : "Send OTP"}
               </button>
             </div>
           )}
@@ -128,18 +202,27 @@ export default function OtpLoginPage() {
                     onChange={(e) =>
                       handleOtpChange(e.target.value, index)
                     }
+                    onKeyDown={(e) => handleOtpKeyDown(e, index)}
                     className="h-12 w-10 rounded-lg border border-gray-300 text-center text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 ))}
               </div>
 
-              <button className="w-full rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-700 transition">
-                Verify & Login
+              <button
+                onClick={handleVerifyOtp}
+                disabled={loading}
+                className={`w-full rounded-lg py-2.5 text-sm font-medium text-white transition
+                  ${!loading
+                    ? "bg-blue-600 hover:bg-blue-700"
+                    : "bg-gray-300 cursor-not-allowed"
+                  }`}
+              >
+                {loading ? "Verifying..." : "Verify & Login"}
               </button>
 
               <div className="flex justify-between text-sm text-gray-600">
                 <button
-                  onClick={() => setStep("phone")}
+                  onClick={() => { setStep("phone"); setError(""); }}
                   className="hover:underline"
                 >
                   Change number
@@ -160,6 +243,27 @@ export default function OtpLoginPage() {
               </div>
             </div>
           )}
+
+          {/* Divider */}
+          <div className="my-6 flex items-center gap-4 text-xs text-gray-400">
+            <div className="flex-1 border-t" />
+            OR
+            <div className="flex-1 border-t" />
+          </div>
+
+          {/* Google login */}
+          <button
+            onClick={() => signIn("google", { callbackUrl: "/login" })}
+            className="w-full rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition flex items-center justify-center gap-2"
+          >
+            <svg width="18" height="18" viewBox="0 0 48 48">
+              <path fill="#EA4335" d="M24 9.5c3.54 0 6.7 1.22 9.2 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.2C12.43 13.72 17.77 9.5 24 9.5z" />
+              <path fill="#4285F4" d="M46.5 24c0-1.57-.14-3.09-.4-4.57H24v9.13h12.7c-.55 2.96-2.18 5.47-4.63 7.15l7.2 5.6C43.98 36.92 46.5 30.94 46.5 24z" />
+              <path fill="#FBBC05" d="M10.54 28.42c-.48-1.45-.76-2.99-.76-4.42s.27-2.97.76-4.42l-7.98-6.2C.92 16.04 0 19.91 0 24c0 4.09.92 7.96 2.56 11.62l7.98-6.2z" />
+              <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.9-5.79l-7.2-5.6c-2 1.35-4.57 2.15-8.7 2.15-6.23 0-11.57-4.22-13.46-9.92l-7.98 6.2C6.51 42.62 14.62 48 24 48z" />
+            </svg>
+            Continue with Google
+          </button>
 
           {/* Signup */}
           <p className="mt-6 text-center text-sm text-gray-600">
