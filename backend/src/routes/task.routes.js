@@ -6,20 +6,40 @@ import {
   getCategories,
   getTaskById,
   getAssignedTasks,
-  getCreatedTasks
+  getCreatedTasks,
+  getNearbyTasks,
+  searchTasks,
+  updateTaskStatus,
+  cancelTask,
+  getTaskStats,
 } from "../controllers/task.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { allowRoles } from "../middlewares/role.middleware.js";
+
 const router = express.Router();
 
-router.post("/", authMiddleware, createTask); // Create task
-router.get("/my", authMiddleware, getMyTasks); // My tasks
-router.get("/:id", authMiddleware, getTaskById); // My tasks
-router.post("/:id/accept", authMiddleware, allowRoles("HELPER"), acceptTask);// Helper accepts
+// Category list (no auth needed)
 router.get("/categories", getCategories);
-// 👇 helper-only: tasks assigned to me
-router.get("/assigned", authMiddleware, getAssignedTasks);
-// 👇 list tasks created by logged-in user
+
+// Task search and discovery
+router.get("/search", searchTasks);
+router.get("/nearby", authMiddleware, allowRoles("HELPER"), getNearbyTasks);
+
+// User's own tasks
+router.get("/my", authMiddleware, getMyTasks);
 router.get("/created", authMiddleware, getCreatedTasks);
+router.get("/assigned", authMiddleware, allowRoles("HELPER"), getAssignedTasks);
+router.get("/stats", authMiddleware, getTaskStats);
+
+// Create task
+router.post("/", authMiddleware, createTask);
+
+// Task actions
+router.post("/:id/accept", authMiddleware, allowRoles("HELPER"), acceptTask);
+router.put("/:id/status", authMiddleware, updateTaskStatus);
+router.put("/:id/cancel", authMiddleware, cancelTask);
+
+// Get task details (must be last)
+router.get("/:id", authMiddleware, getTaskById);
 
 export default router;
