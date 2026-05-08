@@ -23,7 +23,9 @@ export async function verifyOtpApi(phone, otp) {
 }
 
 export const googleBackendLogin = async (session) => {
-  const res = await fetch(`${API_BASE_URL}/api/auth/google`, {
+  console.log("ggg session",session);
+  try {
+  const res = await fetch(`${API_BASE_URL}/auth/google`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -40,6 +42,10 @@ export const googleBackendLogin = async (session) => {
   }
 
   return res.json();
+  } catch (error) {
+    console.error("Google backend login error:", error);
+    throw error;
+  }
 };
 export async function manualSignup(payload) {
   const res = await fetch(`${API_BASE_URL}/api/auth/signup`, {

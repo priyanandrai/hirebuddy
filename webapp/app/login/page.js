@@ -253,7 +253,7 @@ export default function OtpLoginPage() {
 
           {/* Google login */}
           <button
-            onClick={() => signIn("google", { callbackUrl: "/login" })}
+            onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
             className="w-full rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition flex items-center justify-center gap-2"
           >
             <svg width="18" height="18" viewBox="0 0 48 48">
