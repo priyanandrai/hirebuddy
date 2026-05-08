@@ -9,7 +9,7 @@ export const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyUserToken(token);
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
     });

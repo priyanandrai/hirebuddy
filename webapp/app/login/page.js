@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
 import Header from "../components/layout/Header";
 import Footer from "../components/layout/Footer";
-import { googleBackendLogin, sendOtpApi, verifyOtpApi } from "../components/lib/api";
+import { sendOtpApi, verifyOtpApi } from "../components/lib/api";
 
 export default function OtpLoginPage() {
   const [step, setStep] = useState("phone");
@@ -22,15 +22,16 @@ export default function OtpLoginPage() {
   /* Handle Google login after NextAuth callback */
   useEffect(() => {
     if (status === "authenticated" && session) {
-      (async () => {
-        try {
-          const data = await googleBackendLogin(session);
-          localStorage.setItem("token", data.token);
-          redirectByRole(data.user.role);
-        } catch (err) {
-          setError("Google login failed. Please try again.");
-        }
-      })();
+      const backendToken = session.backendToken;
+      const appUser = session.appUser;
+
+      if (!backendToken) {
+        setError("Google login failed. Please try again.");
+        return;
+      }
+
+      localStorage.setItem("token", backendToken);
+      redirectByRole(appUser?.role);
     }
   }, [status, session]);
 

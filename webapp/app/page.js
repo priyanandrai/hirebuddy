@@ -5,34 +5,26 @@ import Footer from "./components/layout/Footer";
 import Header from "./components/layout/Header";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { googleBackendLogin } from "./components/lib/api";
 
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   useEffect(() => {
     if (status === "authenticated" && session) {
-      (async () => {
-        try {
-          const data = await googleBackendLogin(session);
-  
-          // Save backend JWT
-          localStorage.setItem("token", data.token);
-          router.push("/dashboard");
-  
-          // Redirect based on role
-          // if (!data.user.role) {
-          //   router.push("/select-role");
-          // } else
-           if (data.user.role === "HELPER") {
-            router.push("/dashboard-tasker");
-          } else {
-            router.push("/dashboard");
-          }
-        } catch (err) {
-          console.error(err);
-        }
-      })();
+      const backendToken = session.backendToken;
+      const appUser = session.appUser;
+
+      if (!backendToken) {
+        console.error("Google login did not return backend token");
+        return;
+      }
+
+      localStorage.setItem("token", backendToken);
+      if (appUser?.role === "HELPER") {
+        router.push("/dashboard-tasker");
+      } else {
+        router.push("/dashboard");
+      }
     }
   }, [status, session]);
   return (

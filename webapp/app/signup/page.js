@@ -6,7 +6,7 @@ import Footer from "../components/layout/Footer";
 import { useSession, signIn, signOut } from "next-auth/react";
 import AuthenticatedHeader from "../components/layout/HeaderAfterlogin";
 import { useRouter } from "next/navigation";
-import { googleBackendLogin, manualSignup } from "../components/lib/api";
+import { manualSignup } from "../components/lib/api";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -36,15 +36,16 @@ export default function SignupPage() {
 
   useEffect(() => {
     if (status === "authenticated" && session) {
-      (async () => {
-        try {
-          const data = await googleBackendLogin(session);
-          localStorage.setItem("token", data.token);
-          redirectByRole(data.user.role);
-        } catch (err) {
-          setError("Google signup failed. Please try again.");
-        }
-      })();
+      const backendToken = session.backendToken;
+      const appUser = session.appUser;
+
+      if (!backendToken) {
+        setError("Google signup failed. Please try again.");
+        return;
+      }
+
+      localStorage.setItem("token", backendToken);
+      redirectByRole(appUser?.role);
     }
   }, [status, session]);
 
