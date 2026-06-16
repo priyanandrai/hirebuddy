@@ -69,3 +69,22 @@ export async function manualSignup(payload) {
 
   return data;
 }
+
+export async function becomeHelperApi(token, payload) {
+  const res = await fetch(`${API_BASE_URL}/auth/become-helper`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.message || "Failed to become helper");
+  }
+
+  return data;
+}
