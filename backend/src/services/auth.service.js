@@ -1,7 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+import prisma from "../utils/prisma.js";
 import { signUserToken } from "../utils/jwt.js";
-
-const prisma = new PrismaClient();
 
 export const sendOtpService = async (phone) => {
   if (!phone || phone.length !== 10) {

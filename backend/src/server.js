@@ -1,9 +1,8 @@
 import dotenv from "dotenv";
+dotenv.config();
 import http from "http";
 import app from "./app.js";
 import { initializeSocket } from "./config/socket.config.js";
-
-dotenv.config();
 
 const PORT = process.env.PORT || 8080;
 
