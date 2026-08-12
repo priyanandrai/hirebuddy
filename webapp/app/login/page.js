@@ -14,25 +14,34 @@ export default function OtpLoginPage() {
   const [timer, setTimer] = useState(30);
   const [isResendEnabled, setIsResendEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showGooglePopup, setShowGooglePopup] = useState(false);
+
+  const handleGoogleLogin = () => {
+    signIn("google", { callbackUrl: "/post-task" });
+  };
 
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { data: session, status } = useSession({
+    refetchOnWindowFocus: true,
+  });
 
-  /* Handle Google login after NextAuth callback */
+  /* Handle Google login after NextAuth callback or already authenticated user */
   useEffect(() => {
     if (status === "authenticated" && session) {
-      (async () => {
-        try {
-          const data = await googleBackendLogin(session);
-          localStorage.setItem("token", data.token);
-          redirectByRole(data.user.role);
-        } catch (err) {
-          setError("Google login failed. Please try again.");
-        }
-      })();
+      router.replace("/post-task");
+      return;
     }
-  }, [status, session]);
+
+    if (status === "authenticated" && !session) {
+      setError("Session is authenticated but user data is unavailable.");
+    }
+
+    if (status !== "loading") {
+      setPageLoading(false);
+    }
+  }, [status, session, router]);
 
   const redirectByRole = (role) => {
     if (role === "HELPER") {
@@ -59,6 +68,14 @@ export default function OtpLoginPage() {
 
     return () => clearInterval(interval);
   }, [step, timer]);
+
+  useEffect(() => {
+    const popupTimer = setTimeout(() => {
+      setShowGooglePopup(true);
+    }, 3000);
+
+    return () => clearTimeout(popupTimer);
+  }, []);
 
   /* Handle phone input */
   const handlePhoneChange = (e) => {
@@ -125,11 +142,60 @@ export default function OtpLoginPage() {
     }
   };
 
+  if (pageLoading) {
+    return (
+      <div className="min-h-screen bg-[#f6f8fa] flex items-center justify-center px-6">
+        <div className="rounded-2xl bg-white p-8 shadow-lg text-center">
+          <div className="mb-4 text-xl font-semibold text-gray-900">Loading...</div>
+          <div className="h-2 w-48 overflow-hidden rounded-full bg-gray-200">
+            <div className="h-full w-24 animate-pulse bg-blue-600" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <Header />
 
-      <div className="min-h-screen bg-[#f6f8fa] flex items-center justify-center px-6">
+      <div className="min-h-screen bg-[#f6f8fa] flex items-center justify-center px-6 relative">
+        {showGooglePopup && (
+          <div className="fixed top-6 right-6 z-50 w-80 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-xl backdrop-blur-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Quick login</p>
+                <h2 className="mt-2 text-base font-semibold text-gray-900">
+                  Continue with Google
+                </h2>
+                <p className="mt-2 text-sm text-gray-600">
+                  Fast login with your Google account and continue instantly.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowGooglePopup(false)}
+                className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Close Google login prompt"
+              >
+                ✕
+              </button>
+            </div>
+
+            <button
+              onClick={handleGoogleLogin}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+            >
+              <svg width="18" height="18" viewBox="0 0 48 48" className="h-4 w-4">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.7 1.22 9.2 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.2C12.43 13.72 17.77 9.5 24 9.5z" />
+                <path fill="#4285F4" d="M46.5 24c0-1.57-.14-3.09-.4-4.57H24v9.13h12.7c-.55 2.96-2.18 5.47-4.63 7.15l7.2 5.6C43.98 36.92 46.5 30.94 46.5 24z" />
+                <path fill="#FBBC05" d="M10.54 28.42c-.48-1.45-.76-2.99-.76-4.42s.27-2.97.76-4.42l-7.98-6.2C.92 16.04 0 19.91 0 24c0 4.09.92 7.96 2.56 11.62l7.98-6.2z" />
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.9-5.79l-7.2-5.6c-2 1.35-4.57 2.15-8.7 2.15-6.23 0-11.57-4.22-13.46-9.92l-7.98 6.2C6.51 42.62 14.62 48 24 48z" />
+              </svg>
+              Continue with Google
+            </button>
+          </div>
+        )}
+
         <div className="w-full max-w-md bg-white border border-gray-200 rounded-2xl shadow-sm p-8">
 
           {/* Header */}
