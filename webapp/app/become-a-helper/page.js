@@ -51,165 +51,124 @@ export default function BecomeHelperPage() {
     }
 
     setLoading(true);
-
-    console.log("Helper Signup:", form);
-
+    // Replace with real submission logic
     setTimeout(() => {
       setLoading(false);
-      alert(
-        "Thanks! Your details have been submitted. We will contact you soon."
-      );
+      alert("Thanks! Your details have been submitted. We will contact you soon.");
     }, 1000);
   }
 
   return (
     <>
-      <Header></Header>
+      <Header />
 
-      <main className="min-h-screen bg-gray-50 px-5 py-8">
+      <main className="min-h-screen bg-slate-950 text-slate-100 py-12 px-6">
+        <div className="mx-auto max-w-7xl grid gap-10 md:grid-cols-2 items-center">
+          {/* Left: marketing */}
+          <div className="mx-auto w-full max-w-md">
+            <div className="rounded-[2rem] border border-slate-800 bg-slate-900/95 p-8 shadow-sm">
+              <h1 className="text-3xl font-bold text-white">Become a Helper</h1>
+              <p className="mt-4 text-slate-300">Earn money by helping people nearby. Choose the services you offer, share basic contact details, and we'll reach out when a matching request arrives.</p>
 
-        {/* Header */}
-        <div className="mx-auto max-w-md text-center">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Become a Helper
-          </h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Earn money by helping people in your area
-          </p>
-        </div>
+              <ul className="mt-6 space-y-3 text-sm text-slate-300">
+                <li>• Flexible hours — accept tasks when you want</li>
+                <li>• Competitive payouts and fast payments</li>
+                <li>• Local requests in Modipuram, Meerut (coming to more cities)</li>
+              </ul>
 
-        {/* Form */}
-        <form
-          onSubmit={handleSubmit}
-          className="mx-auto mt-8 max-w-md space-y-6 rounded-xl bg-white p-6 shadow-sm"
-        >
-
-          {/* First Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              First Name
-            </label>
-            <input
-              name="firstName"
-              value={form.firstName}
-              onChange={handleChange}
-              required
-              placeholder="First name"
-              className="mt-1 w-full rounded-md border px-3 py-3 text-sm focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-
-          {/* Last Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Last Name
-            </label>
-            <input
-              name="lastName"
-              value={form.lastName}
-              onChange={handleChange}
-              required
-              placeholder="Last name"
-              className="mt-1 w-full rounded-md border px-3 py-3 text-sm focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-
-          {/* Phone */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              Mobile Number
-            </label>
-            <input
-              name="phone"
-              value={form.phone}
-              onChange={handleChange}
-              type="tel"
-              inputMode="numeric"
-              maxLength={10}
-              required
-              placeholder="10-digit mobile number"
-              className="mt-1 w-full rounded-md border px-3 py-3 text-sm focus:ring-2 focus:ring-green-500"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Enter a valid 10-digit Indian mobile number
-            </p>
-          </div>
-
-          {/* City (Hardcoded) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700">
-              City
-            </label>
-            <input
-              value={form.city}
-              disabled
-              className="mt-1 w-full rounded-md border bg-gray-100 px-3 py-3 text-sm text-gray-600"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Currently accepting helpers only from Modipuram, Meerut
-            </p>
-          </div>
-
-          {/* Services */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              What work can you do?
-            </label>
-
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {[
-                "Shopping",
-                "Delivery",
-                "Doctor Visit",
-                "Driving",
-                "Home Help",
-                "Other",
-              ].map((service) => (
-                <button
-                  type="button"
-                  key={service}
-                  onClick={() => toggleService(service)}
-                  className={`rounded-md border px-3 py-2 ${form.services.includes(service)
-                      ? "bg-green-100 border-green-500 text-green-700"
-                      : "bg-white text-gray-700"
-                    }`}
-                >
-                  {service}
-                </button>
-              ))}
+              <div className="mt-6 flex items-center gap-4">
+                <Link href="/post-task" className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition">Browse Tasks</Link>
+                <Link href="/how-it-works" className="text-sm text-slate-300 hover:text-white">How it works</Link>
+              </div>
             </div>
           </div>
 
-          {/* Error */}
-          {error && (
-            <p className="text-sm text-red-600">
-              {error}
-            </p>
-          )}
+          {/* Right: form */}
+          <div className="mx-auto w-full max-w-lg">
+            <form onSubmit={handleSubmit} className="space-y-6 rounded-[2rem] border border-slate-800 bg-slate-900/95 p-8 shadow-sm">
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-md bg-green-600 px-4 py-3 font-medium text-white hover:bg-green-700 disabled:opacity-60"
-          >
-            {loading ? "Submitting..." : "Submit"}
-          </button>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300">First Name</label>
+                  <input
+                    name="firstName"
+                    value={form.firstName}
+                    onChange={handleChange}
+                    required
+                    placeholder="First name"
+                    className="mt-1 w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-3 text-sm text-slate-100 focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
 
-          {/* Footer */}
-          <p className="text-center text-xs text-gray-500">
-            By continuing, you agree to our{" "}
-            <Link href="/terms" className="underline">
-              Terms
-            </Link>{" "}
-            and{" "}
-            <Link href="/privacy" className="underline">
-              Privacy Policy
-            </Link>
-          </p>
-        </form>
+                <div>
+                  <label className="block text-sm font-medium text-slate-300">Last Name</label>
+                  <input
+                    name="lastName"
+                    value={form.lastName}
+                    onChange={handleChange}
+                    required
+                    placeholder="Last name"
+                    className="mt-1 w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-3 text-sm text-slate-100 focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300">Mobile Number</label>
+                <input
+                  name="phone"
+                  value={form.phone}
+                  onChange={handleChange}
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  required
+                  placeholder="10-digit mobile number"
+                  className="mt-1 w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-3 text-sm text-slate-100 focus:ring-2 focus:ring-emerald-500"
+                />
+                <p className="mt-1 text-xs text-slate-400">Enter a valid 10-digit mobile number</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300">City</label>
+                <input value={form.city} disabled className="mt-1 w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-3 text-sm text-slate-300" />
+                <p className="mt-1 text-xs text-slate-400">Currently accepting helpers only from Modipuram, Meerut</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">What work can you do?</label>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  {[
+                    "Shopping",
+                    "Delivery",
+                    "Doctor Visit",
+                    "Driving",
+                    "Home Help",
+                    "Other",
+                  ].map((service) => (
+                    <button
+                      type="button"
+                      key={service}
+                      onClick={() => toggleService(service)}
+                      className={`rounded-2xl border px-3 py-2 text-sm transition focus:outline-none focus:ring-2 ${form.services.includes(service) ? "bg-emerald-700 border-emerald-500 text-white" : "bg-slate-900/90 text-slate-300 border-slate-700 hover:bg-slate-800"}`}
+                    >
+                      {service}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {error && <p className="text-sm text-red-400">{error}</p>}
+
+              <button type="submit" disabled={loading} className="w-full rounded-2xl bg-emerald-600 px-4 py-3 font-medium text-white hover:bg-emerald-700 disabled:opacity-60">{loading ? "Submitting..." : "Submit"}</button>
+
+              <p className="text-center text-xs text-slate-400">By continuing, you agree to our <Link href="/terms" className="text-emerald-400 hover:text-white">Terms</Link> and <Link href="/privacy" className="text-emerald-400 hover:text-white">Privacy Policy</Link></p>
+            </form>
+          </div>
+        </div>
       </main>
-      <Footer></Footer>
+
+      <Footer />
     </>
   );
 }

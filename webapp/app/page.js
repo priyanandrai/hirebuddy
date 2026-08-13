@@ -15,16 +15,13 @@ export default function HomePage() {
       (async () => {
         try {
           const data = await googleBackendLogin(session);
-  
+
           // Save backend JWT
           localStorage.setItem("token", data.token);
           router.push("/dashboard");
-  
+
           // Redirect based on role
-          // if (!data.user.role) {
-          //   router.push("/select-role");
-          // } else
-           if (data.user.role === "HELPER") {
+          if (data.user.role === "HELPER") {
             router.push("/dashboard-tasker");
           } else {
             router.push("/dashboard");
@@ -36,67 +33,54 @@ export default function HomePage() {
     }
   }, [status, session]);
   return (
-    <main className="bg-gray-50">
+    <main className="min-h-screen bg-slate-950 text-slate-100">
       <Header />
-      {/* HERO */}
-      <section className="bg-[#f6f8fa]">
+
+      <section className="bg-slate-950">
         <div className="max-w-7xl mx-auto px-6 py-20 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-
-          {/* LEFT CONTENT */}
           <div>
-
-            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 leading-tight">
+            <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight">
               Help for daily life —<br />
               shopping, travel, health & home
             </h1>
 
-            <p className="text-gray-600 mt-5 max-w-xl">
+            <p className="text-slate-300 mt-5 max-w-xl">
               Book trusted local helpers for errands, doctor visits, driving,
               shopping, and everyday needs — all in one place.
             </p>
 
-            {/* ACTIONS */}
             <div className="flex flex-wrap gap-4 mt-8">
               <button className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition">
                 Post a Task
               </button>
 
-              <button className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-white transition">
+              <button className="px-6 py-3 border border-slate-700 text-slate-100 bg-slate-900/80 rounded-lg font-medium hover:bg-slate-800 transition">
                 Become a Helper
               </button>
             </div>
 
-            {/* LOCATION SELECT */}
             <div className="mt-6">
-              <select className="w-64 px-4 py-3 rounded-lg border border-gray-300 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {/* <option>Select City or Pin Code</option> */}
+              <select className="w-64 px-4 py-3 rounded-lg border border-slate-700 text-slate-100 bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option>Modipuram, Meerut</option>
-                {/* <option>Noida</option>
-                <option>Bangalore</option> */}
               </select>
             </div>
           </div>
 
-          {/* RIGHT VISUAL */}
           <div className="hidden md:flex justify-center">
-            <div className="w-full max-w-md h-72 rounded-2xl bg-white border border-gray-200 shadow-sm overflow-hidden flex items-center justify-center">
+            <div className="w-full max-w-md h-72 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl overflow-hidden flex items-center justify-center">
               <img
                 src="/home2.png"
                 alt="HireBuddy product preview"
                 className="w-full h-full object-contain p-4"
               />
             </div>
-
           </div>
-
         </div>
       </section>
 
-
-      {/* CATEGORIES */}
-      <section className="bg-white">
+      <section className="bg-slate-950">
         <div className="max-w-7xl mx-auto px-6 py-14">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+          <h2 className="text-2xl font-semibold text-white mb-6">
             Browse Categories
           </h2>
 
@@ -113,11 +97,9 @@ export default function HomePage() {
         </div>
       </section>
 
-
-      {/* SERVICES */}
-      <section className="bg-[#f6f8fa]">
+      <section className="bg-slate-950">
         <div className="max-w-7xl mx-auto px-6 py-16">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-8">
+          <h2 className="text-2xl font-semibold text-white mb-8">
             Popular Services
           </h2>
 
@@ -142,12 +124,9 @@ export default function HomePage() {
         </div>
       </section>
 
-
-      {/* TRUST */}
-      <section className="bg-white border-t border-gray-100">
+      <section className="bg-slate-950 border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-6 py-16">
-
-          <h2 className="text-center text-2xl font-semibold text-gray-900 mb-10">
+          <h2 className="text-center text-2xl font-semibold text-white mb-10">
             Safe & Reliable
           </h2>
 
@@ -157,52 +136,43 @@ export default function HomePage() {
             <TrustItem title="Live Tracking" description="Real-time task updates" />
             <TrustItem title="24/7 Support" description="Always here to help" />
           </div>
-
         </div>
       </section>
 
-
-      {/* TESTIMONIALS */}
-      <section className="bg-[#f6f8fa]">
+      <section className="bg-slate-950">
         <div className="max-w-7xl mx-auto px-6 py-20 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-
-          {/* LEFT CONTENT */}
           <div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+            <h2 className="text-2xl font-semibold text-white mb-4">
               Built for everyday reliability
             </h2>
 
-            <p className="text-gray-600 max-w-md">
+            <p className="text-slate-300 max-w-md">
               Whether it’s shopping, travel, or care for loved ones, HireBuddy
               connects you with trusted local helpers — quickly and safely.
             </p>
 
-            <ul className="mt-6 space-y-3 text-sm text-gray-600">
+            <ul className="mt-6 space-y-3 text-sm text-slate-300">
               <li className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
                 Verified local helpers
               </li>
               <li className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
                 Transparent pricing
               </li>
               <li className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
                 Real-time task tracking
               </li>
             </ul>
           </div>
 
-          {/* RIGHT ILLUSTRATION */}
           <div className="flex justify-center">
             <HeroIllustration />
           </div>
-
         </div>
       </section>
 
-
-      {/* FOOTER */}
       <Footer />
     </main>
   );
@@ -212,14 +182,12 @@ export default function HomePage() {
 
 function CategoryCard({ title }) {
   return (
-    <div className="group cursor-pointer rounded-xl border border-gray-200 bg-white p-6 transition hover:border-blue-500 hover:shadow-sm">
-      <div className="text-sm font-medium text-gray-900 mb-1">
+    <div className="group cursor-pointer rounded-xl border border-slate-800 bg-slate-900/90 p-6 transition hover:border-blue-500 hover:shadow-sm">
+      <div className="text-sm font-medium text-white mb-1">
         {title}
       </div>
 
-      <p className="text-xs text-gray-500">
-        Find trusted helpers
-      </p>
+      <p className="text-xs text-slate-300">Find trusted helpers</p>
     </div>
   );
 }
@@ -227,8 +195,8 @@ function CategoryCard({ title }) {
 
 function ServiceBlock({ title, items }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-sm transition">
-      <h3 className="text-lg font-semibold text-gray-900 mb-3">
+    <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 hover:shadow-sm transition">
+      <h3 className="text-lg font-semibold text-white mb-3">
         {title}
       </h3>
 
@@ -236,7 +204,7 @@ function ServiceBlock({ title, items }) {
         {items.map((item) => (
           <li
             key={item}
-            className="text-sm text-gray-600 flex items-center gap-2"
+            className="text-sm text-slate-300 flex items-center gap-2"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
             {item}

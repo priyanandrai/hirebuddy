@@ -144,10 +144,10 @@ export default function OtpLoginPage() {
 
   if (pageLoading) {
     return (
-      <div className="min-h-screen bg-[#f6f8fa] flex items-center justify-center px-6">
-        <div className="rounded-2xl bg-white p-8 shadow-lg text-center">
-          <div className="mb-4 text-xl font-semibold text-gray-900">Loading...</div>
-          <div className="h-2 w-48 overflow-hidden rounded-full bg-gray-200">
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-6">
+        <div className="rounded-2xl bg-slate-900/95 p-8 shadow-lg text-center border border-slate-800">
+          <div className="mb-4 text-xl font-semibold text-white">Loading...</div>
+          <div className="h-2 w-48 overflow-hidden rounded-full bg-slate-800">
             <div className="h-full w-24 animate-pulse bg-blue-600" />
           </div>
         </div>
@@ -159,22 +159,18 @@ export default function OtpLoginPage() {
     <>
       <Header />
 
-      <div className="min-h-screen bg-[#f6f8fa] flex items-center justify-center px-6 relative">
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-6 relative">
         {showGooglePopup && (
-          <div className="fixed top-6 right-6 z-50 w-80 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-xl backdrop-blur-sm">
+          <div className="fixed top-6 right-6 z-50 w-80 rounded-2xl border border-slate-800 bg-slate-900/95 p-4 shadow-xl backdrop-blur-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Quick login</p>
-                <h2 className="mt-2 text-base font-semibold text-gray-900">
-                  Continue with Google
-                </h2>
-                <p className="mt-2 text-sm text-gray-600">
-                  Fast login with your Google account and continue instantly.
-                </p>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Quick login</p>
+                <h2 className="mt-2 text-base font-semibold text-white">Continue with Google</h2>
+                <p className="mt-2 text-sm text-slate-300">Fast login with your Google account and continue instantly.</p>
               </div>
               <button
                 onClick={() => setShowGooglePopup(false)}
-                className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                className="rounded-full p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
                 aria-label="Close Google login prompt"
               >
                 ✕
@@ -196,23 +192,17 @@ export default function OtpLoginPage() {
           </div>
         )}
 
-        <div className="w-full max-w-md bg-white border border-gray-200 rounded-2xl shadow-sm p-8">
+        <div className="w-full max-w-md rounded-[2rem] border border-slate-800 bg-slate-900/95 shadow-sm p-8">
 
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-semibold text-gray-900">
-              {step === "phone" ? "Log in with OTP" : "Enter OTP"}
-            </h1>
-            <p className="mt-2 text-sm text-gray-600">
-              {step === "phone"
-                ? "We’ll send a one-time password to your mobile number"
-                : `OTP sent to +91 ${phone}`}
-            </p>
+            <h1 className="text-2xl font-semibold text-white">{step === "phone" ? "Log in with OTP" : "Enter OTP"}</h1>
+            <p className="mt-2 text-sm text-slate-300">{step === "phone" ? "We’ll send a one-time password to your mobile number" : `OTP sent to +91 ${phone}`}</p>
           </div>
 
           {/* Error banner */}
           {error && (
-            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-2.5 text-sm text-red-600">
+            <div className="mb-4 rounded-xl bg-red-950/60 border border-red-700 px-4 py-2.5 text-sm text-red-300">
               {error}
             </div>
           )}
@@ -221,21 +211,19 @@ export default function OtpLoginPage() {
           {step === "phone" && (
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-slate-300 mb-1">
                   Mobile Number
                 </label>
 
-                <div className="flex">
-                  <span className="flex items-center rounded-l-lg border border-r-0 border-gray-300 px-3 text-sm text-gray-600">
-                    +91
-                  </span>
+                <div className="flex rounded-2xl border border-slate-700 bg-slate-950">
+                  <span className="flex items-center rounded-l-2xl px-3 text-sm text-slate-300">+91</span>
                   <input
                     type="tel"
                     inputMode="numeric"
                     placeholder="10-digit mobile number"
                     value={phone}
                     onChange={handlePhoneChange}
-                    className="w-full rounded-r-lg border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-r-2xl bg-slate-950 px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
@@ -243,12 +231,7 @@ export default function OtpLoginPage() {
               <button
                 onClick={sendOtp}
                 disabled={phone.length !== 10 || loading}
-                className={`w-full rounded-lg py-2.5 text-sm font-medium text-white transition
-                  ${phone.length === 10 && !loading
-                    ? "bg-blue-600 hover:bg-blue-700"
-                    : "bg-gray-300 cursor-not-allowed"
-                  }`}
-              >
+                className={`w-full rounded-2xl py-2.5 text-sm font-medium text-white transition ${phone.length === 10 && !loading ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-800 text-slate-400 cursor-not-allowed"}`}>
                 {loading ? "Sending..." : "Send OTP"}
               </button>
             </div>
@@ -265,28 +248,16 @@ export default function OtpLoginPage() {
                     type="text"
                     maxLength="1"
                     value={digit}
-                    onChange={(e) =>
-                      handleOtpChange(e.target.value, index)
-                    }
+                    onChange={(e) => handleOtpChange(e.target.value, index)}
                     onKeyDown={(e) => handleOtpKeyDown(e, index)}
-                    className="h-12 w-10 rounded-lg border border-gray-300 text-center text-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="h-12 w-10 rounded-lg border border-slate-700 bg-slate-800 text-center text-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 ))}
               </div>
 
-              <button
-                onClick={handleVerifyOtp}
-                disabled={loading}
-                className={`w-full rounded-lg py-2.5 text-sm font-medium text-white transition
-                  ${!loading
-                    ? "bg-blue-600 hover:bg-blue-700"
-                    : "bg-gray-300 cursor-not-allowed"
-                  }`}
-              >
-                {loading ? "Verifying..." : "Verify & Login"}
-              </button>
+              <button onClick={handleVerifyOtp} disabled={loading} className={`w-full rounded-2xl py-2.5 text-sm font-medium text-white transition ${!loading ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-800 text-slate-400 cursor-not-allowed"}`}>{loading ? "Verifying..." : "Verify & Login"}</button>
 
-              <div className="flex justify-between text-sm text-gray-600">
+              <div className="flex justify-between text-sm text-slate-300">
                 <button
                   onClick={() => { setStep("phone"); setError(""); }}
                   className="hover:underline"
@@ -295,14 +266,9 @@ export default function OtpLoginPage() {
                 </button>
 
                 {isResendEnabled ? (
-                  <button
-                    onClick={sendOtp}
-                    className="text-blue-600 hover:underline"
-                  >
-                    Resend OTP
-                  </button>
+                    <button onClick={sendOtp} className="text-blue-400 hover:underline">Resend OTP</button>
                 ) : (
-                  <span className="text-gray-400">
+                  <span className="text-slate-500">
                     Resend in {timer}s
                   </span>
                 )}
@@ -311,17 +277,14 @@ export default function OtpLoginPage() {
           )}
 
           {/* Divider */}
-          <div className="my-6 flex items-center gap-4 text-xs text-gray-400">
+          <div className="my-6 flex items-center gap-4 text-xs text-slate-500">
             <div className="flex-1 border-t" />
             OR
             <div className="flex-1 border-t" />
           </div>
 
           {/* Google login */}
-          <button
-            onClick={() => signIn("google", { callbackUrl: "/login" })}
-            className="w-full rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition flex items-center justify-center gap-2"
-          >
+          <button onClick={() => signIn("google", { callbackUrl: "/login" })} className="w-full rounded-2xl border border-slate-700 py-2.5 text-sm font-medium text-slate-100 hover:bg-slate-800 transition flex items-center justify-center gap-2">
             <svg width="18" height="18" viewBox="0 0 48 48">
               <path fill="#EA4335" d="M24 9.5c3.54 0 6.7 1.22 9.2 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.2C12.43 13.72 17.77 9.5 24 9.5z" />
               <path fill="#4285F4" d="M46.5 24c0-1.57-.14-3.09-.4-4.57H24v9.13h12.7c-.55 2.96-2.18 5.47-4.63 7.15l7.2 5.6C43.98 36.92 46.5 30.94 46.5 24z" />
@@ -332,24 +295,10 @@ export default function OtpLoginPage() {
           </button>
 
           {/* Signup */}
-          <p className="mt-6 text-center text-sm text-gray-600">
-            New to HireBuddy?{" "}
-            <a href="/signup" className="text-blue-600 hover:underline">
-              Create an account
-            </a>
-          </p>
+          <p className="mt-6 text-center text-sm text-slate-300">New to HireBuddy? <a href="/signup" className="text-blue-400 hover:text-white">Create an account</a></p>
 
           {/* Terms */}
-          <p className="mt-3 text-center text-xs text-gray-500">
-            By continuing, you agree to our{" "}
-            <a href="/terms" className="text-blue-600 hover:underline">
-              Terms
-            </a>{" "}
-            &{" "}
-            <a href="/privacy" className="text-blue-600 hover:underline">
-              Privacy Policy
-            </a>
-          </p>
+          <p className="mt-3 text-center text-xs text-slate-500">By continuing, you agree to our <a href="/terms" className="text-blue-400 hover:text-white">Terms</a> & <a href="/privacy" className="text-blue-400 hover:text-white">Privacy Policy</a></p>
         </div>
       </div>
 
