@@ -7,7 +7,6 @@ export default function HelperHeader() {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handleClickOutside(e) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -19,80 +18,40 @@ export default function HelperHeader() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b">
+    <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
-
-        {/* Logo */}
-        <Link
-          href="/dashboard-tasker"
-          className="text-lg font-bold text-green-600"
-        >
+        <Link href="/dashboard-tasker" className="text-lg font-bold text-blue-400">
           HireBuddy
         </Link>
 
-        {/* Right Section */}
-        <div
-          className="relative flex items-center gap-4"
-          ref={dropdownRef}
-        >
-          {/* Earnings (important for helper) */}
-          <Link
-            href="/dashboard-tasker/earnings"
-            className="text-sm font-medium text-gray-700 hover:text-black"
-          >
+        <div className="relative flex items-center gap-4" ref={dropdownRef}>
+          <Link href="/dashboard-tasker/earnings" className="text-sm font-medium text-slate-300 hover:text-white">
             ₹ Earnings
           </Link>
 
-          {/* Tasks */}
-          <Link
-            href="/dashboard-tasker/tasks"
-            className="text-sm font-medium text-gray-700 hover:text-black"
-          >
+          <Link href="/dashboard-tasker/tasks" className="text-sm font-medium text-slate-300 hover:text-white">
             Tasks
           </Link>
 
-          {/* Profile Button */}
-          <button
-            onClick={() => setOpen(!open)}
-            className="flex items-center gap-2 rounded-full border px-3 py-1 hover:bg-gray-100"
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-sm font-semibold text-green-700">
+          <button onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 hover:bg-slate-800">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-500/15 text-sm font-semibold text-blue-300">
               H
             </div>
-            <span className="hidden sm:block text-sm text-gray-700">
-              Helper
-            </span>
+            <span className="hidden sm:block text-sm text-slate-200">Helper</span>
           </button>
 
-          {/* Dropdown */}
           {open && (
-            <div className="absolute right-0 top-12 w-48 rounded-xl border bg-white shadow-lg">
-              
-              <Link
-                href="/dashboard-tasker/profile"
-                className="block px-4 py-3 text-sm hover:bg-gray-100"
-                onClick={() => setOpen(false)}
-              >
+            <div className="absolute right-0 top-12 w-48 rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-slate-950/40">
+              <Link href="/dashboard-tasker/profile" className="block px-4 py-3 text-sm text-slate-200 hover:bg-slate-800" onClick={() => setOpen(false)}>
                 My Profile
               </Link>
-
-              <Link
-                href="/dashboard-tasker/support"
-                className="block px-4 py-3 text-sm hover:bg-gray-100"
-                onClick={() => setOpen(false)}
-              >
+              <Link href="/dashboard-tasker/support" className="block px-4 py-3 text-sm text-slate-200 hover:bg-slate-800" onClick={() => setOpen(false)}>
                 Help & Support
               </Link>
 
-              <div className="border-t" />
+              <div className="border-t border-slate-700" />
 
-              <button
-                className="w-full px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50"
-                onClick={() => {
-                  setOpen(false);
-                  alert("Logout clicked");
-                }}
-              >
+              <button className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-slate-800" onClick={() => { setOpen(false); alert("Logout clicked"); }}>
                 Logout
               </button>
             </div>

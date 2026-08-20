@@ -9,15 +9,17 @@ export async function apiClient(
     method = "GET",
     body,
     headers = {},
+    token,
   } = {}
 ) {
-    const token = await getAuthToken();
+  const resolvedToken = token || (await getAuthToken());
+
   const config = {
     method,
     headers: {
       "Content-Type": "application/json",
       ...headers,
-      ...(token && { Authorization: `Bearer ${token}` }),
+      ...(resolvedToken && { Authorization: `Bearer ${resolvedToken}` }),
     },
     ...(body && { body: JSON.stringify(body) }),
   };

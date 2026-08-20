@@ -1,123 +1,96 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { getAssignedTasks } from "@/app/components/services/task.service";
 
 export default function TaskerMyTasksPage() {
-  // Mock accepted tasks (replace with API later)
-  const tasks = [
-    {
-      id: 1,
-      title: "Grocery Pickup",
-      location: "Modipuram, Meerut",
-      payment: 500,
-      status: "in-progress", // in-progress | completed
-      time: "Today, 4 PM",
-    },
-    {
-      id: 2,
-      title: "Doctor Visit Help",
-      location: "Modipuram, Meerut",
-      payment: 800,
-      status: "completed",
-      time: "Yesterday, 10 AM",
-    },
-  ];
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchAssignedTasks = async () => {
+      try {
+        const res = await getAssignedTasks(token);
+        setTasks(res.data || res.tasks || res || []);
+      } catch (error) {
+        console.error("Failed to fetch assigned tasks", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAssignedTasks();
+  }, []);
 
   return (
-    <main className="min-h-screen bg-gray-50 px-5 py-6">
+    <main className="min-h-screen bg-slate-950 px-5 py-6 text-slate-100">
+      <section className="mx-auto max-w-4xl">
+        <div className="mb-6 rounded-[2rem] border border-slate-800 bg-slate-900/80 p-6 shadow-2xl shadow-slate-950/30">
+          <h1 className="text-2xl font-bold text-white">My Tasks</h1>
+          <p className="mt-1 text-sm text-slate-300">Tasks you have accepted</p>
+        </div>
 
-      {/* Header */}
-      <section className="mb-6">
-        <h1 className="text-xl font-bold text-gray-900">
-          My Tasks
-        </h1>
-        <p className="text-sm text-gray-600">
-          Tasks you have accepted
-        </p>
-      </section>
+        <section className="space-y-4">
+          {loading ? (
+            <div className="rounded-[1.5rem] border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-300">Loading your assigned tasks...</div>
+          ) : tasks.length > 0 ? (
+            tasks.map((task) => {
+              const statusKey = task.status || "OPEN";
+              const isInProgress = statusKey === "IN_PROGRESS" || statusKey === "ASSIGNED";
+              const isCompleted = statusKey === "COMPLETED";
 
-      {/* Task List */}
-      <section className="space-y-4">
-        {tasks.map((task) => (
-          <div
-            key={task.id}
-            className="rounded-xl bg-white p-4 shadow-sm"
-          >
-            <p className="text-lg font-semibold text-gray-900">
-              {task.title}
-            </p>
+              return (
+                <div key={task.id} className="rounded-[1.5rem] border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-slate-950/20">
+                  <p className="text-lg font-semibold text-white">{task.title}</p>
+                  <p className="mt-1 text-sm text-slate-300">📍 {task.location}</p>
+                  <p className="mt-1 text-sm text-slate-300">⏰ {task.preferredAt ? new Date(task.preferredAt).toLocaleString() : "Flexible"}</p>
+                  <p className="mt-2 text-lg font-bold text-blue-400">₹{task.budget}</p>
 
-            <p className="mt-1 text-sm text-gray-600">
-              📍 {task.location}
-            </p>
+                  <div className="mt-3">
+                    <span className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${
+                      isCompleted ? "bg-green-500/15 text-green-300" : isInProgress ? "bg-yellow-500/15 text-yellow-300" : "bg-slate-700 text-slate-200"
+                    }`}>
+                      {isCompleted ? "Completed" : isInProgress ? "In Progress" : statusKey}
+                    </span>
+                  </div>
 
-            <p className="mt-1 text-sm text-gray-600">
-              ⏰ {task.time}
-            </p>
-
-            <p className="mt-2 text-lg font-bold text-green-600">
-              ₹{task.payment}
-            </p>
-
-            {/* Status */}
-            <div className="mt-3">
-              {task.status === "in-progress" ? (
-                <span className="inline-block rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">
-                  In Progress
-                </span>
-              ) : (
-                <span className="inline-block rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
-                  Completed
-                </span>
-              )}
+                  <div className="mt-4">
+                    {isCompleted ? (
+                      <Link href="/dashboard-tasker/earnings" className="block rounded-2xl bg-slate-700 px-4 py-3 text-center text-slate-100 font-medium hover:bg-slate-600">
+                        View Earnings
+                      </Link>
+                    ) : (
+                      <Link href={`/dashboard-tasker/my-tasks/${task.id}`} className="block rounded-2xl bg-blue-600 px-4 py-3 text-center text-white font-medium hover:bg-blue-500">
+                        View Task
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="rounded-[1.5rem] border border-slate-800 bg-slate-900/80 p-6 text-center shadow-xl shadow-slate-950/30">
+              <p className="text-slate-200">You have not accepted any tasks yet.</p>
+              <Link href="/dashboard-tasker/tasks" className="mt-4 inline-block rounded-2xl bg-blue-600 px-4 py-3 text-white">
+                See Available Tasks
+              </Link>
             </div>
+          )}
+        </section>
 
-            {/* Actions */}
-            <div className="mt-4">
-              {task.status === "in-progress" ? (
-                <Link
-                  href={`/dashboard-tasker/my-tasks/${task.id}`}
-                  className="block rounded-md bg-green-600 px-4 py-3 text-center text-white font-medium hover:bg-green-700"
-                >
-                  View Task
-                </Link>
-              ) : (
-                <Link
-                  href="/dashboard-tasker/earnings"
-                  className="block rounded-md bg-gray-200 px-4 py-3 text-center text-gray-700"
-                >
-                  View Earnings
-                </Link>
-              )}
-            </div>
-          </div>
-        ))}
-
-        {/* Empty State */}
-        {tasks.length === 0 && (
-          <div className="rounded-xl bg-white p-6 text-center shadow-sm">
-            <p className="text-gray-600">
-              You have not accepted any tasks yet.
-            </p>
-            <Link
-              href="/dashboard-tasker/tasks"
-              className="mt-4 inline-block rounded-md bg-green-600 px-4 py-3 text-white"
-            >
-              See Available Tasks
-            </Link>
-          </div>
-        )}
+        <div className="mt-6 text-center">
+          <Link href="/dashboard-tasker" className="text-sm text-blue-400 hover:text-blue-300">
+            Back to Dashboard
+          </Link>
+        </div>
       </section>
-
-      {/* Back */}
-      <div className="mt-6">
-        <Link
-          href="/dashboard-tasker"
-          className="block text-center text-sm text-gray-600 underline"
-        >
-          Back to Dashboard
-        </Link>
-      </div>
     </main>
   );
 }

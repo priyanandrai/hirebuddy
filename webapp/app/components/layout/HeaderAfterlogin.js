@@ -57,46 +57,40 @@ export default function AuthenticatedHeader() {
   }, []);
 
   return (
-    <header className="fixed top-0 z-50 w-full bg-white shadow-sm h-16">
+    <header className="fixed top-0 z-50 w-full border-b border-slate-800 bg-slate-950/90 backdrop-blur-xl h-16">
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
-        {/* Logo */}
-        <Link href="/dashboard" className="text-xl font-bold text-green-600">
+        <Link href="/dashboard" className="text-xl font-bold text-blue-400">
           HireBuddy
         </Link>
 
-        {/* Desktop Search */}
         <div className="hidden flex-1 justify-center px-4 sm:flex">
           <div className="relative w-full max-w-md">
             <input
               type="text"
               placeholder="Search services, tasks, helpers..."
-              className="w-full rounded-full border border-gray-300 px-4 py-2 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 pl-10 text-sm text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
               🔍
             </span>
           </div>
         </div>
 
-        {/* Right Section */}
         <div className="relative flex items-center gap-4" ref={wrapperRef}>
-          {/* Mobile Search Toggle */}
           <button
             onClick={() => setShowMobileSearch(!showMobileSearch)}
-            className="sm:hidden text-gray-600 hover:text-black"
+            className="sm:hidden text-slate-300 hover:text-white"
           >
             🔍
           </button>
 
-          {/* Post Task */}
           <Link
             href="/dashboard/create-task"
-            className="hidden sm:block rounded-md bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700"
+            className="hidden sm:block rounded-2xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500"
           >
             Post a Task
           </Link>
 
-          {/* Notifications */}
           <div className="relative">
             <button
               aria-label="Notifications"
@@ -104,8 +98,8 @@ export default function AuthenticatedHeader() {
                 setNotifOpen(!notifOpen);
                 setProfileOpen(false);
               }}
-              className={`relative text-gray-600 hover:text-black ${
-                notifOpen ? "ring-2 ring-green-200 rounded-full" : ""
+              className={`relative rounded-full p-2 text-slate-300 hover:text-white ${
+                notifOpen ? "bg-slate-800 ring-2 ring-blue-500/40" : ""
               }`}
             >
               🔔
@@ -116,42 +110,20 @@ export default function AuthenticatedHeader() {
               )}
             </button>
 
-            {/* Notification Dropdown */}
             {notifOpen && (
               <div className="absolute right-0 top-12 w-80 animate-scaleIn">
-                {/* Arrow */}
-                <div className="absolute -top-2 right-4 h-4 w-4 rotate-45 border-l border-t bg-white"></div>
-
-                <div className="rounded-2xl border bg-white shadow-xl overflow-hidden">
-                  <div className="border-b px-4 py-3 text-sm font-semibold">
+                <div className="absolute -top-2 right-4 h-4 w-4 rotate-45 border-l border-t border-slate-700 bg-slate-900"></div>
+                <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-slate-950/40">
+                  <div className="border-b border-slate-700 px-4 py-3 text-sm font-semibold text-white">
                     Notifications
                   </div>
-
-                  {/* Notification Items */}
                   <div className="max-h-72 overflow-y-auto">
-                    <NotificationItem
-                      title="Task accepted"
-                      desc="A helper accepted your grocery task"
-                      time="2m ago"
-                      unread
-                    />
-                    <NotificationItem
-                      title="Task completed"
-                      desc="Your medicine delivery is done"
-                      time="1h ago"
-                    />
-                    <NotificationItem
-                      title="New message"
-                      desc="Helper sent you a message"
-                      time="Yesterday"
-                    />
+                    <NotificationItem title="Task accepted" desc="A helper accepted your grocery task" time="2m ago" unread />
+                    <NotificationItem title="Task completed" desc="Your medicine delivery is done" time="1h ago" />
+                    <NotificationItem title="New message" desc="Helper sent you a message" time="Yesterday" />
                   </div>
-
-                  <div className="border-t text-center">
-                    <Link
-                      href="/dashboard/notifications"
-                      className="block px-4 py-3 text-sm text-green-600 hover:bg-gray-50"
-                    >
+                  <div className="border-t border-slate-700 text-center">
+                    <Link href="/dashboard/notifications" className="block px-4 py-3 text-sm text-blue-400 hover:bg-slate-800">
                       View all notifications
                     </Link>
                   </div>
@@ -160,70 +132,53 @@ export default function AuthenticatedHeader() {
             )}
           </div>
 
-          {/* Profile */}
           <div className="relative">
             <button
               onClick={() => {
                 setProfileOpen(!profileOpen);
                 setNotifOpen(false);
               }}
-              className={`flex items-center gap-2 rounded-full border px-3 py-1 transition ${
-                profileOpen
-                  ? "bg-gray-100 ring-2 ring-green-200"
-                  : "hover:bg-gray-100"
+              className={`flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 transition ${
+                profileOpen ? "ring-2 ring-blue-500/40" : "hover:bg-slate-800"
               }`}
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 text-sm font-semibold text-green-700">
-              <img src={session?.user?.image}></img>
+              <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-slate-700 text-sm font-semibold text-slate-100">
+                {session?.user?.image ? (
+                  <img src={session.user.image} alt={session?.user?.name || "User"} className="h-full w-full object-cover" />
+                ) : (
+                  <span>{(session?.user?.name || "U").charAt(0).toUpperCase()}</span>
+                )}
               </div>
-              <span className="hidden sm:block text-sm text-gray-700 capitalize">
+              <span className="hidden sm:block text-sm text-slate-200 capitalize">
                 {session?.user?.name}
               </span>
             </button>
 
-            {/* Profile Dropdown */}
             {profileOpen && (
               <div className="absolute right-0 top-14 w-64 animate-scaleIn">
-                <div className="absolute -top-2 right-6 h-4 w-4 rotate-45 border-l border-t bg-white"></div>
-
-                <div className="rounded-2xl border bg-white shadow-xl overflow-hidden">
-                  <div className="flex items-center gap-3 border-b px-4 py-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 font-semibold text-green-700">
-                     <img src={session?.user?.image}></img>
+                <div className="absolute -top-2 right-6 h-4 w-4 rotate-45 border-l border-t border-slate-700 bg-slate-900"></div>
+                <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-slate-950/40">
+                  <div className="flex items-center gap-3 border-b border-slate-700 px-4 py-4">
+                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-700 font-semibold text-slate-100">
+                      {session?.user?.image ? (
+                        <img src={session.user.image} alt={session?.user?.name || "User"} className="h-full w-full object-cover" />
+                      ) : (
+                        <span>{(session?.user?.name || "U").charAt(0).toUpperCase()}</span>
+                      )}
                     </div>
                     <div>
-                      <p className="text-sm font-semibold">{session?.user?.name}</p>
-                      <p className="text-xs text-gray-500">{session?.user?.email}</p>
+                      <p className="text-sm font-semibold text-white">{session?.user?.name}</p>
+                      <p className="text-xs text-slate-400">{session?.user?.email}</p>
                     </div>
                   </div>
 
-                  <DropdownItem href="/dashboard" setOpen={setProfileOpen}>
-                    📊 Dashboard
-                  </DropdownItem>
-                  <DropdownItem
-                    href="/dashboard/my-tasks"
-                    setOpen={setProfileOpen}
-                  >
-                    📝 My Tasks
-                  </DropdownItem>
-                  <DropdownItem
-                    href="/dashboard/services"
-                    setOpen={setProfileOpen}
-                  >
-                    🧰 Services
-                  </DropdownItem>
-                  <DropdownItem
-                    href="/dashboard/support"
-                    setOpen={setProfileOpen}
-                  >
-                    💬 Support
-                  </DropdownItem>
+                  <DropdownItem href="/dashboard" setOpen={setProfileOpen}>📊 Dashboard</DropdownItem>
+                  <DropdownItem href="/dashboard/my-tasks" setOpen={setProfileOpen}>📝 My Tasks</DropdownItem>
+                  <DropdownItem href="/dashboard/services" setOpen={setProfileOpen}>🧰 Services</DropdownItem>
+                  <DropdownItem href="/dashboard/support" setOpen={setProfileOpen}>💬 Support</DropdownItem>
 
-                  <div className="border-t">
-                    <button
-                      onClick={handleLogout}
-                      className="w-full px-4 py-3 text-left text-sm text-red-600 hover:bg-red-50"
-                    >
+                  <div className="border-t border-slate-700">
+                    <button onClick={handleLogout} className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-slate-800">
                       🚪 Logout
                     </button>
                   </div>
@@ -234,18 +189,15 @@ export default function AuthenticatedHeader() {
         </div>
       </div>
 
-      {/* Mobile Search */}
       {showMobileSearch && (
-        <div className="border-t bg-white px-4 py-3 sm:hidden animate-slideDown">
+        <div className="border-t border-slate-800 bg-slate-950 px-4 py-3 sm:hidden animate-slideDown">
           <div className="relative">
             <input
               type="text"
               placeholder="Search services, tasks, helpers..."
-              className="w-full rounded-full border px-4 py-2 pl-10 text-sm"
+              className="w-full rounded-full border border-slate-700 bg-slate-900 px-4 py-2 pl-10 text-sm text-slate-100 placeholder:text-slate-400"
             />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
-              🔍
-            </span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
           </div>
         </div>
       )}
@@ -260,7 +212,7 @@ function DropdownItem({ href, children, setOpen }) {
     <Link
       href={href}
       onClick={() => setOpen(false)}
-      className="flex items-center gap-2 px-4 py-3 text-sm hover:bg-gray-100"
+      className="flex items-center gap-2 px-4 py-3 text-sm text-slate-200 hover:bg-slate-800"
     >
       {children}
     </Link>
@@ -270,13 +222,13 @@ function DropdownItem({ href, children, setOpen }) {
 function NotificationItem({ title, desc, time, unread }) {
   return (
     <div
-      className={`px-4 py-3 text-sm hover:bg-gray-50 ${
-        unread ? "bg-green-50" : ""
+      className={`px-4 py-3 text-sm hover:bg-slate-800 ${
+        unread ? "bg-blue-500/10" : ""
       }`}
     >
-      <p className="font-medium">{title}</p>
-      <p className="text-xs text-gray-600">{desc}</p>
-      <p className="mt-1 text-xs text-gray-400">{time}</p>
+      <p className="font-medium text-white">{title}</p>
+      <p className="text-xs text-slate-300">{desc}</p>
+      <p className="mt-1 text-xs text-slate-500">{time}</p>
     </div>
   );
 }

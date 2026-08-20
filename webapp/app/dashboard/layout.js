@@ -7,17 +7,13 @@ import Header from "../components/layout/HeaderAfterlogin";
 
 export default function DashboardLayout({ children }) {
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50">
-      
-      {/* Header */}
+    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
       <Header />
 
-      {/* Main Content */}
-      <main className="flex-1 pt-16">
+      <main className="flex-1 pt-16 bg-slate-950">
         {children}
       </main>
 
-      {/* Footer */}
       <Footer />
     </div>
   );

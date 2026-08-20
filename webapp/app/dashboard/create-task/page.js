@@ -69,14 +69,15 @@ function CreateTaskContent() {
 
   function handleSubmit(e) {
     e.preventDefault();
-  
-    // if (!session?.accessToken) {
-    //   alert("Please login to create a task");
-    //   return;
-    // }
-  
+
+    const token = session?.token || localStorage.getItem("token");
+    if (!token) {
+      alert("Please login to create a task");
+      return;
+    }
+
     setLoading(true);
-  
+
     const payload = {
       title: form.title,
       category: form.category,
@@ -86,15 +87,15 @@ function CreateTaskContent() {
       preferredAt: form.date,
       helperId: form.helperId,
     };
-  
-    createTask(payload, session?.token)
+
+    createTask(payload, token)
       .then(() => {
         alert(
           helperId
             ? "Task created and sent to selected helper!"
             : "Task created successfully!"
         );
-        router.push("/dashboard/tasks");
+        router.push("/dashboard/my-tasks");
       })
       .catch((err) => {
         console.error("Create task failed", err);
