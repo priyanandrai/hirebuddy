@@ -1,7 +1,9 @@
 import { getAuthToken } from "./getSessionToken";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").trim();
+const API_BASE_URL = rawApiUrl.endsWith("/api")
+  ? rawApiUrl
+  : `${rawApiUrl.replace(/\/$/, "")}/api`;
 
 export async function apiClient(
   endpoint,

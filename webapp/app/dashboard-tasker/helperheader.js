@@ -2,9 +2,11 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { getUnreadNotificationCount } from "@/app/components/services/notification.service";
 
 export default function HelperHeader() {
   const [open, setOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -15,6 +17,25 @@ export default function HelperHeader() {
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadUnread = async () => {
+      try {
+        const response = await getUnreadNotificationCount();
+        const count = Number(response?.unreadCount || response?.data?.unreadCount || 0);
+        if (active) setUnreadCount(count);
+      } catch (error) {
+        console.error("Failed to fetch unread notifications", error);
+      }
+    };
+
+    loadUnread();
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (
@@ -31,6 +52,15 @@ export default function HelperHeader() {
 
           <Link href="/dashboard-tasker/tasks" className="text-sm font-medium text-slate-300 hover:text-white">
             Tasks
+          </Link>
+
+          <Link href="/dashboard-tasker/notifications" className="relative text-sm font-medium text-slate-300 hover:text-white">
+            Notifications
+            {unreadCount > 0 && (
+              <span className="absolute -right-3 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-semibold text-slate-950">
+                {unreadCount}
+              </span>
+            )}
           </Link>
 
           <button onClick={() => setOpen(!open)} className="flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 hover:bg-slate-800">
