@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useContext } from "react";
+import { ThemeContext } from "../../providers";
 
 export default function AuthenticatedHeader() {
   const [profileOpen, setProfileOpen] = useState(false);
@@ -57,9 +59,9 @@ export default function AuthenticatedHeader() {
   }, []);
 
   return (
-    <header className="fixed top-0 z-50 w-full border-b border-slate-800 bg-slate-950/90 backdrop-blur-xl h-16">
+    <header className="fixed top-0 z-50 w-full border-b bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl h-16 border-gray-200 dark:border-slate-800">
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
-        <Link href="/dashboard" className="text-xl font-bold text-blue-400">
+        <Link href="/dashboard" className="text-xl font-bold text-blue-600 dark:text-blue-400">
           HireBuddy
         </Link>
 
@@ -68,7 +70,7 @@ export default function AuthenticatedHeader() {
             <input
               type="text"
               placeholder="Search services, tasks, helpers..."
-              className="w-full rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 pl-10 text-sm text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-full border border-gray-200 bg-white/60 dark:border-slate-700 dark:bg-slate-900/80 px-4 py-2 pl-10 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
               🔍
@@ -77,6 +79,9 @@ export default function AuthenticatedHeader() {
         </div>
 
         <div className="relative flex items-center gap-4" ref={wrapperRef}>
+          {/* Theme toggle */}
+          <ThemeButton />
+
           <button
             onClick={() => setShowMobileSearch(!showMobileSearch)}
             className="sm:hidden text-slate-300 hover:text-white"
@@ -175,6 +180,7 @@ export default function AuthenticatedHeader() {
                   <DropdownItem href="/dashboard" setOpen={setProfileOpen}>📊 Dashboard</DropdownItem>
                   <DropdownItem href="/dashboard/my-tasks" setOpen={setProfileOpen}>📝 My Tasks</DropdownItem>
                   <DropdownItem href="/dashboard/services" setOpen={setProfileOpen}>🧰 Services</DropdownItem>
+                  <DropdownItem href="/dashboard/settings" setOpen={setProfileOpen}>⚙️ Settings</DropdownItem>
                   <DropdownItem href="/dashboard/support" setOpen={setProfileOpen}>💬 Support</DropdownItem>
 
                   <div className="border-t border-slate-700">
@@ -230,5 +236,19 @@ function NotificationItem({ title, desc, time, unread }) {
       <p className="text-xs text-slate-300">{desc}</p>
       <p className="mt-1 text-xs text-slate-500">{time}</p>
     </div>
+  );
+}
+
+function ThemeButton() {
+  const { theme, toggleTheme } = useContext(ThemeContext);
+  return (
+    <button
+      onClick={toggleTheme}
+      aria-label="Toggle theme"
+      className="rounded-full p-2 text-slate-300 hover:text-white"
+      title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+    >
+      {theme === "dark" ? "🌙" : "☀️"}
+    </button>
   );
 }

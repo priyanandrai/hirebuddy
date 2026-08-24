@@ -7,10 +7,10 @@ import Header from "../components/layout/HeaderAfterlogin";
 
 export default function DashboardLayout({ children }) {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+    <div className="flex min-h-screen flex-col bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <Header />
 
-      <main className="flex-1 pt-16 bg-slate-950">
+      <main className="flex-1 pt-16 bg-white dark:bg-slate-950">
         {children}
       </main>
 

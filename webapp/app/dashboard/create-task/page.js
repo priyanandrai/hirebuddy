@@ -108,15 +108,15 @@ function CreateTaskContent() {
   
 
   return (
-    <main className="min-h-screen bg-[#020f1d] px-4 py-8 text-slate-100 md:px-6">
+    <main className="min-h-screen bg-white dark:bg-slate-950 px-6 py-8 text-slate-900 dark:text-slate-100">
       <div className="mx-auto max-w-3xl">
-        <div className="mb-8 text-center text-sm text-slate-300">
+        <div className="mb-8 text-center text-sm text-slate-600 dark:text-slate-300">
           Add task details and optionally hire a specific helper.
         </div>
 
         {selectedHelper && (
           <div className="mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 shadow-lg shadow-emerald-950/20">
-            <p className="text-sm font-medium text-emerald-300">Hiring this helper</p>
+            <p className="text-sm font-medium text-emerald-600 dark:text-emerald-300">Hiring this helper</p>
             <div className="mt-2 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-400/15 text-sm font-semibold text-emerald-300">
                 {selectedHelper.name?.charAt(0) || "H"}
@@ -131,31 +131,28 @@ function CreateTaskContent() {
           </div>
         )}
 
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-[2rem] border border-slate-700 bg-white/95 p-6 shadow-[0_20px_70px_rgba(0,0,0,0.35)] md:p-8"
-        >
+        <form onSubmit={handleSubmit} className="rounded-[2rem] border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-6 shadow-md dark:shadow-2xl md:p-8">
           <div className="space-y-6">
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">Task Title</label>
+              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Task Title</label>
               <input
                 name="title"
                 value={form.title}
                 onChange={handleChange}
                 required
                 placeholder="e.g. Buy groceries from local market"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">Category</label>
+              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Category</label>
               <select
                 name="category"
                 value={form.category}
                 onChange={handleChange}
                 required
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
                 <option value="">Select category</option>
                 <option>Shopping</option>
@@ -168,7 +165,7 @@ function CreateTaskContent() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">Task Description</label>
+              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Task Description</label>
               <textarea
                 name="description"
                 value={form.description}
@@ -176,50 +173,50 @@ function CreateTaskContent() {
                 rows={4}
                 required
                 placeholder="Explain what needs to be done..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">Attach Images or Files (optional)</label>
-              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700">
+              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Attach Images or Files (optional)</label>
+              <div className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-700 dark:text-slate-200">
                 <input
                   type="file"
                   multiple
                   accept="image/*,.pdf,.doc,.docx"
                   onChange={handleFileChange}
-                  className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-full file:border-0 file:bg-emerald-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-emerald-700 hover:file:bg-emerald-200"
+                  className="block w-full text-sm text-slate-200 file:mr-4 file:rounded-full file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-100 hover:file:bg-slate-600"
                 />
               </div>
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">Location</label>
+              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Location</label>
               <input
                 name="location"
                 value={form.location}
                 onChange={handleChange}
                 required
                 placeholder="Pickup / service location"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               />
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Preferred Date</label>
+                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Preferred Date</label>
                 <input
                   type="date"
                   name="date"
                   value={form.date}
                   onChange={handleChange}
                   required
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Budget (₹)</label>
+                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Budget (₹)</label>
                 <input
                   type="number"
                   name="budget"
@@ -227,7 +224,7 @@ function CreateTaskContent() {
                   onChange={handleChange}
                   required
                   placeholder="e.g. 500"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
             </div>
