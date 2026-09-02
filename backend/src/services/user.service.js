@@ -1,4 +1,5 @@
 import prisma from "../utils/prisma.js";
+import { indexHelper, deleteHelper } from "./es.client.js";
 
 export const setRoleService = (userId, role) => {
   return prisma.user.update({
@@ -14,6 +15,13 @@ export const updateHelperProfileService = (userId, data) => {
       ...data,
       role: "HELPER",
     },
+  }).then(async (user) => {
+    try {
+      await indexHelper(user);
+    } catch (e) {
+      console.error('Failed to index helper after update', e);
+    }
+    return user;
   });
 };
 

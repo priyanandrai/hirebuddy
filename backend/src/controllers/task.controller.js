@@ -1,8 +1,9 @@
 import * as taskService from "../services/task.service.js";
+import { indexTask } from '../services/es.client.js';
 
 export const createTask = async (req, res) => {
   try {
-    const task = await taskService.createTask(req.body, req.user);
+    const task = await taskService.createTaskAndIndex(req.body, req.user);
     res.status(201).json(task);
   } catch (error) {
     res.status(400).json({ message: error.message || "Failed to create task" });
@@ -21,6 +22,7 @@ export const getMyTasks = async (req, res) => {
 export const acceptTask = async (req, res) => {
   try {
     const task = await taskService.assignHelper(req.user, req.params.id);
+    try { await indexTask(task); } catch (e) { console.warn('Indexing accepted task failed', e); }
     res.json(task);
   } catch (error) {
     const statusCode =
@@ -148,7 +150,7 @@ export const updateTaskStatus = async (req, res) => {
       return res.status(400).json({ message: "Status is required" });
     }
 
-    const task = await taskService.updateTaskStatus(id, req.user.id, status);
+    const task = await taskService.updateTaskStatusAndIndex(id, req.user.id, status);
 
     res.json(task);
   } catch (error) {

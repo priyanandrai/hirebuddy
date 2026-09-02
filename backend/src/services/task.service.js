@@ -1,5 +1,6 @@
 import prisma from "../utils/prisma.js";
 import { notificationEvents } from "./notification.service.js";
+import { indexTask, deleteTask } from "./es.client.js";
 
 /**
  * Calculate distance between two coordinates (Haversine formula)
@@ -51,6 +52,18 @@ export const createTask = async (data, user) => {
       assignedTo: { select: { id: true, name: true, image: true } },
     },
   });
+};
+
+// Hook: index after create
+const _originalCreateTask = createTask;
+export const createTaskAndIndex = async (data, user) => {
+  const task = await _originalCreateTask(data, user);
+  try {
+    await indexTask(task);
+  } catch (e) {
+    console.error('Failed to index task after create', e);
+  }
+  return task;
 };
 
 /**
@@ -384,6 +397,17 @@ export const updateTaskStatus = async (taskId, userId, newStatus) => {
   }
 };
 
+// Index task after status update
+export const updateTaskStatusAndIndex = async (taskId, userId, newStatus) => {
+  const updated = await updateTaskStatus(taskId, userId, newStatus);
+  try {
+    await indexTask(updated);
+  } catch (e) {
+    console.error('Failed to index task after status update', e);
+  }
+  return updated;
+};
+
 /**
  * Cancel a task
  */
@@ -410,6 +434,17 @@ export const cancelTask = async (taskId, userId, reason = "Task cancelled by use
     console.error("Failed to cancel task:", error);
     throw error;
   }
+};
+
+export const deleteTaskAndRemoveIndex = async (taskId) => {
+  // delete from DB
+  const deleted = await prisma.task.delete({ where: { id: taskId } });
+  try {
+    await deleteTask(taskId);
+  } catch (e) {
+    console.error('Failed to remove task from index', e);
+  }
+  return deleted;
 };
 
 /**
