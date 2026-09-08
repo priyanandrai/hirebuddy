@@ -19,7 +19,7 @@ export default function OtpLoginPage() {
   const [showGooglePopup, setShowGooglePopup] = useState(false);
 
   const handleGoogleLogin = () => {
-    signIn("google", { callbackUrl: "/post-task" });
+    signIn("google", { callbackUrl: "/login" });
   };
 
   const router = useRouter();
@@ -29,18 +29,33 @@ export default function OtpLoginPage() {
 
   /* Handle Google login after NextAuth callback or already authenticated user */
   useEffect(() => {
-    if (status === "authenticated" && session) {
-      router.replace("/post-task");
-      return;
-    }
+    const handleNextAuthLogin = async () => {
+      if (status === "authenticated" && session) {
+        try {
+          // Exchange NextAuth session with backend to get backend JWT + user
+          const backendData = await googleBackendLogin(session);
+          if (backendData?.token) {
+            localStorage.setItem("token", backendData.token);
+          }
+          const role = backendData?.user?.role || session?.user?.role || null;
+          redirectByRole(role);
+          return;
+        } catch (err) {
+          console.warn('Google backend login failed', err);
+          setError('Google login failed.');
+        }
+      }
 
-    if (status === "authenticated" && !session) {
-      setError("Session is authenticated but user data is unavailable.");
-    }
+      if (status === "authenticated" && !session) {
+        setError("Session is authenticated but user data is unavailable.");
+      }
 
-    if (status !== "loading") {
-      setPageLoading(false);
-    }
+      if (status !== "loading") {
+        setPageLoading(false);
+      }
+    };
+
+    handleNextAuthLogin();
   }, [status, session, router]);
 
   const redirectByRole = (role) => {

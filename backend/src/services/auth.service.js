@@ -21,37 +21,42 @@ export const sendOtpService = async (phone) => {
 };
 
 export const verifyOtpService = async (phone, otp) => {
-  const record = await prisma.otp.findFirst({
-    where: {
-      phone,
-      code: otp,
-      expiresAt: { gt: new Date() },
-      verified: false,
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (!record) throw new Error("Invalid or expired OTP");
-
-  await prisma.otp.update({
-    where: { id: record.id },
-    data: { verified: true },
-  });
-
-  let user = await prisma.user.findUnique({ where: { phone } });
-
-  if (!user) {
-    user = await prisma.user.create({
-      data: {
+  try {
+    const record = await prisma.otp.findFirst({
+      where: {
         phone,
-        role: "USER",
+        code: otp,
+        expiresAt: { gt: new Date() },
+        verified: false,
       },
+      orderBy: { createdAt: "desc" },
     });
+
+    if (!record) throw new Error("Invalid or expired OTP");
+
+    await prisma.otp.update({
+      where: { id: record.id },
+      data: { verified: true },
+    });
+
+    let user = await prisma.user.findUnique({ where: { phone } });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          phone,
+          role: "USER",
+        },
+      });
+    }
+
+    const token = signUserToken(user);
+
+    return { token, user };
+  } catch (err) {
+    console.error('verifyOtpService error:', err);
+    throw new Error('Authentication failed. Please try again.');
   }
-
-  const token = signUserToken(user);
-
-  return { token, user };
 };
 
 export const googleAuthService = async ({ email, name, image }) => {
@@ -59,23 +64,28 @@ export const googleAuthService = async ({ email, name, image }) => {
     throw new Error("Email is required");
   }
 
-  let user = await prisma.user.findUnique({
-    where: { email },
-  });
-
-  if (!user) {
-    user = await prisma.user.create({
-      data: {
-        email,
-        name,
-        image,
-        role: null, // role selection pending
-      },
+  try {
+    let user = await prisma.user.findUnique({
+      where: { email },
     });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email,
+          name,
+          image,
+          role: null, // role selection pending
+        },
+      });
+    }
+
+    const token = signUserToken(user);
+
+    return { token, user };
+  } catch (err) {
+    console.error('googleAuthService error:', err);
+    throw new Error('Google authentication failed. Please try again later.');
   }
-
-  const token = signUserToken(user);
-
-  return { token, user };
 };
 
