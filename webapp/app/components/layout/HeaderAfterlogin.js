@@ -6,6 +6,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useContext } from "react";
 import { ThemeContext } from "../../providers";
+import Image from "next/image";
 
 export default function AuthenticatedHeader() {
   const [profileOpen, setProfileOpen] = useState(false);
@@ -103,9 +104,8 @@ export default function AuthenticatedHeader() {
                 setNotifOpen(!notifOpen);
                 setProfileOpen(false);
               }}
-              className={`relative rounded-full p-2 text-slate-300 hover:text-white ${
-                notifOpen ? "bg-slate-800 ring-2 ring-blue-500/40" : ""
-              }`}
+              className={`relative rounded-full p-2 text-slate-300 hover:text-white ${notifOpen ? "bg-slate-800 ring-2 ring-blue-500/40" : ""
+                }`}
             >
               🔔
               {unreadCount > 0 && (
@@ -143,13 +143,19 @@ export default function AuthenticatedHeader() {
                 setProfileOpen(!profileOpen);
                 setNotifOpen(false);
               }}
-              className={`flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 transition ${
-                profileOpen ? "ring-2 ring-blue-500/40" : "hover:bg-slate-800"
-              }`}
+              className={`flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 transition ${profileOpen ? "ring-2 ring-blue-500/40" : "hover:bg-slate-800"
+                }`}
             >
               <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-slate-700 text-sm font-semibold text-slate-100">
                 {session?.user?.image ? (
-                  <img src={session.user.image} alt={session?.user?.name || "User"} className="h-full w-full object-cover" />
+                  // <img src={session.user.image} alt={session?.user?.image || "User"} className="h-full w-full object-cover" />
+                  <Image
+                    src={session.user.image}
+                    alt={session?.user?.name || "User"}
+                    width={32}
+                    height={32}
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   <span>{(session?.user?.name || "U").charAt(0).toUpperCase()}</span>
                 )}
@@ -228,9 +234,8 @@ function DropdownItem({ href, children, setOpen }) {
 function NotificationItem({ title, desc, time, unread }) {
   return (
     <div
-      className={`px-4 py-3 text-sm hover:bg-slate-800 ${
-        unread ? "bg-blue-500/10" : ""
-      }`}
+      className={`px-4 py-3 text-sm hover:bg-slate-800 ${unread ? "bg-blue-500/10" : ""
+        }`}
     >
       <p className="font-medium text-white">{title}</p>
       <p className="text-xs text-slate-300">{desc}</p>
