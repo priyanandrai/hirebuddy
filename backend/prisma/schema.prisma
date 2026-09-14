@@ -95,6 +95,13 @@ enum Role {
   HELPER
 }
 
+enum IDVerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
 enum TaskStatus {
   OPEN
   ASSIGNED
@@ -118,6 +125,12 @@ enum MessageType {
 }
 
 // ===== MESSAGE MODEL =====
+
+  // ID verification
+  idVerificationStatus IDVerificationStatus @default(UNVERIFIED)
+  idDocumentUrl String?
+  idVerifiedAt DateTime?
+  idVerificationNotes String?
 model Message {
   id        String   @id @default(uuid())
   taskId    String

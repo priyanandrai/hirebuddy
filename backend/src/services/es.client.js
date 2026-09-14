@@ -48,9 +48,10 @@ async function createIndices() {
             name: { type: 'text', analyzer: 'english' },
             skills: { type: 'text', analyzer: 'english' },
             city: { type: 'keyword' },
-            latitude: { type: 'float' },
-            longitude: { type: 'float' },
+              latitude: { type: 'float' },
+              longitude: { type: 'float' },
             isAvailable: { type: 'boolean' },
+              isVerified: { type: 'boolean' },
             averageRating: { type: 'double' }
           }
         }
@@ -93,6 +94,7 @@ async function indexHelper(user) {
     latitude: user.latitude || null,
     longitude: user.longitude || null,
     isAvailable: !!user.isAvailable,
+    isVerified: user.idVerificationStatus === 'VERIFIED',
     averageRating: user.averageRating || 0,
   };
   await client.index({ index: 'helpers', id: String(user.id), document: doc, refresh: 'wait_for' }).catch((e) => console.error('ES indexHelper error', e));

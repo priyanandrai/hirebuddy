@@ -91,7 +91,17 @@ export default function HelpersPage() {
               </div>
 
               <div>
-                <p className="font-medium text-white">{helper.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-white">{helper.name}</p>
+                  {helper.idVerificationStatus === 'VERIFIED' && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600/15 px-2 py-0.5 text-xs font-semibold text-emerald-400">
+                      <svg className="h-3 w-3 text-emerald-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M20 6L9 17l-5-5" />
+                      </svg>
+                      Verified
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-400">{helper.location}</p>
               </div>
             </div>

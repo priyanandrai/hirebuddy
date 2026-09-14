@@ -25,6 +25,31 @@ export const updateHelperProfileService = (userId, data) => {
   });
 };
 
+export const submitIdDocumentService = async (userId, idDocumentUrl) => {
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      idDocumentUrl,
+      idVerificationStatus: 'PENDING',
+    },
+  });
+
+  try { await indexHelper(user); } catch (e) { console.error('Index after ID submit failed', e); }
+  return user;
+};
+
+export const verifyUserIdService = async (userId, status, notes = null) => {
+  const data = {
+    idVerificationStatus: status,
+    idVerificationNotes: notes,
+    idVerifiedAt: status === 'VERIFIED' ? new Date() : null,
+  };
+
+  const user = await prisma.user.update({ where: { id: userId }, data });
+  try { await indexHelper(user); } catch (e) { console.error('Index after ID verify failed', e); }
+  return user;
+};
+
 export const getHelper = (id) => {
   return prisma.user.findUnique({
     where: { id },
@@ -32,6 +57,7 @@ export const getHelper = (id) => {
       id: true,
       name: true,
       role: true,
+      idVerificationStatus: true,
     },
   });
 };
@@ -50,10 +76,28 @@ export const getHelpersListService = async () => {
       skills: true,
       city: true,
       experience: true,
+      idVerificationStatus: true,
     },
     orderBy: {
       createdAt: "desc",
     },
+  });
+};
+
+export const getPendingIdSubmissionsService = async () => {
+  return prisma.user.findMany({
+    where: { idVerificationStatus: 'PENDING' },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      image: true,
+      city: true,
+      idDocumentUrl: true,
+      idVerificationStatus: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'asc' },
   });
 };
 

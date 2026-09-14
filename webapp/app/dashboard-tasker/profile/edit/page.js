@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { submitIdDocument } from "@/app/components/services/user.service";
 
 export default function EditTaskerProfilePage() {
   const [loading, setLoading] = useState(false);
@@ -56,6 +57,22 @@ export default function EditTaskerProfilePage() {
       setLoading(false);
       alert("Profile updated successfully!");
     }, 1000);
+  }
+
+  async function handleSubmitId(e) {
+    e.preventDefault();
+    const url = prompt('Paste a link to your ID document (image/pdf):');
+    if (!url) return;
+    setLoading(true);
+    try {
+      await submitIdDocument({ idDocumentUrl: url });
+      alert('ID submitted for verification.');
+    } catch (err) {
+      console.error('Submit ID failed', err);
+      alert('Failed to submit ID.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -189,6 +206,16 @@ export default function EditTaskerProfilePage() {
           >
             Cancel
           </Link>
+        </div>
+
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={handleSubmitId}
+            className="w-full rounded-md border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            {loading ? 'Submitting ID...' : 'Submit ID for Verification'}
+          </button>
         </div>
       </form>
     </main>

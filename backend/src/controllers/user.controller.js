@@ -4,6 +4,8 @@ import {
     updateHelperProfileService,
     getHelper,
     getHelpersListService,
+  submitIdDocumentService,
+  verifyUserIdService,
   } from "../services/user.service.js";
   
   export const setRole = async (req, res) => {
@@ -78,6 +80,56 @@ import {
     } catch (error) {
       console.error("Get assigned helpers error:", error);
       res.status(500).json({ message: "Failed to fetch assigned helpers" });
+    }
+  };
+
+  export const getPendingIdSubmissions = async (req, res) => {
+    try {
+      const adminToken = req.query.adminToken;
+      if (!adminToken || adminToken !== process.env.ID_VERIFY_TOKEN) {
+        return res.status(403).json({ message: 'Invalid admin token' });
+      }
+
+      const rows = await getPendingIdSubmissionsService();
+      res.json({ success: true, data: rows });
+    } catch (error) {
+      console.error('Get pending IDs error', error);
+      res.status(500).json({ message: 'Failed to fetch pending IDs' });
+    }
+  };
+
+  export const submitIdDocument = async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { idDocumentUrl } = req.body;
+      if (!idDocumentUrl) return res.status(400).json({ message: 'idDocumentUrl is required' });
+      const user = await submitIdDocumentService(userId, idDocumentUrl);
+      res.json({ success: true, user });
+    } catch (error) {
+      console.error('Submit ID error', error);
+      res.status(500).json({ message: 'Failed to submit ID document' });
+    }
+  };
+
+  // Simple admin-style verification endpoint using an ADMIN token in body (env check)
+  export const verifyUserId = async (req, res) => {
+    try {
+      const adminToken = req.body.adminToken || req.query.adminToken;
+      if (!adminToken || adminToken !== process.env.ID_VERIFY_TOKEN) {
+        return res.status(403).json({ message: 'Invalid admin token' });
+      }
+
+      const userId = req.params.id;
+      const { status, notes } = req.body;
+      if (!['VERIFIED','REJECTED','PENDING','UNVERIFIED'].includes(status)) {
+        return res.status(400).json({ message: 'Invalid status' });
+      }
+
+      const user = await verifyUserIdService(userId, status, notes || null);
+      res.json({ success: true, user });
+    } catch (error) {
+      console.error('Verify ID error', error);
+      res.status(500).json({ message: 'Failed to verify user ID' });
     }
   };
   

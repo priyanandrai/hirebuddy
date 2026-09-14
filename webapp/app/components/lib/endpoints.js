@@ -12,6 +12,9 @@ export const USER_ENDPOINTS = {
   GET_PROFILE: "/user/profile",
   UPDATE_PROFILE: "/user/profile",
   UPDATE_HELPER_PROFILE: "/user/helper-profile",
+  SUBMIT_ID: "/user/id/submit",
+  VERIFY_ID: "/user/id",
+  PENDING_IDS: "/user/pending-ids",
 };
 
 export const TASK_ENDPOINTS = {
