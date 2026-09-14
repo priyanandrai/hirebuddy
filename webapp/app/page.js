@@ -217,18 +217,58 @@ function ServiceBlock({ title, items }) {
 
 
 function TrustItem({ title, description }) {
+  const renderIcon = (key) => {
+    const commonProps = { width: 28, height: 28, fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round', strokeLinejoin: 'round' };
+
+    switch (key) {
+      case 'ID Checked':
+        return (
+          <svg {...commonProps} viewBox="0 0 24 24" aria-hidden>
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4z" />
+            <path d="M6 20v-1c0-2.21 3.58-4 6-4s6 1.79 6 4v1" />
+            <path d="M9.5 12.5l1.5 1.5 3-3" />
+          </svg>
+        );
+      case 'Secure Payments':
+        return (
+          <svg {...commonProps} viewBox="0 0 24 24" aria-hidden>
+            <rect x="2" y="7" width="20" height="12" rx="2" />
+            <path d="M16 3v4" />
+            <path d="M7 12h.01" />
+          </svg>
+        );
+      case 'Live Tracking':
+        return (
+          <svg {...commonProps} viewBox="0 0 24 24" aria-hidden>
+            <path d="M12 2C8 2 4 6 4 10c0 5.25 8 12 8 12s8-6.75 8-12c0-4-4-8-8-8z" />
+            <circle cx="12" cy="10" r="2" />
+          </svg>
+        );
+      case '24/7 Support':
+        return (
+          <svg {...commonProps} viewBox="0 0 24 24" aria-hidden>
+            <path d="M12 2a7 7 0 0 0-7 7v3a5 5 0 0 0 5 5h4" />
+            <path d="M18 18v1a2 2 0 0 1-2 2h-6" />
+            <path d="M20 8v6" />
+          </svg>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="flex flex-col items-center text-center">
 
-      <div className="mb-4 h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
-        {/* icon can go here later */}
+      <div className="mb-4 h-14 w-14 rounded-full bg-slate-800 flex items-center justify-center text-blue-400" aria-hidden>
+        {renderIcon(title)}
       </div>
 
-      <h3 className="text-sm font-semibold text-gray-900">
+      <h3 className="text-sm font-semibold text-white">
         {title}
       </h3>
 
-      <p className="text-xs text-gray-500 mt-1 max-w-[140px]">
+      <p className="text-xs text-slate-300 mt-1 max-w-[160px]">
         {description}
       </p>
 
