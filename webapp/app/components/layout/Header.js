@@ -25,6 +25,12 @@ export default function Header() {
           <Link href="/post-task" className={`${linkHoverClass} transition`}>
             Post a Task
           </Link>
+          <Link href="/services" className={`${linkHoverClass} transition`}>
+            Services
+          </Link>
+          <Link href="/hire-buddy" className="rounded-full bg-emerald-500 px-3 py-1 text-sm font-medium text-white hover:bg-emerald-600 transition">
+            Hire Buddy
+          </Link>
           <Link href="/how-it-works" className={`${linkHoverClass} transition`}>
             How it Works
           </Link>

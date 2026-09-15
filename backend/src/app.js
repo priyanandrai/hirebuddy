@@ -9,6 +9,7 @@ import messageRoutes from "./routes/message.routes.js";
 import reviewRoutes from "./routes/review.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
 import searchRoutes from './routes/search.routes.js';
+import hireRoutes from './routes/hire.routes.js';
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/hire', hireRoutes);
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });

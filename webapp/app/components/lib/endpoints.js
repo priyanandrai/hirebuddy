@@ -49,6 +49,10 @@ export const PAYMENT_ENDPOINTS = {
   REFUND_PAYMENT: "/payments",
 };
 
+export const HIRE_ENDPOINTS = {
+  HIRE_BUDDY: '/hire',
+};
+
 export const REVIEW_ENDPOINTS = {
   CREATE_REVIEW: "/reviews",
   GET_USER_REVIEWS: "/reviews/user",
