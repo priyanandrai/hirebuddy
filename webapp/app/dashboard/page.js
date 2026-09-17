@@ -131,7 +131,7 @@ function HelperCard({ id, name, rating, tasks, skills }) {
     <div className="rounded-[1.5rem] border border-slate-800 bg-slate-900/80 p-4 shadow-lg shadow-slate-950/20">
       <h3 className="font-semibold text-white">{name}</h3>
       <p className="text-sm text-slate-300">⭐ {rating} • {tasks} tasks</p>
-      <p className="mt-1 text-sm text-slate-400">{skills}</p>
+      <p className="mt-1 text-sm text-slate-400">{Array.isArray(skills) ? skills.join(', ') : skills}</p>
 
       <Link
         href={`/dashboard/helpers/${id}`}

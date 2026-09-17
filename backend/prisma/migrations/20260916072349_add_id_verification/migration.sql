@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE `User` ADD COLUMN `idDocumentUrl` VARCHAR(191) NULL,
+    ADD COLUMN `idVerificationNotes` VARCHAR(191) NULL,
+    ADD COLUMN `idVerificationStatus` ENUM('UNVERIFIED', 'PENDING', 'VERIFIED', 'REJECTED') NOT NULL DEFAULT 'UNVERIFIED',
+    ADD COLUMN `idVerifiedAt` DATETIME(3) NULL;

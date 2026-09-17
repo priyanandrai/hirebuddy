@@ -46,7 +46,7 @@ async function createIndices() {
           properties: {
             id: { type: 'keyword' },
             name: { type: 'text', analyzer: 'english' },
-            skills: { type: 'text', analyzer: 'english' },
+            skills: { type: 'text', analyzer: 'english', fields: { keyword: { type: 'keyword' } } },
             city: { type: 'keyword' },
               latitude: { type: 'float' },
               longitude: { type: 'float' },
@@ -58,6 +58,21 @@ async function createIndices() {
       }
     });
   }
+    // ensure skills has a keyword subfield for exact-match filtering
+    try {
+      await client.indices.putMapping({
+        index: 'helpers',
+        body: {
+          properties: {
+            skills: { type: 'text', analyzer: 'english', fields: { keyword: { type: 'keyword' } } },
+          }
+        }
+      });
+    } catch (e) {
+      // non-fatal; log and continue
+      console.warn('Failed to update mapping for helpers.skills', e?.message || e);
+    }
+    
 
   return { tasks: !hasTasks, helpers: !hasHelpers };
 }
@@ -89,7 +104,8 @@ async function indexHelper(user) {
   const doc = {
     id: user.id,
     name: user.name,
-    skills: user.skills || null,
+    // ensure skills is an array in ES documents
+    skills: Array.isArray(user.skills) ? user.skills : (user.skills ? String(user.skills).split(',').map(s => s.trim()).filter(Boolean) : []),
     city: user.city || null,
     latitude: user.latitude || null,
     longitude: user.longitude || null,

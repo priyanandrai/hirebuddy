@@ -3,6 +3,8 @@ import { useSession } from "next-auth/react";
 import HeroIllustration from "./components/illustrations/HeroIllustration";
 import Footer from "./components/layout/Footer";
 import Header from "./components/layout/Header";
+import CategoryCard from "./components/category/CategoryCard";
+import { CATEGORIES } from './components/category/categories';
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { googleBackendLogin } from "./components/lib/api";
@@ -85,12 +87,7 @@ export default function HomePage() {
           </h2>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {[
-              "Cleaning",
-              "Repairs",
-              "Furniture Assembly",
-              "Grocery Shopping",
-            ].map((item) => (
+            {CATEGORIES.slice(0, 8).map((item) => (
               <CategoryCard key={item} title={item} />
             ))}
           </div>
@@ -180,17 +177,7 @@ export default function HomePage() {
 
 /* ---------- Reusable Components ---------- */
 
-function CategoryCard({ title }) {
-  return (
-    <div className="group cursor-pointer rounded-xl border border-slate-800 bg-slate-900/90 p-6 transition hover:border-blue-500 hover:shadow-sm">
-      <div className="text-sm font-medium text-white mb-1">
-        {title}
-      </div>
-
-      <p className="text-xs text-slate-300">Find trusted helpers</p>
-    </div>
-  );
-}
+// CategoryCard moved to components/category/CategoryCard.js
 
 
 function ServiceBlock({ title, items }) {

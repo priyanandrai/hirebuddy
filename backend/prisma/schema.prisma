@@ -36,6 +36,12 @@ model User {
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  // ID verification
+  idVerificationStatus IDVerificationStatus @default(UNVERIFIED)
+  idDocumentUrl String?
+  idVerifiedAt DateTime?
+  idVerificationNotes String?
  
   tasksCreated Task[] @relation("CreatedTasks")
   tasksAssigned Task[] @relation("AssignedTasks")
@@ -126,11 +132,6 @@ enum MessageType {
 
 // ===== MESSAGE MODEL =====
 
-  // ID verification
-  idVerificationStatus IDVerificationStatus @default(UNVERIFIED)
-  idDocumentUrl String?
-  idVerifiedAt DateTime?
-  idVerificationNotes String?
 model Message {
   id        String   @id @default(uuid())
   taskId    String

@@ -62,7 +62,7 @@ export const getHelper = (id) => {
   });
 };
 export const getHelpersListService = async () => {
-  return prisma.user.findMany({
+  const rows = await prisma.user.findMany({
     where: {
       role: "HELPER",
       isAvailable: true,
@@ -82,6 +82,12 @@ export const getHelpersListService = async () => {
       createdAt: "desc",
     },
   });
+
+  // normalize skills to array for frontend
+  return rows.map((r) => ({
+    ...r,
+    skills: Array.isArray(r.skills) ? r.skills : (r.skills ? String(r.skills).split(',').map(s => s.trim()).filter(Boolean) : []),
+  }));
 };
 
 export const getPendingIdSubmissionsService = async () => {
