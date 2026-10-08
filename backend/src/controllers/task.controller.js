@@ -1,5 +1,6 @@
 import * as taskService from "../services/task.service.js";
 import { indexTask } from '../services/es.client.js';
+import * as categoryService from "../services/category.service.js";
 
 export const createTask = async (req, res) => {
   try {
@@ -36,18 +37,16 @@ export const acceptTask = async (req, res) => {
 };
 
 export const getCategories = async (req, res) => {
-  res.json([
-    "Cleaning",
-    "Delivery",
-    "Electrician",
-    "Plumbing",
-    "Grocery",
-    "Moving",
-    "Laundry",
-    "Tutoring",
-    "Fitness",
-    "Other",
-  ]);
+  try {
+    const categories = await categoryService.getAllCategories();
+    if (req.query.format === "names") {
+      return res.json(categories.map((c) => c.name));
+    }
+    res.json(categories);
+  } catch (error) {
+    console.error("Get categories error:", error);
+    res.status(500).json({ message: "Failed to fetch categories" });
+  }
 };
 
 export const getTaskById = async (req, res) => {

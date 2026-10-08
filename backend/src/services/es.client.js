@@ -112,6 +112,11 @@ async function indexHelper(user) {
     isAvailable: !!user.isAvailable,
     isVerified: user.idVerificationStatus === 'VERIFIED',
     averageRating: user.averageRating || 0,
+    hourlyRate: user.hourlyRate || null,
+    totalReviews: user.totalReviews || 0,
+    experience: user.experience || 0,
+    image: user.image || null,
+    phone: user.phone || null,
   };
   await client.index({ index: 'helpers', id: String(user.id), document: doc, refresh: 'wait_for' }).catch((e) => console.error('ES indexHelper error', e));
 }

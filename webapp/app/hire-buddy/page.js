@@ -1,13 +1,27 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '../components/layout/Header';
 import Footer from '../components/layout/Footer';
 import { hireBuddy } from '../components/services/hire.service';
+import { getTaskCategories } from '../components/services/task.service';
 
 export default function HireBuddyPage() {
-  const [form, setForm] = useState({ title: '', description: '', category: 'General', budget: '', preferredAt: '' });
+  const [form, setForm] = useState({ title: '', description: '', category: '', budget: '', preferredAt: '' });
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    getTaskCategories()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : res?.data || [];
+        setCategories(list);
+        if (list.length > 0) {
+          setForm((f) => ({ ...f, category: f.category || list[0].name || list[0] }));
+        }
+      })
+      .catch((err) => console.error("Failed to load categories in hire-buddy", err));
+  }, []);
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -20,7 +34,7 @@ export default function HireBuddyPage() {
       const payload = { ...form };
       await hireBuddy(payload);
       alert('Your request has been submitted. Helpers will be notified.');
-      setForm({ title: '', description: '', category: 'General', budget: '', preferredAt: '' });
+      setForm({ title: '', description: '', category: categories[0]?.name || '', budget: '', preferredAt: '' });
     } catch (err) {
       console.error('HireBuddy request failed', err);
       alert('Failed to submit request');
@@ -50,12 +64,16 @@ export default function HireBuddyPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium">Category</label>
-                <select name="category" value={form.category} onChange={handleChange} className="mt-1 w-full rounded-md border px-3 py-2 text-sm">
-                  <option>General</option>
-                  <option>Shopping</option>
-                  <option>Delivery</option>
-                  <option>Health</option>
-                  <option>Driver</option>
+                <select name="category" value={form.category} onChange={handleChange} className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 text-slate-100 px-3 py-2 text-sm">
+                  {categories.map((cat) => {
+                    const name = typeof cat === 'string' ? cat : cat.name;
+                    const icon = cat.icon ? `${cat.icon} ` : '';
+                    return (
+                      <option key={cat.id || name} value={name}>
+                        {icon}{name}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 

@@ -1,20 +1,7 @@
-export const CATEGORIES = [
-  "Cleaning",
-  "Repairs",
-  "Furniture Assembly",
-  "Grocery Shopping",
-  "Elder Care",
-  "Delivery",
-  "Driver",
-  "Home Support",
-];
+import prisma from "../src/utils/prisma.js";
 
-export function slugify(title) {
-  return String(title).toLowerCase().replace(/\s+/g, '-');
-}
-
-export const CATEGORY_DETAILS = {
-  "cleaning": {
+export const CATEGORIES_DATA = [
+  {
     name: "Cleaning",
     slug: "cleaning",
     description: "Book verified and top-rated home, office, and deep cleaners in your neighborhood.",
@@ -28,8 +15,9 @@ export const CATEGORY_DETAILS = {
       "Sofa & Carpet",
       "Sanitization",
     ],
+    isPopular: true,
   },
-  "repairs": {
+  {
     name: "Repairs",
     slug: "repairs",
     description: "Certified electricians, plumbers, carpenters, and appliance repair technicians at your doorstep.",
@@ -43,8 +31,9 @@ export const CATEGORY_DETAILS = {
       "Pipe Leakage",
       "Geyser Repair",
     ],
+    isPopular: true,
   },
-  "furniture-assembly": {
+  {
     name: "Furniture Assembly",
     slug: "furniture-assembly",
     description: "Expert assembly and installation for IKEA, modular furniture, beds, tables, and wall mounts.",
@@ -58,8 +47,9 @@ export const CATEGORY_DETAILS = {
       "TV Unit Assembly",
       "Furniture Dismantling",
     ],
+    isPopular: true,
   },
-  "grocery-shopping": {
+  {
     name: "Grocery Shopping",
     slug: "grocery-shopping",
     description: "Personal helpers for fresh veggies, supermarket runs, medicines, and daily household essentials.",
@@ -72,8 +62,9 @@ export const CATEGORY_DETAILS = {
       "Local Mandi Shopping",
       "Urgent Grocery",
     ],
+    isPopular: true,
   },
-  "elder-care": {
+  {
     name: "Elder Care",
     slug: "elder-care",
     description: "Compassionate caregivers and companions for seniors, doctor visits, walks, and mobility assistance.",
@@ -86,8 +77,9 @@ export const CATEGORY_DETAILS = {
       "Vital Signs Checking",
       "Physiotherapy Support",
     ],
+    isPopular: true,
   },
-  "delivery": {
+  {
     name: "Delivery",
     slug: "delivery",
     description: "Fast, reliable on-demand courier, parcels, documents, and local item pickup and delivery.",
@@ -100,8 +92,9 @@ export const CATEGORY_DETAILS = {
       "Tiffin Delivery",
       "Fragile Delivery",
     ],
+    isPopular: true,
   },
-  "driver": {
+  {
     name: "Driver",
     slug: "driver",
     description: "Licensed personal chauffeurs for city commutes, outstation travel, luxury cars, and airport drops.",
@@ -114,8 +107,9 @@ export const CATEGORY_DETAILS = {
       "Daily Office Commute",
       "Luxury Cars",
     ],
+    isPopular: true,
   },
-  "home-support": {
+  {
     name: "Home Support",
     slug: "home-support",
     description: "Reliable domestic help for home cooking, laundry, clothes ironing, child support, and gardening.",
@@ -128,18 +122,43 @@ export const CATEGORY_DETAILS = {
       "Dishwashing",
       "Plant Care",
     ],
+    isPopular: true,
   },
-};
+];
 
-export function getCategoryBySlug(slug) {
-  if (!slug) return null;
-  const normalized = String(slug).toLowerCase();
-  return CATEGORY_DETAILS[normalized] || {
-    name: slug.split('-').map(s => s ? s[0].toUpperCase() + s.slice(1) : '').join(' '),
-    slug: normalized,
-    description: `Find trusted and verified helpers for ${slug} services in your area.`,
-    icon: "💼",
-    subServices: [],
-  };
+export async function seedCategories() {
+  console.log("Seeding categories into MariaDB database...");
+  for (const cat of CATEGORIES_DATA) {
+    await prisma.category.upsert({
+      where: { slug: cat.slug },
+      update: {
+        name: cat.name,
+        description: cat.description,
+        icon: cat.icon,
+        subServices: cat.subServices,
+        isPopular: cat.isPopular,
+      },
+      create: {
+        name: cat.name,
+        slug: cat.slug,
+        description: cat.description,
+        icon: cat.icon,
+        subServices: cat.subServices,
+        isPopular: cat.isPopular,
+      },
+    });
+  }
+  const count = await prisma.category.count();
+  console.log(`Categories seeded successfully! Total in DB: ${count}`);
 }
 
+if (process.argv[1]?.endsWith("seed-categories.js")) {
+  seedCategories()
+    .catch((err) => {
+      console.error("Failed to seed categories:", err);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

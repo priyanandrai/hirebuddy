@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { createTask } from "@/app/components/services/task.service";
+import { createTask, getTaskCategories } from "@/app/components/services/task.service";
 import { getHelperByID } from "@/app/components/services/user.service";
 
 export default function CreateTaskPage() {
@@ -19,12 +19,13 @@ function CreateTaskContent() {
   const helperId = searchParams.get("helper"); 
   const prefilledCategory = searchParams.get("category") || "";
   const { data: session, status } = useSession();
-  console.log("session",session);
   const router = useRouter()
   
 
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
 
   const [form, setForm] = useState({
     title: "",
@@ -36,8 +37,40 @@ function CreateTaskContent() {
     helperId: helperId || null, // 👈 NEW
   });
 
+  // Fetch categories from DB
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      const res = await getTaskCategories();
+      const list = Array.isArray(res) ? res : res?.data || [];
+      setCategories(list);
+    } catch (error) {
+      console.error("Failed to fetch categories from DB", error);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  // Sync prefilled category once categories are loaded
+  useEffect(() => {
+    if (prefilledCategory && categories.length > 0) {
+      const match = categories.find(
+        (c) =>
+          (c.name && c.name.toLowerCase() === prefilledCategory.toLowerCase()) ||
+          (c.slug && c.slug.toLowerCase() === prefilledCategory.toLowerCase())
+      );
+      if (match) {
+        setForm((prev) => ({ ...prev, category: match.name }));
+      }
+    }
+  }, [prefilledCategory, categories]);
+
   // Mock helper (later replace with API fetch)
-   const [selectedHelper, setSelectedHelper] = useState();
+  const [selectedHelper, setSelectedHelper] = useState();
   useEffect(() => {
 
     if (helperId)
@@ -152,15 +185,21 @@ function CreateTaskContent() {
                 value={form.category}
                 onChange={handleChange}
                 required
-                className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                disabled={loadingCategories}
+                className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
               >
-                <option value="">Select category</option>
-                <option>Shopping</option>
-                <option>Delivery</option>
-                <option>Doctor Visit</option>
-                <option>Travel Assistance</option>
-                <option>Home Help</option>
-                <option>Other</option>
+                <option value="">
+                  {loadingCategories ? "Loading categories from database..." : "Select category"}
+                </option>
+                {categories.map((cat) => {
+                  const name = typeof cat === "string" ? cat : cat.name;
+                  const icon = cat.icon ? `${cat.icon} ` : "";
+                  return (
+                    <option key={cat.id || name} value={name}>
+                      {icon}{name}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 

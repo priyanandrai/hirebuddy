@@ -6,12 +6,47 @@ import Header from "./components/layout/Header";
 import CategoryCard from "./components/category/CategoryCard";
 import { CATEGORIES } from './components/category/categories';
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { googleBackendLogin } from "./components/lib/api";
+import Link from "next/link";
+import CustomDropdown from "./components/reuseable/CustomDropdown";
+import { getTaskCategories } from "./components/services/task.service";
 
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [location, setLocation] = useState("modipuram");
+
+  const locations = [
+    {
+      label: "Modipuram, Meerut",
+      value: "modipuram",
+      icon: "📍",
+    },
+    {
+      label: "Meerut",
+      value: "meerut",
+      icon: "📍",
+    },
+    {
+      label: "Modipuram",
+      value: "modipuram-only",
+      icon: "📍",
+    },
+  ];
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    getTaskCategories()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : res?.data || [];
+        if (list.length > 0) {
+          setCategories(list);
+        }
+      })
+      .catch((err) => console.warn("Failed to fetch categories from DB on homepage", err));
+  }, []);
+
   useEffect(() => {
     if (status === "authenticated" && session) {
       (async () => {
@@ -52,19 +87,28 @@ export default function HomePage() {
             </p>
 
             <div className="flex flex-wrap gap-4 mt-8">
-              <button className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition">
+              <Link
+                href="/post-task"
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
+              >
                 Post a Task
-              </button>
+              </Link>
 
-              <button className="px-6 py-3 border border-slate-700 text-slate-100 bg-slate-900/80 rounded-lg font-medium hover:bg-slate-800 transition">
+              <Link
+                href="/become-a-helper"
+                className="px-6 py-3 border border-slate-700 text-slate-100 bg-slate-900/80 rounded-lg font-medium hover:bg-slate-800 transition"
+              >
                 Become a Helper
-              </button>
+              </Link>
             </div>
 
             <div className="mt-6">
-              <select className="w-64 px-4 py-3 rounded-lg border border-slate-700 text-slate-100 bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option>Modipuram, Meerut</option>
-              </select>
+              <CustomDropdown
+                options={locations}
+                value={location}
+                onChange={setLocation}
+                placeholder="Select location"
+              />
             </div>
           </div>
 
@@ -87,9 +131,11 @@ export default function HomePage() {
           </h2>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {CATEGORIES.slice(0, 8).map((item) => (
-              <CategoryCard key={item} title={item} />
-            ))}
+            {(categories.length > 0 ? categories : CATEGORIES).slice(0, 8).map((item) => {
+              const name = typeof item === 'string' ? item : item.name;
+              const icon = typeof item === 'object' ? item.icon : undefined;
+              return <CategoryCard key={name} title={name} icon={icon} />;
+            })}
           </div>
         </div>
       </section>

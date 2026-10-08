@@ -52,4 +52,10 @@ export const updateTaskStatus = (taskId, status, token) => {
   });
 };
 
+export const getTaskCategories = () => {
+  return apiClient(TASK_ENDPOINTS.GET_CATEGORIES, {
+    method: "GET",
+  });
+};
+
 
