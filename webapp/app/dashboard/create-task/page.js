@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { createTask, getTaskCategories } from "@/app/components/services/task.service";
 import { getHelperByID } from "@/app/components/services/user.service";
+import CustomSelect from "@/app/components/reuseable/CustomSelect";
 
 export default function CreateTaskPage() {
   return (
@@ -109,6 +110,11 @@ function CreateTaskContent() {
       return;
     }
 
+    if (!form.category) {
+      alert("Please select a task category");
+      return;
+    }
+
     setLoading(true);
 
     const payload = {
@@ -180,27 +186,15 @@ function CreateTaskContent() {
 
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Category</label>
-              <select
+              <CustomSelect
                 name="category"
                 value={form.category}
-                onChange={handleChange}
-                required
+                onChange={(val) => setForm((prev) => ({ ...prev, category: val }))}
+                options={categories}
+                placeholder={loadingCategories ? "Loading categories from database..." : "Select category"}
                 disabled={loadingCategories}
-                className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-60"
-              >
-                <option value="">
-                  {loadingCategories ? "Loading categories from database..." : "Select category"}
-                </option>
-                {categories.map((cat) => {
-                  const name = typeof cat === "string" ? cat : cat.name;
-                  const icon = cat.icon ? `${cat.icon} ` : "";
-                  return (
-                    <option key={cat.id || name} value={name}>
-                      {icon}{name}
-                    </option>
-                  );
-                })}
-              </select>
+                required
+              />
             </div>
 
             <div>
