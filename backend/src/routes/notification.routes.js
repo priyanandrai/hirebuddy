@@ -23,8 +23,9 @@ router.get('/unread-count', notificationController.getUnreadCount);
 router.put('/:notificationId/read', notificationController.markAsRead);
 
 /**
- * PUT /api/notifications/read-all - Mark all as read
+ * PUT /api/notifications/read-all or /api/notifications/mark/read-all - Mark all as read
  */
+router.put('/read-all', notificationController.markAllAsRead);
 router.put('/mark/read-all', notificationController.markAllAsRead);
 
 /**

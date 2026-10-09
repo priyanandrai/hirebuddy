@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { searchTasks, searchHelpers } from "../../components/services/search.service";
 
-export default function SearchPage() {
+function SearchContent() {
   const params = useSearchParams();
   const q = params.get("q") || "";
   const [loading, setLoading] = useState(false);
@@ -69,5 +69,13 @@ export default function SearchPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading search...</div>}>
+      <SearchContent />
+    </Suspense>
   );
 }

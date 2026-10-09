@@ -1,9 +1,31 @@
 import { Server } from 'socket.io';
-import jwt from 'jsonwebtoken';
 import prisma  from '../utils/prisma.js';
+import { verifyUserToken } from '../utils/jwt.js';
 
 // Store active users and their socket connections
 const userSockets = new Map();
+let ioInstance = null;
+
+/**
+ * Get Socket.IO server instance
+ */
+export const getIO = () => ioInstance;
+
+/**
+ * Emit event to a specific user across all their connected sockets
+ */
+export const emitToUser = (userId, event, data) => {
+  if (!ioInstance || !userId) return;
+  ioInstance.to(`user_${userId}`).emit(event, data);
+};
+
+/**
+ * Emit event to a task room
+ */
+export const emitToTaskRoom = (taskId, event, data) => {
+  if (!ioInstance || !taskId) return;
+  ioInstance.to(`task_${taskId}`).emit(event, data);
+};
 
 /**
  * Initialize Socket.IO events
@@ -17,18 +39,28 @@ export const initializeSocket = (server) => {
     },
   });
 
+  ioInstance = io;
+
   // Middleware to verify JWT token
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth.token;
+      let token = socket.handshake.auth?.token || socket.handshake.headers?.authorization;
       if (!token) {
         return next(new Error('Authentication required'));
       }
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      socket.userId = decoded.id;
+      if (typeof token === 'string' && token.startsWith('Bearer ')) {
+        token = token.slice(7).trim();
+      }
+
+      const decoded = verifyUserToken(token);
+      socket.userId = decoded.id || decoded.userId;
+      if (!socket.userId) {
+        return next(new Error('Invalid token payload'));
+      }
       next();
     } catch (error) {
+      console.error('Socket auth error:', error.message);
       next(new Error('Invalid token'));
     }
   });
@@ -38,6 +70,9 @@ export const initializeSocket = (server) => {
    */
   io.on('connection', (socket) => {
     console.log(`User ${socket.userId} connected with socket ${socket.id}`);
+
+    // Join personal room for targeted notifications
+    socket.join(`user_${socket.userId}`);
 
     // Store user's socket connection
     if (!userSockets.has(socket.userId)) {

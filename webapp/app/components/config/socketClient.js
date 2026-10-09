@@ -11,11 +11,17 @@ export const initializeSocket = async () => {
 
   try {
     const token = await getAuthToken();
-    const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+    if (!token) {
+      console.warn("No auth token available for WebSocket connection");
+      return null;
+    }
+
+    const rawUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+    const SOCKET_URL = rawUrl.replace(/\/api\/?$/, "");
 
     socket = io(SOCKET_URL, {
       auth: {
-        token: `Bearer ${token}`,
+        token: token.startsWith("Bearer ") ? token : `Bearer ${token}`,
       },
       reconnection: true,
       reconnectionDelay: 1000,
@@ -60,20 +66,37 @@ export const onNewMessage = (callback) => {
   const socket = getSocket();
   if (socket) {
     socket.on("new_message", callback);
+    return () => socket.off("new_message", callback);
   }
+  return () => {};
 };
 
 export const onTaskUpdate = (callback) => {
   const socket = getSocket();
   if (socket) {
+    socket.on("task_status_changed", callback);
     socket.on("task_updated", callback);
+    return () => {
+      socket.off("task_status_changed", callback);
+      socket.off("task_updated", callback);
+    };
   }
+  return () => {};
 };
 
 export const onReceiveNotification = (callback) => {
   const socket = getSocket();
   if (socket) {
     socket.on("receive_notification", callback);
+    return () => socket.off("receive_notification", callback);
+  }
+  return () => {};
+};
+
+export const offReceiveNotification = (callback) => {
+  const socket = getSocket();
+  if (socket) {
+    socket.off("receive_notification", callback);
   }
 };
 
@@ -81,14 +104,22 @@ export const onTypingIndicator = (callback) => {
   const socket = getSocket();
   if (socket) {
     socket.on("user_typing", callback);
+    return () => socket.off("user_typing", callback);
   }
+  return () => {};
 };
 
 export const onPaymentUpdate = (callback) => {
   const socket = getSocket();
   if (socket) {
+    socket.on("payment_notification", callback);
     socket.on("payment_alert", callback);
+    return () => {
+      socket.off("payment_notification", callback);
+      socket.off("payment_alert", callback);
+    };
   }
+  return () => {};
 };
 
 // Emit events

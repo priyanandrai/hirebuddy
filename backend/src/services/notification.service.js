@@ -1,4 +1,5 @@
 import  prisma  from '../utils/prisma.js';
+import { emitToUser } from '../config/socket.config.js';
 
 /**
  * Send a notification to a user
@@ -19,6 +20,13 @@ export const sendNotification = async (taskId, senderId, receiverId, type, title
         task: { select: { id: true, title: true } },
       },
     });
+
+    // Real-time socket emission to receiver
+    try {
+      emitToUser(receiverId, 'receive_notification', notification);
+    } catch (socketErr) {
+      console.warn('Real-time notification emission failed:', socketErr?.message);
+    }
 
     return notification;
   } catch (error) {
@@ -157,44 +165,51 @@ export const notificationEvents = {
    * Task accepted by helper
    */
   taskAccepted: async (taskId, helperId, posterUserId) => {
-    const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const [task, helper] = await Promise.all([
+      prisma.task.findUnique({ where: { id: taskId } }),
+      prisma.user.findUnique({ where: { id: helperId }, select: { name: true } }),
+    ]);
+    const helperName = helper?.name || 'A helper';
+    const taskTitle = task?.title || 'your task';
     return sendNotification(
       taskId,
       helperId,
       posterUserId,
       'task_accepted',
       'Task Accepted!',
-      `A helper has accepted your task: "${task.title}"`
+      `${helperName} has accepted your task: "${taskTitle}"`
     );
   },
 
   /**
-   * Task started by helper
+   * Task started by helper (IN_PROGRESS)
    */
-  taskStarted: async (taskId, helperId, posterUserId) => {
+  taskStarted: async (taskId, senderId, receiverId) => {
     const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const taskTitle = task?.title || 'Task';
     return sendNotification(
       taskId,
-      helperId,
-      posterUserId,
+      senderId,
+      receiverId,
       'task_started',
       'Task In Progress',
-      `Your task "${task.title}" has been started`
+      `Your task "${taskTitle}" is now in progress.`
     );
   },
 
   /**
-   * Task completed by helper
+   * Task completed by helper (COMPLETED)
    */
-  taskCompleted: async (taskId, helperId, posterUserId) => {
+  taskCompleted: async (taskId, senderId, receiverId) => {
     const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const taskTitle = task?.title || 'Task';
     return sendNotification(
       taskId,
-      helperId,
-      posterUserId,
+      senderId,
+      receiverId,
       'task_completed',
-      'Task Completed',
-      `Your task "${task.title}" has been completed`
+      'Task Completed!',
+      `Your task "${taskTitle}" has been completed.`
     );
   },
 
@@ -203,13 +218,15 @@ export const notificationEvents = {
    */
   paymentReceived: async (taskId, payeeId, payerId, amount) => {
     const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const taskTitle = task?.title || 'Task';
+    const formattedAmount = (amount / 100).toFixed(2);
     return sendNotification(
       taskId,
       payerId,
       payeeId,
       'payment_received',
       'Payment Received!',
-      `You received ₹${(amount / 100).toFixed(2)} for task: "${task.title}"`
+      `You received ₹${formattedAmount} for task: "${taskTitle}"`
     );
   },
 
@@ -254,7 +271,47 @@ export const notificationEvents = {
       otherUserId,
       'task_cancelled',
       'Task Cancelled',
-      `The task "${task.title}" has been cancelled. Reason: ${reason}`
+      `The task "${task?.title || 'Task'}" has been cancelled. Reason: ${reason}`
+    );
+  },
+
+  /**
+   * Task requested directly to helper
+   */
+  taskRequested: async (taskId, customerId, helperId) => {
+    const [task, customer] = await Promise.all([
+      prisma.task.findUnique({ where: { id: taskId } }),
+      prisma.user.findUnique({ where: { id: customerId }, select: { name: true } }),
+    ]);
+    const customerName = customer?.name || 'A customer';
+    const taskTitle = task?.title || 'a new task';
+    return sendNotification(
+      taskId,
+      customerId,
+      helperId,
+      'task_requested',
+      'New Booking Request!',
+      `${customerName} has requested you for: "${taskTitle}". Please accept or decline.`
+    );
+  },
+
+  /**
+   * Task declined by helper
+   */
+  taskDeclined: async (taskId, helperId, customerId, reason = 'Helper unavailable') => {
+    const [task, helper] = await Promise.all([
+      prisma.task.findUnique({ where: { id: taskId } }),
+      prisma.user.findUnique({ where: { id: helperId }, select: { name: true } }),
+    ]);
+    const helperName = helper?.name || 'The helper';
+    const taskTitle = task?.title || 'your task';
+    return sendNotification(
+      taskId,
+      helperId,
+      customerId,
+      'task_declined',
+      'Booking Request Declined',
+      `${helperName} was unable to accept your request for "${taskTitle}". Reason: ${reason}`
     );
   },
 };

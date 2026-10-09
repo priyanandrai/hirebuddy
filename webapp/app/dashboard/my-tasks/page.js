@@ -80,16 +80,22 @@ export default function MyTasksPage() {
 /* ---------- Status Badge ---------- */
 
 function StatusBadge({ status }) {
-  const styles = {
-    Open: "bg-yellow-500/15 text-yellow-300",
-    "In Progress": "bg-blue-500/15 text-blue-300",
-    Completed: "bg-green-500/15 text-green-300",
-    Cancelled: "bg-red-500/15 text-red-300",
+  const normalized = (status || "").toUpperCase();
+
+  const configs = {
+    REQUESTED: { label: "Waiting for Helper", style: "bg-amber-500/15 text-amber-300 border border-amber-500/30" },
+    OPEN: { label: "Open (Unassigned)", style: "bg-sky-500/15 text-sky-300 border border-sky-500/30" },
+    ASSIGNED: { label: "Helper Confirmed", style: "bg-blue-500/15 text-blue-300 border border-blue-500/30" },
+    IN_PROGRESS: { label: "In Progress", style: "bg-yellow-500/15 text-yellow-300 border border-yellow-500/30" },
+    COMPLETED: { label: "Completed", style: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" },
+    CANCELLED: { label: "Cancelled", style: "bg-rose-500/15 text-rose-300 border border-rose-500/30" },
   };
 
+  const current = configs[normalized] || { label: status || "Unknown", style: "bg-slate-700 text-slate-200" };
+
   return (
-    <span className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${styles[status] || "bg-slate-700 text-slate-200"}`}>
-      {status}
+    <span className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${current.style}`}>
+      {current.label}
     </span>
   );
 }

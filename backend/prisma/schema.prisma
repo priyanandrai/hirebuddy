@@ -110,6 +110,7 @@ enum IDVerificationStatus {
 
 enum TaskStatus {
   OPEN
+  REQUESTED
   ASSIGNED
   IN_PROGRESS
   COMPLETED

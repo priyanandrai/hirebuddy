@@ -8,11 +8,13 @@ import {
   verifyUserId,
   getPendingIdSubmissions,
   getAssignedHelpersFromMyTasks,
+  getAllUsers,
 } from "../controllers/user.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
+router.get("/all", authMiddleware, getAllUsers);
 router.post("/set-role", authMiddleware, setRole);
 router.post("/helper-profile", authMiddleware, updateHelperProfile);
 router.post("/id/submit", authMiddleware, submitIdDocument);

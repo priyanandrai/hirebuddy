@@ -4,8 +4,10 @@ import {
     updateHelperProfileService,
     getHelper,
     getHelpersListService,
-  submitIdDocumentService,
-  verifyUserIdService,
+    submitIdDocumentService,
+    verifyUserIdService,
+    getPendingIdSubmissionsService,
+    getAllUsersService,
   } from "../services/user.service.js";
   
   export const setRole = async (req, res) => {
@@ -132,4 +134,15 @@ import {
       res.status(500).json({ message: 'Failed to verify user ID' });
     }
   };
-  
+
+  export const getAllUsers = async (req, res) => {
+    try {
+      const { role, search, limit, offset } = req.query;
+      const result = await getAllUsersService({ role, search, limit, offset });
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('Get all users error', error);
+      res.status(500).json({ message: 'Failed to fetch users' });
+    }
+  };
+

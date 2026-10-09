@@ -3,6 +3,7 @@ import {
   createTask,
   getMyTasks,
   acceptTask,
+  declineTask,
   getCategories,
   getTaskById,
   getAssignedTasks,
@@ -36,6 +37,7 @@ router.post("/", authMiddleware, createTask);
 
 // Task actions
 router.post("/:id/accept", authMiddleware, allowRoles("HELPER"), acceptTask);
+router.post("/:id/decline", authMiddleware, allowRoles("HELPER"), declineTask);
 router.put("/:id/status", authMiddleware, updateTaskStatus);
 router.put("/:id/cancel", authMiddleware, cancelTask);
 

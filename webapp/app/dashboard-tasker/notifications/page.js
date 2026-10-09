@@ -7,6 +7,10 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
 } from "@/app/components/services/notification.service";
+import {
+  initializeSocket,
+  onReceiveNotification,
+} from "@/app/components/config/socketClient";
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
@@ -14,6 +18,27 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     loadNotifications();
+
+    let unsubscribe = () => {};
+    const setup = async () => {
+      try {
+        await initializeSocket();
+        unsubscribe = onReceiveNotification((newNotif) => {
+          if (!newNotif || !newNotif.id) return;
+          setNotifications((prev) => {
+            if (prev.some((n) => n.id === newNotif.id)) return prev;
+            return [newNotif, ...prev];
+          });
+        });
+      } catch (err) {
+        console.warn("Tasker socket notif listener failed", err);
+      }
+    };
+    setup();
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const loadNotifications = async () => {

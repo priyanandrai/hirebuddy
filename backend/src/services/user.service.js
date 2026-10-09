@@ -236,4 +236,57 @@ export const searchHelpersDbService = async (params = {}) => {
   };
 };
 
+export const getAllUsersService = async ({ role, search, limit = 50, offset = 0 } = {}) => {
+  const where = {};
+  if (role) {
+    where.role = role;
+  }
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: 'insensitive' } },
+      { phone: { contains: search, mode: 'insensitive' } },
+      { email: { contains: search, mode: 'insensitive' } },
+      { city: { contains: search, mode: 'insensitive' } },
+    ];
+  }
+
+  const [total, users] = await Promise.all([
+    prisma.user.count({ where }),
+    prisma.user.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: Number(limit) || 50,
+      skip: Number(offset) || 0,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        image: true,
+        role: true,
+        city: true,
+        address: true,
+        skills: true,
+        experience: true,
+        hourlyRate: true,
+        averageRating: true,
+        totalReviews: true,
+        walletBalance: true,
+        isAvailable: true,
+        idVerificationStatus: true,
+        idDocumentUrl: true,
+        createdAt: true,
+        _count: {
+          select: {
+            tasksCreated: true,
+            tasksAssigned: true,
+          },
+        },
+      },
+    }),
+  ]);
+
+  return { total, users };
+};
+
 

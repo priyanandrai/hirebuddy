@@ -7,6 +7,14 @@ import { useRouter } from "next/navigation";
 import { useContext } from "react";
 import { ThemeContext } from "../../providers";
 import Image from "next/image";
+import {
+  getNotifications,
+  getUnreadNotificationCount,
+} from "../services/notification.service";
+import {
+  initializeSocket,
+  onReceiveNotification,
+} from "../config/socketClient";
 
 export default function AuthenticatedHeader() {
   const [profileOpen, setProfileOpen] = useState(false);
@@ -31,7 +39,54 @@ export default function AuthenticatedHeader() {
     router.push("/");
   };
 
-  const unreadCount = 3; // example
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [recentNotifications, setRecentNotifications] = useState([]);
+
+  // Fetch real notifications and listen to socket events
+  useEffect(() => {
+    let unsubscribe = () => {};
+
+    const loadData = async () => {
+      try {
+        const [countRes, notifRes] = await Promise.allSettled([
+          getUnreadNotificationCount(),
+          getNotifications(5, 0),
+        ]);
+
+        if (countRes.status === "fulfilled") {
+          const count = countRes.value?.unreadCount ?? countRes.value?.count ?? 0;
+          setUnreadCount(typeof count === "number" ? count : 0);
+        }
+
+        if (notifRes.status === "fulfilled") {
+          const list = notifRes.value?.notifications || notifRes.value?.data?.notifications || [];
+          setRecentNotifications(list);
+        }
+      } catch (e) {
+        // Unauthenticated or network error
+      }
+    };
+
+    const setupSocket = async () => {
+      try {
+        await initializeSocket();
+        unsubscribe = onReceiveNotification((newNotif) => {
+          if (!newNotif) return;
+          setUnreadCount((c) => c + 1);
+          setRecentNotifications((prev) => [newNotif, ...prev.slice(0, 4)]);
+        });
+      } catch (err) {
+        // Socket setup failed silently
+      }
+    };
+
+    loadData();
+    setupSocket();
+
+    return () => {
+      unsubscribe();
+    };
+  }, [session]);
 
   const wrapperRef = useRef(null);
 
@@ -128,13 +183,31 @@ export default function AuthenticatedHeader() {
                   <div className="border-b border-slate-700 px-4 py-3 text-sm font-semibold text-white">
                     Notifications
                   </div>
-                  <div className="max-h-72 overflow-y-auto">
-                    <NotificationItem title="Task accepted" desc="A helper accepted your grocery task" time="2m ago" unread />
-                    <NotificationItem title="Task completed" desc="Your medicine delivery is done" time="1h ago" />
-                    <NotificationItem title="New message" desc="Helper sent you a message" time="Yesterday" />
+                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
+                    {recentNotifications.length > 0 ? (
+                      recentNotifications.map((n) => (
+                        <NotificationItem
+                          key={n.id}
+                          title={n.title}
+                          desc={n.message}
+                          time={new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          unread={!n.isRead}
+                          taskId={n.taskId}
+                          onClick={() => setNotifOpen(false)}
+                        />
+                      ))
+                    ) : (
+                      <div className="px-4 py-8 text-center text-xs text-slate-400">
+                        No notifications yet
+                      </div>
+                    )}
                   </div>
                   <div className="border-t border-slate-700 text-center">
-                    <Link href="/dashboard/notifications" className="block px-4 py-3 text-sm text-blue-400 hover:bg-slate-800">
+                    <Link
+                      href="/dashboard/notifications"
+                      onClick={() => setNotifOpen(false)}
+                      className="block px-4 py-3 text-sm font-medium text-blue-400 hover:bg-slate-800 transition"
+                    >
                       View all notifications
                     </Link>
                   </div>
@@ -237,16 +310,22 @@ function DropdownItem({ href, children, setOpen }) {
   );
 }
 
-function NotificationItem({ title, desc, time, unread }) {
+function NotificationItem({ title, desc, time, unread, taskId, onClick }) {
   return (
-    <div
-      className={`px-4 py-3 text-sm hover:bg-slate-800 ${unread ? "bg-blue-500/10" : ""
-        }`}
+    <Link
+      href={taskId ? `/dashboard/tasks/${taskId}` : "/dashboard/notifications"}
+      onClick={onClick}
+      className={`block px-4 py-3 text-sm hover:bg-slate-800 transition ${
+        unread ? "bg-blue-500/10" : ""
+      }`}
     >
-      <p className="font-medium text-white">{title}</p>
-      <p className="text-xs text-slate-300">{desc}</p>
-      <p className="mt-1 text-xs text-slate-500">{time}</p>
-    </div>
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-medium text-white truncate">{title}</p>
+        {unread && <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />}
+      </div>
+      <p className="text-xs text-slate-300 line-clamp-2 mt-0.5">{desc}</p>
+      <p className="mt-1 text-[11px] text-slate-500">{time}</p>
+    </Link>
   );
 }
 

@@ -1,6 +1,7 @@
 import prisma from "../utils/prisma.js";
 import { notificationEvents } from "./notification.service.js";
 import { indexTask, deleteTask } from "./es.client.js";
+import { emitToTaskRoom, emitToUser } from "../config/socket.config.js";
 
 /**
  * Calculate distance between two coordinates (Haversine formula)
@@ -23,8 +24,8 @@ export const createTask = async (data, user) => {
   const {
     title,
     description,
-    category,
-    location,
+    category = "General",
+    location = "To be coordinated",
     latitude,
     longitude,
     budget,
@@ -32,26 +33,44 @@ export const createTask = async (data, user) => {
     helperId,
   } = data;
 
-  return prisma.task.create({
+  const isDirectRequest = Boolean(helperId);
+
+  const task = await prisma.task.create({
     data: {
       title,
       description,
-      category,
-      location,
+      category: category || "General",
+      location: location || "To be coordinated",
       latitude: latitude ? parseFloat(latitude) : null,
       longitude: longitude ? parseFloat(longitude) : null,
-      budget: Number(budget),
+      budget: Number(budget || 0),
       preferredAt: preferredAt ? new Date(preferredAt) : null,
       createdById: user.id,
       assignedToId: helperId || null,
-      status: helperId ? "ASSIGNED" : "OPEN",
+      status: isDirectRequest ? "REQUESTED" : "OPEN",
       paymentStatus: "PENDING",
     },
     include: {
-      createdBy: { select: { id: true, name: true, image: true } },
-      assignedTo: { select: { id: true, name: true, image: true } },
+      createdBy: { select: { id: true, name: true, image: true, phone: true } },
+      assignedTo: { select: { id: true, name: true, image: true, phone: true } },
     },
   });
+
+  if (isDirectRequest && helperId) {
+    try {
+      await notificationEvents.taskRequested(task.id, user.id, helperId);
+      emitToUser(helperId, 'task_requested', {
+        taskId: task.id,
+        task,
+        customerName: user.name || 'A customer',
+        message: `${user.name || 'A customer'} requested you for "${task.title}"`,
+      });
+    } catch (notifErr) {
+      console.warn('Failed to send task requested alert:', notifErr?.message);
+    }
+  }
+
+  return task;
 };
 
 // Hook: index after create
@@ -152,7 +171,7 @@ export const searchTasks = async (filters = {}) => {
       latitude,
       longitude,
       radiusKm = 5,
-      status = "OPEN",
+      status,
       sortBy = "createdAt",
       limit = 20,
       offset = 0,
@@ -160,9 +179,9 @@ export const searchTasks = async (filters = {}) => {
 
     const where = {};
 
-    if (status) where.status = status;
-    if (category) where.category = category;
-    if (city) where.city = city;
+    if (status && status !== "ALL") where.status = status;
+    if (category && category !== "ALL") where.category = category;
+    if (city && city !== "ALL") where.city = city;
 
     let tasks = await prisma.task.findMany({
       where,
@@ -217,12 +236,18 @@ export const assignHelper = async (user, taskId) => {
     throw new Error("Task not found");
   }
 
-  if (task.status !== "OPEN" || task.assignedToId) {
-    throw new Error("Task is not available for acceptance");
-  }
-
   if (task.createdById === user.id) {
     throw new Error("You cannot accept your own task");
+  }
+
+  // Two valid cases for helper acceptance:
+  // 1. OPEN task on public marketplace with no assigned helper
+  // 2. REQUESTED direct booking where this user is the designated helper (assignedToId === user.id)
+  const isMarketplaceOpen = task.status === "OPEN" && !task.assignedToId;
+  const isDirectRequestForUser = task.status === "REQUESTED" && task.assignedToId === user.id;
+
+  if (!isMarketplaceOpen && !isDirectRequestForUser) {
+    throw new Error("Task is not available for acceptance");
   }
 
   const updatedTask = await prisma.task.update({
@@ -232,13 +257,72 @@ export const assignHelper = async (user, taskId) => {
       status: "ASSIGNED",
     },
     include: {
-      createdBy: { select: { id: true, name: true, image: true } },
-      assignedTo: { select: { id: true, name: true, image: true } },
+      createdBy: { select: { id: true, name: true, image: true, phone: true } },
+      assignedTo: { select: { id: true, name: true, image: true, phone: true } },
     },
   });
 
-  // Send notification
+  // Send notification to customer
   await notificationEvents.taskAccepted(taskId, user.id, task.createdById);
+  try {
+    emitToTaskRoom(taskId, 'task_status_changed', { taskId, newStatus: 'ASSIGNED' });
+    emitToUser(task.createdById, 'task_status_changed', { taskId, newStatus: 'ASSIGNED' });
+  } catch (e) {
+    console.warn('Socket emit error:', e?.message);
+  }
+
+  return updatedTask;
+};
+
+/**
+ * Decline a direct booking request as helper
+ */
+export const declineHelperRequest = async (user, taskId, reason = "Helper is unavailable") => {
+  if (user.role !== "HELPER") {
+    throw new Error("Only helpers can decline tasks");
+  }
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      createdById: true,
+      assignedToId: true,
+    },
+  });
+
+  if (!task) {
+    throw new Error("Task not found");
+  }
+
+  if (task.assignedToId !== user.id) {
+    throw new Error("You are not the designated helper for this task");
+  }
+
+  if (task.status !== "REQUESTED" && task.status !== "ASSIGNED") {
+    throw new Error("Task cannot be declined at this stage");
+  }
+
+  const updatedTask = await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      status: "CANCELLED",
+    },
+    include: {
+      createdBy: { select: { id: true, name: true, image: true, phone: true } },
+      assignedTo: { select: { id: true, name: true, image: true, phone: true } },
+    },
+  });
+
+  try {
+    await notificationEvents.taskDeclined(taskId, user.id, task.createdById, reason);
+    emitToTaskRoom(taskId, 'task_status_changed', { taskId, newStatus: 'CANCELLED' });
+    emitToUser(task.createdById, 'task_status_changed', { taskId, newStatus: 'CANCELLED' });
+  } catch (e) {
+    console.warn('Decline notification error:', e?.message);
+  }
 
   return updatedTask;
 };
@@ -254,6 +338,7 @@ export const getTaskById = async (userId, taskId) => {
         select: {
           id: true,
           name: true,
+          phone: true,
           image: true,
           averageRating: true,
           totalReviews: true,
@@ -263,6 +348,7 @@ export const getTaskById = async (userId, taskId) => {
         select: {
           id: true,
           name: true,
+          phone: true,
           image: true,
         },
       },
@@ -300,6 +386,7 @@ export const getTasksAssignedToHelper = (helperId) => {
           id: true,
           name: true,
           image: true,
+          phone: true,
         },
       },
     },
@@ -356,6 +443,7 @@ export const updateTaskStatus = async (taskId, userId, newStatus) => {
     // Validate status transitions
     const validTransitions = {
       OPEN: ["ASSIGNED", "CANCELLED"],
+      REQUESTED: ["ASSIGNED", "CANCELLED"],
       ASSIGNED: ["IN_PROGRESS", "CANCELLED"],
       IN_PROGRESS: ["COMPLETED", "CANCELLED"],
       COMPLETED: [],
@@ -379,15 +467,19 @@ export const updateTaskStatus = async (taskId, userId, newStatus) => {
     });
 
     // Send notifications based on status change
-    if (newStatus === "IN_PROGRESS") {
-      await notificationEvents.taskStarted(taskId, task.assignedToId, task.createdById);
-    } else if (newStatus === "COMPLETED") {
-      await notificationEvents.taskCompleted(taskId, task.assignedToId, task.createdById);
-    } else if (newStatus === "CANCELLED") {
-      const otherUserId = userId === task.createdById ? task.assignedToId : task.createdById;
-      if (otherUserId) {
-        await notificationEvents.taskCancelled(taskId, userId, otherUserId);
-      }
+    const otherUserId = userId === task.createdById ? task.assignedToId : task.createdById;
+    if (newStatus === "IN_PROGRESS" && otherUserId) {
+      await notificationEvents.taskStarted(taskId, userId, otherUserId);
+    } else if (newStatus === "COMPLETED" && otherUserId) {
+      await notificationEvents.taskCompleted(taskId, userId, otherUserId);
+    } else if (newStatus === "CANCELLED" && otherUserId) {
+      await notificationEvents.taskCancelled(taskId, userId, otherUserId);
+    }
+
+    try {
+      emitToTaskRoom(taskId, 'task_status_changed', { taskId, newStatus });
+    } catch (e) {
+      console.warn('Socket emitToTaskRoom error:', e?.message);
     }
 
     return updatedTask;

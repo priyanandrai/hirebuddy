@@ -36,6 +36,22 @@ export const acceptTask = async (req, res) => {
   }
 };
 
+export const declineTask = async (req, res) => {
+  try {
+    const task = await taskService.declineHelperRequest(req.user, req.params.id, req.body?.reason);
+    try { await indexTask(task); } catch (e) { console.warn('Indexing declined task failed', e); }
+    res.json(task);
+  } catch (error) {
+    const statusCode =
+      error.message === "Task not found"
+        ? 404
+        : error.message.includes("not the designated helper") || error.message.includes("Only helpers")
+          ? 403
+          : 400;
+    res.status(statusCode).json({ message: error.message });
+  }
+};
+
 export const getCategories = async (req, res) => {
   try {
     const categories = await categoryService.getAllCategories();
@@ -117,7 +133,7 @@ export const getNearbyTasks = async (req, res) => {
  */
 export const searchTasks = async (req, res) => {
   try {
-    const { category, city, latitude, longitude, radiusKm = 5, status = "OPEN", limit = 20, offset = 0 } = req.query;
+    const { category, city, latitude, longitude, radiusKm = 5, status, limit = 50, offset = 0 } = req.query;
 
     const result = await taskService.searchTasks({
       category,
@@ -125,7 +141,7 @@ export const searchTasks = async (req, res) => {
       latitude: latitude ? parseFloat(latitude) : null,
       longitude: longitude ? parseFloat(longitude) : null,
       radiusKm: parseInt(radiusKm),
-      status,
+      status: status && status !== "ALL" ? status : undefined,
       limit: parseInt(limit),
       offset: parseInt(offset),
     });

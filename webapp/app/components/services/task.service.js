@@ -44,6 +44,14 @@ export const acceptTask = (taskId, token) => {
   });
 };
 
+export const declineTask = (taskId, reason, token) => {
+  return apiClient(`${TASK_ENDPOINTS.ACCEPT_TASK}/${taskId}/decline`, {
+    method: "POST",
+    body: { reason },
+    token,
+  });
+};
+
 export const updateTaskStatus = (taskId, status, token) => {
   return apiClient(`${TASK_ENDPOINTS.UPDATE_TASK_STATUS}/${taskId}/status`, {
     method: "PUT",
