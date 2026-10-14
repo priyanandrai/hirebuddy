@@ -29,7 +29,7 @@ export default function VerificationsPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [search, setSearch] = useState('');
-  const [customToken, setCustomToken] = useState(adminToken || '');
+  const [customToken, setCustomToken] = useState(adminToken || 'hirebuddy_admin_secret_2026');
   const [selectedUser, setSelectedUser] = useState(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectingUserId, setRejectingUserId] = useState(null);
@@ -203,30 +203,85 @@ export default function VerificationsPage() {
                   <Badge status="PENDING" />
                 </div>
 
-                {/* ID Document Preview Link */}
-                <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <FileText className="h-5 w-5 text-blue-400" />
-                      <div>
-                        <p className="text-xs font-semibold text-white">Government ID Document</p>
-                        <p className="text-[11px] text-slate-400 truncate max-w-xs">
-                          {user.idDocumentUrl || 'Uploaded file'}
-                        </p>
+                {/* 3-Step Verification Documents */}
+                <div className="mt-5 space-y-3">
+                  {/* Step 2: ID Document */}
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <FileText className="h-4 w-4 text-blue-400" />
+                        <div>
+                          <p className="text-xs font-semibold text-white">
+                            ID Proof: {user.idDocumentType || "Government ID"}
+                          </p>
+                          <p className="text-[10px] text-slate-400 truncate max-w-xs">
+                            {user.idDocumentUrl || "No document uploaded"}
+                          </p>
+                        </div>
                       </div>
+                      {user.idDocumentUrl ? (
+                        <a
+                          href={user.idDocumentUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 rounded-xl bg-blue-600/20 border border-blue-500/30 px-2.5 py-1 text-xs font-bold text-blue-300 hover:bg-blue-600 hover:text-white transition"
+                        >
+                          <span>Inspect</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span className="text-[11px] text-slate-500">Not provided</span>
+                      )}
                     </div>
-                    {user.idDocumentUrl ? (
-                      <a
-                        href={user.idDocumentUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1 rounded-xl bg-blue-600/20 border border-blue-500/30 px-3 py-1.5 text-xs font-bold text-blue-300 hover:bg-blue-600 hover:text-white transition"
-                      >
-                        <span>Inspect</span>
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    ) : (
-                      <span className="text-xs text-slate-500">No URL</span>
+                    {user.idDocumentUrl && (user.idDocumentUrl.match(/\.(jpeg|jpg|png|webp)($|\?)/i) || user.idDocumentUrl.includes('data:image/') || user.idDocumentUrl.includes('uploads/documents/')) && (
+                      <div className="mt-2.5 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-1">
+                        <img
+                          src={user.idDocumentUrl}
+                          alt="ID Document Preview"
+                          className="max-h-36 w-full object-contain rounded-lg"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Step 3: Address Proof */}
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <MapPin className="h-4 w-4 text-emerald-400" />
+                        <div>
+                          <p className="text-xs font-semibold text-white">
+                            Address Proof: {user.addressProofType || "Address Document"}
+                          </p>
+                          <p className="text-[10px] text-slate-400 truncate max-w-xs">
+                            {user.addressProofUrl || "No address proof uploaded"}
+                          </p>
+                        </div>
+                      </div>
+                      {user.addressProofUrl ? (
+                        <a
+                          href={user.addressProofUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-1 rounded-xl bg-emerald-600/20 border border-emerald-500/30 px-2.5 py-1 text-xs font-bold text-emerald-300 hover:bg-emerald-600 hover:text-white transition"
+                        >
+                          <span>Inspect</span>
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span className="text-[11px] text-slate-500">Not provided</span>
+                      )}
+                    </div>
+                    {user.addressProofUrl && (user.addressProofUrl.match(/\.(jpeg|jpg|png|webp)($|\?)/i) || user.addressProofUrl.includes('data:image/') || user.addressProofUrl.includes('uploads/documents/')) && (
+                      <div className="mt-2.5 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-1">
+                        <img
+                          src={user.addressProofUrl}
+                          alt="Address Proof Preview"
+                          className="max-h-36 w-full object-contain rounded-lg"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                      </div>
                     )}
                   </div>
                 </div>

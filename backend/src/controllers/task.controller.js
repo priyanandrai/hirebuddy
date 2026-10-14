@@ -67,7 +67,7 @@ export const getCategories = async (req, res) => {
 
 export const getTaskById = async (req, res) => {
   try {
-    const task = await taskService.getTaskById(req.user.id, req.params.id);
+    const task = await taskService.getTaskById(req.user.id, req.params.id, req.user);
     if (!task) {
       return res.status(404).json({ message: "Task not found" });
     }
@@ -165,13 +165,31 @@ export const updateTaskStatus = async (req, res) => {
       return res.status(400).json({ message: "Status is required" });
     }
 
-    const task = await taskService.updateTaskStatusAndIndex(id, req.user.id, status);
+    const task = await taskService.updateTaskStatusAndIndex(id, req.user.id, status, req.user);
 
     res.json(task);
   } catch (error) {
     console.error("Update task status error:", error);
     const statusCode = error.message === "Task not found" ? 404 : 400;
     res.status(statusCode).json({ message: error.message });
+  }
+};
+
+/**
+ * Delete a task (Admin action)
+ */
+export const deleteTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user?.role !== "ADMIN" && !req.isAdmin) {
+      return res.status(403).json({ message: "Only admins can delete tasks" });
+    }
+
+    await taskService.deleteTaskService(id);
+    res.json({ success: true, message: "Task deleted successfully" });
+  } catch (error) {
+    console.error("Delete task error:", error);
+    res.status(500).json({ message: error.message || "Failed to delete task" });
   }
 };
 

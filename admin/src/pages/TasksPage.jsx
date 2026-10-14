@@ -14,6 +14,7 @@ import {
   AlertCircle,
   Eye,
   Tag,
+  Trash2,
 } from 'lucide-react';
 import { adminApi } from '../services/api';
 import Badge from '../components/common/Badge';
@@ -25,6 +26,7 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Filters
@@ -32,6 +34,39 @@ export default function TasksPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [selectedTask, setSelectedTask] = useState(null);
+
+  const handleStatusChange = async (taskId, newStatus) => {
+    setActionLoading(true);
+    try {
+      await adminApi.updateTaskStatus(taskId, newStatus);
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
+      );
+      if (selectedTask?.id === taskId) {
+        setSelectedTask((prev) => ({ ...prev, status: newStatus }));
+      }
+      alert(`Task status updated to ${newStatus}`);
+    } catch (err) {
+      alert(err.message || 'Failed to update task status');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteTask = async (taskId) => {
+    if (!window.confirm('Are you sure you want to permanently delete this task?')) return;
+    setActionLoading(true);
+    try {
+      await adminApi.deleteTask(taskId);
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      setSelectedTask(null);
+      alert('Task deleted successfully');
+    } catch (err) {
+      alert(err.message || 'Failed to delete task');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const fetchTasks = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -405,7 +440,44 @@ export default function TasksPage() {
               <p className="text-slate-300 font-mono text-[11px] break-all">{selectedTask.id}</p>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+            {/* Admin Management Section */}
+            <div className="p-4 bg-slate-900 rounded-xl border border-emerald-500/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  Admin Task Controls (Live API)
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">Current: {selectedTask.status}</span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-xs text-slate-300 mr-1">Change Status:</span>
+                {['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => handleStatusChange(selectedTask.id, st)}
+                    disabled={actionLoading || selectedTask.status === st}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      selectedTask.status === st
+                        ? 'bg-emerald-500 text-slate-950 shadow cursor-default'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
+                    } disabled:opacity-50`}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-800">
+              <button
+                onClick={() => handleDeleteTask(selectedTask.id)}
+                disabled={actionLoading}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-900/50 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete Task
+              </button>
+
               <button
                 onClick={() => setSelectedTask(null)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium transition-colors"

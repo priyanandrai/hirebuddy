@@ -16,6 +16,12 @@ import {
   XCircle,
   Clock,
   Eye,
+  Trash2,
+  UserPlus,
+  Copy,
+  Check,
+  Key,
+  Sparkles,
 } from 'lucide-react';
 import { adminApi } from '../services/api';
 import Badge from '../components/common/Badge';
@@ -28,6 +34,7 @@ export default function HelpersPage() {
   const [helpers, setHelpers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Filters & Search
@@ -37,6 +44,127 @@ export default function HelpersPage() {
 
   // Selected helper for modal
   const [selectedHelper, setSelectedHelper] = useState(null);
+
+  // Add Helper Modal states
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState(null);
+  const [copiedCredentials, setCopiedCredentials] = useState(false);
+  const [createdHelperInfo, setCreatedHelperInfo] = useState(null);
+
+  const initialAddFormData = {
+    name: '',
+    phone: '',
+    password: `Helper@${Math.floor(1000 + Math.random() * 9000)}`,
+    skills: '',
+    city: 'Meerut',
+    hourlyRate: '299',
+    isVerified: true,
+  };
+  const [addFormData, setAddFormData] = useState(initialAddFormData);
+
+  const resetAddForm = () => {
+    setAddFormData({
+      ...initialAddFormData,
+      password: `Helper@${Math.floor(1000 + Math.random() * 9000)}`,
+    });
+    setCreatedHelperInfo(null);
+    setAddError(null);
+    setCopiedCredentials(false);
+  };
+
+  const handleGeneratePassword = () => {
+    const randomDigits = Math.floor(1000 + Math.random() * 9000);
+    setAddFormData((prev) => ({ ...prev, password: `Helper@${randomDigits}` }));
+  };
+
+  const handleCreateHelper = async (e) => {
+    e.preventDefault();
+    setAddError(null);
+
+    const cleanPhone = addFormData.phone.replace(/\D/g, '').slice(-10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      setAddError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    if (!addFormData.password || addFormData.password.length < 4) {
+      setAddError('Password must be at least 4 characters long.');
+      return;
+    }
+
+    setAddLoading(true);
+    try {
+      const res = await adminApi.createHelper({
+        name: addFormData.name.trim(),
+        phone: cleanPhone,
+        password: addFormData.password.trim(),
+        skills: addFormData.skills.trim() || 'General Helper',
+        city: addFormData.city.trim() || 'Meerut',
+        hourlyRate: addFormData.hourlyRate ? Number(addFormData.hourlyRate) : undefined,
+        isVerified: addFormData.isVerified,
+      });
+
+      const helperData = res.helper || res.data || res;
+      setCreatedHelperInfo({
+        ...helperData,
+        plainPassword: addFormData.password.trim(),
+      });
+
+      // Refresh directory list
+      fetchHelpers(true);
+    } catch (err) {
+      setAddError(err.message || 'Failed to create helper account');
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  const copyCredentialsToClipboard = () => {
+    if (!createdHelperInfo) return;
+    const text = `HireBuddy Helper Partner Credentials:\n- Login URL: http://localhost:3000/login\n- Helper ID (Phone): ${createdHelperInfo.phone}\n- Password: ${createdHelperInfo.plainPassword}\n- Status: Verified & Active\n\nPlease login and start accepting local tasks!`;
+    navigator.clipboard.writeText(text);
+    setCopiedCredentials(true);
+    setTimeout(() => setCopiedCredentials(false), 3000);
+  };
+
+  const handleVerifyStatus = async (helperId, newStatus) => {
+    setActionLoading(true);
+    try {
+      await adminApi.verifyUserId(helperId, {
+        status: newStatus,
+        notes: `ID status updated to ${newStatus} by Admin`,
+      });
+      setHelpers((prev) =>
+        prev.map((h) =>
+          h.id === helperId ? { ...h, idVerificationStatus: newStatus } : h
+        )
+      );
+      if (selectedHelper?.id === helperId) {
+        setSelectedHelper((prev) => ({ ...prev, idVerificationStatus: newStatus }));
+      }
+      alert(`Helper verification updated to ${newStatus}!`);
+    } catch (err) {
+      alert(err.message || 'Failed to update verification status');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteHelper = async (helperId) => {
+    if (!window.confirm('Are you sure you want to permanently delete this helper account? All assigned tasks will be unassigned.')) return;
+    setActionLoading(true);
+    try {
+      await adminApi.deleteUser(helperId);
+      setHelpers((prev) => prev.filter((h) => h.id !== helperId));
+      setSelectedHelper(null);
+      alert('Helper account deleted successfully');
+    } catch (err) {
+      alert(err.message || 'Failed to delete helper');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const fetchHelpers = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -135,6 +263,17 @@ export default function HelpersPage() {
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-emerald-400' : ''}`} />
             Refresh
+          </button>
+
+          <button
+            onClick={() => {
+              resetAddForm();
+              setShowAddModal(true);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm shadow-emerald-950"
+          >
+            <UserPlus className="w-4 h-4" />
+            Add Helper
           </button>
         </div>
       </div>
@@ -489,8 +628,47 @@ export default function HelpersPage() {
               </div>
             )}
 
+            {/* Admin Management Section */}
+            <div className="p-4 bg-slate-900 rounded-xl border border-emerald-500/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  Admin Verification Controls (Live API)
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  Status: {selectedHelper.idVerificationStatus || 'UNVERIFIED'}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <span className="text-xs text-slate-300 mr-1">Change ID Status:</span>
+                {['VERIFIED', 'PENDING', 'UNVERIFIED', 'REJECTED'].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => handleVerifyStatus(selectedHelper.id, st)}
+                    disabled={actionLoading || selectedHelper.idVerificationStatus === st}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      selectedHelper.idVerificationStatus === st
+                        ? 'bg-emerald-500 text-slate-950 shadow cursor-default'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
+                    } disabled:opacity-50`}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Footer */}
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-800">
+              <button
+                onClick={() => handleDeleteHelper(selectedHelper.id)}
+                disabled={actionLoading}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-900/50 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete Helper Account
+              </button>
+
               <button
                 onClick={() => setSelectedHelper(null)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium transition-colors"
@@ -499,6 +677,298 @@ export default function HelpersPage() {
               </button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* Add Helper Modal */}
+      {showAddModal && (
+        <Modal
+          isOpen={showAddModal}
+          onClose={() => {
+            setShowAddModal(false);
+            resetAddForm();
+          }}
+          title={createdHelperInfo ? "Helper Account Created!" : "Add New Helper / Partner"}
+          maxWidth="max-w-xl"
+        >
+          {createdHelperInfo ? (
+            /* SUCCESS CREDENTIALS CARD */
+            <div className="space-y-5">
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
+                <div>
+                  <h4 className="text-sm font-bold text-white">Helper Successfully Registered!</h4>
+                  <p className="text-xs text-slate-300 mt-1">
+                    The account has been created in MariaDB and indexed in Elasticsearch. Provide these login credentials to the helper.
+                  </p>
+                </div>
+              </div>
+
+              {/* Credential Box */}
+              <div className="p-5 bg-slate-950 rounded-2xl border border-slate-800 space-y-3 font-mono">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+                  <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider font-sans flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5" />
+                    Helper Login Credentials
+                  </span>
+                  <Badge variant="emerald">Live & Active</Badge>
+                </div>
+
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between py-1 border-b border-slate-900">
+                    <span className="text-slate-400 font-sans">Name:</span>
+                    <span className="text-slate-200 font-bold">{createdHelperInfo.name}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-900">
+                    <span className="text-slate-400 font-sans">Helper ID (Phone):</span>
+                    <span className="text-emerald-300 font-bold tracking-wider">{createdHelperInfo.phone}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-900">
+                    <span className="text-slate-400 font-sans">Initial Password:</span>
+                    <span className="text-amber-300 font-bold tracking-wider bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                      {createdHelperInfo.plainPassword}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-slate-900">
+                    <span className="text-slate-400 font-sans">Login Portal:</span>
+                    <span className="text-blue-400 font-sans underline">http://localhost:3000/login</span>
+                  </div>
+                  <div className="flex justify-between py-1">
+                    <span className="text-slate-400 font-sans">Skills:</span>
+                    <span className="text-slate-300 font-sans">{createdHelperInfo.skills}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Copy Button */}
+              <button
+                type="button"
+                onClick={copyCredentialsToClipboard}
+                className={`w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                  copiedCredentials
+                    ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-950'
+                }`}
+              >
+                {copiedCredentials ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Credentials Copied to Clipboard!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    Copy Login Credentials for WhatsApp / SMS
+                  </>
+                )}
+              </button>
+
+              <div className="pt-2 flex justify-between gap-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={resetAddForm}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition"
+                >
+                  ➕ Add Another Helper
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddModal(false);
+                    resetAddForm();
+                  }}
+                  className="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-xl text-xs font-bold transition"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* CREATION FORM */
+            <form onSubmit={handleCreateHelper} className="space-y-4">
+              {addError && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300">
+                  {addError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Full Name */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Full Name <span className="text-emerald-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Ramesh Kumar"
+                    value={addFormData.name}
+                    onChange={(e) => setAddFormData({ ...addFormData, name: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                {/* Mobile Number (Login ID) */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Mobile Number (Helper ID) <span className="text-emerald-400">*</span>
+                  </label>
+                  <div className="flex bg-slate-950 border border-slate-800 rounded-xl overflow-hidden focus-within:border-emerald-500">
+                    <span className="px-3 py-2 text-xs text-slate-400 bg-slate-900 border-r border-slate-800 flex items-center">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="10-digit mobile"
+                      value={addFormData.phone}
+                      onChange={(e) => setAddFormData({ ...addFormData, phone: e.target.value })}
+                      className="w-full bg-transparent px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-300">
+                    Initial Password <span className="text-emerald-400">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleGeneratePassword}
+                    className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    Generate Random
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={addFormData.password}
+                    onChange={(e) => setAddFormData({ ...addFormData, password: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Helper will sign in using their Mobile Number + this password on the HireBuddy login page.
+                </p>
+              </div>
+
+              {/* Skills */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Primary Skills & Services
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Electrician, AC Repair, Plumbing"
+                  value={addFormData.skills}
+                  onChange={(e) => setAddFormData({ ...addFormData, skills: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                />
+                {/* Quick skill pills */}
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {['Electrician', 'Plumber', 'Cleaning', 'Carpenter', 'Painter', 'AC Repair', 'Moving'].map((sk) => (
+                    <button
+                      key={sk}
+                      type="button"
+                      onClick={() => {
+                        const current = addFormData.skills ? addFormData.skills.split(',').map(s => s.trim()).filter(Boolean) : [];
+                        if (!current.includes(sk)) {
+                          const updated = [...current, sk].join(', ');
+                          setAddFormData({ ...addFormData, skills: updated });
+                        }
+                      }}
+                      className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 transition"
+                    >
+                      + {sk}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* City */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    City / Working Area
+                  </label>
+                  <input
+                    type="text"
+                    value={addFormData.city}
+                    onChange={(e) => setAddFormData({ ...addFormData, city: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                {/* Hourly Rate */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Standard Rate (₹ / hr)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="299"
+                    value={addFormData.hourlyRate}
+                    onChange={(e) => setAddFormData({ ...addFormData, hourlyRate: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* ID Verification Checkbox */}
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="isVerifiedCheckbox"
+                  checked={addFormData.isVerified}
+                  onChange={(e) => setAddFormData({ ...addFormData, isVerified: e.target.checked })}
+                  className="mt-1 h-4 w-4 rounded border-slate-700 text-emerald-600 focus:ring-emerald-500"
+                />
+                <label htmlFor="isVerifiedCheckbox" className="text-xs text-slate-300 cursor-pointer">
+                  <span className="font-semibold text-white">Pre-verify ID Document</span>
+                  <p className="text-slate-400 text-[11px] mt-0.5">
+                    Mark identity verification as VERIFIED immediately (no document review required in queue).
+                  </p>
+                </label>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end items-center gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddModal(false);
+                    resetAddForm();
+                  }}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addLoading}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-bold transition shadow-lg shadow-emerald-950 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {addLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Creating Helper...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      Create Helper Account
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
         </Modal>
       )}
     </div>

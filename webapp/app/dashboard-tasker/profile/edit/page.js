@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { submitIdDocument } from "@/app/components/services/user.service";
+import DocumentUploader from "@/app/components/ui/DocumentUploader";
 
 export default function EditTaskerProfilePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [idUrl, setIdUrl] = useState("");
+  const [idStatus, setIdStatus] = useState("UNVERIFIED");
+  const [idSubmitting, setIdSubmitting] = useState(false);
 
   // Mock existing data (later load from API)
   const [form, setForm] = useState({
@@ -16,6 +20,32 @@ export default function EditTaskerProfilePage() {
     city: "Modipuram, Meerut",
     services: ["Shopping", "Delivery"],
   });
+
+  useEffect(() => {
+    try {
+      const stored = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+      if (stored) {
+        const u = JSON.parse(stored);
+        const parts = (u.name || "").split(" ");
+        setForm((prev) => ({
+          ...prev,
+          firstName: parts[0] || prev.firstName,
+          lastName: parts.slice(1).join(" ") || prev.lastName,
+          phone: u.phone || prev.phone,
+          city: u.city || prev.city,
+          services: u.skills
+            ? typeof u.skills === "string"
+              ? u.skills.split(",").map((s) => s.trim())
+              : u.skills
+            : prev.services,
+        }));
+        if (u.idDocumentUrl) setIdUrl(u.idDocumentUrl);
+        if (u.idVerificationStatus) setIdStatus(u.idVerificationStatus);
+      }
+    } catch (e) {
+      console.warn("Could not load user from localStorage", e);
+    }
+  }, []);
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -60,18 +90,30 @@ export default function EditTaskerProfilePage() {
   }
 
   async function handleSubmitId(e) {
-    e.preventDefault();
-    const url = prompt('Paste a link to your ID document (image/pdf):');
-    if (!url) return;
-    setLoading(true);
+    if (e) e.preventDefault();
+    const targetUrl = idUrl.trim();
+    if (!targetUrl) {
+      alert("Please enter a valid document link or URL.");
+      return;
+    }
+    setIdSubmitting(true);
     try {
-      await submitIdDocument({ idDocumentUrl: url });
-      alert('ID submitted for verification.');
+      await submitIdDocument({ idDocumentUrl: targetUrl });
+      setIdStatus("PENDING");
+      // update stored user
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const u = JSON.parse(stored);
+        u.idDocumentUrl = targetUrl;
+        u.idVerificationStatus = "PENDING";
+        localStorage.setItem("user", JSON.stringify(u));
+      }
+      alert("ID document submitted! Admin will review your verification.");
     } catch (err) {
-      console.error('Submit ID failed', err);
-      alert('Failed to submit ID.');
+      console.error("Submit ID failed", err);
+      alert(err.message || "Failed to submit ID.");
     } finally {
-      setLoading(false);
+      setIdSubmitting(false);
     }
   }
 
@@ -208,13 +250,42 @@ export default function EditTaskerProfilePage() {
           </Link>
         </div>
 
-        <div className="mt-4">
+        {/* Government ID Verification Section */}
+        <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">Government ID Verification</h3>
+            <span
+              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                idStatus === "VERIFIED"
+                  ? "bg-green-100 text-green-700"
+                  : idStatus === "PENDING"
+                  ? "bg-amber-100 text-amber-700"
+                  : idStatus === "REJECTED"
+                  ? "bg-red-100 text-red-700"
+                  : "bg-gray-200 text-gray-700"
+              }`}
+            >
+              {idStatus === "PENDING" ? "Under Review" : idStatus}
+            </span>
+          </div>
+
+          <DocumentUploader
+            value={idUrl}
+            onChange={(url) => setIdUrl(url)}
+            theme="light"
+            label="Upload Document / Enter Link"
+            optionalText=""
+            badgeText=""
+            helperText="Upload Aadhaar Card, Driving License, or Voter ID (JPG, PNG, PDF) from your device or paste a URL."
+          />
+
           <button
             type="button"
             onClick={handleSubmitId}
-            className="w-full rounded-md border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+            disabled={idSubmitting || !idUrl.trim()}
+            className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition shadow-sm"
           >
-            {loading ? 'Submitting ID...' : 'Submit ID for Verification'}
+            {idSubmitting ? "Submitting ID..." : "Submit ID for Verification"}
           </button>
         </div>
       </form>

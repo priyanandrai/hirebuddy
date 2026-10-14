@@ -58,3 +58,21 @@ export async function manualSignup(payload) {
 
   return data;
 }
+
+export async function manualLogin(phoneOrEmail, password) {
+  const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ phone: phoneOrEmail, identifier: phoneOrEmail, password }),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.message || "Invalid credentials. Please try again.");
+  }
+
+  return data;
+}

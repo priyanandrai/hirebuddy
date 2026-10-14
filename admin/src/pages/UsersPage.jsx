@@ -14,6 +14,7 @@ import {
   Eye,
   ShieldCheck,
   User,
+  Trash2,
 } from 'lucide-react';
 import { adminApi } from '../services/api';
 import Badge from '../components/common/Badge';
@@ -26,12 +27,46 @@ export default function UsersPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [selectedUser, setSelectedUser] = useState(null);
+
+  const handleRoleChange = async (userId, newRole) => {
+    setActionLoading(true);
+    try {
+      await adminApi.updateUserRole(userId, newRole);
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+      );
+      if (selectedUser?.id === userId) {
+        setSelectedUser((prev) => ({ ...prev, role: newRole }));
+      }
+      alert(`User role updated to ${newRole === 'USER' ? 'CUSTOMER' : newRole}!`);
+    } catch (err) {
+      alert(err.message || 'Failed to update user role');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Are you sure you want to permanently delete this user account? This will cascade remove their profile, tasks, reviews, and notifications.')) return;
+    setActionLoading(true);
+    try {
+      await adminApi.deleteUser(userId);
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      setSelectedUser(null);
+      alert('User account deleted successfully');
+    } catch (err) {
+      alert(err.message || 'Failed to delete user');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const fetchUsers = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -423,8 +458,59 @@ export default function UsersPage() {
               </div>
             )}
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+            {/* Admin Management Section */}
+            <div className="p-4 bg-slate-900 rounded-xl border border-emerald-500/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  Admin Account Controls (Live API)
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  Role: {selectedUser.role === 'USER' ? 'CUSTOMER' : selectedUser.role}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-xs text-slate-300 mr-1">Switch Role:</span>
+                <button
+                  type="button"
+                  onClick={() => handleRoleChange(selectedUser.id, 'USER')}
+                  disabled={actionLoading || selectedUser.role === 'USER'}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    selectedUser.role === 'USER'
+                      ? 'bg-blue-600 text-white shadow cursor-default'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
+                  } disabled:opacity-50`}
+                >
+                  Customer (Poster)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRoleChange(selectedUser.id, 'HELPER')}
+                  disabled={actionLoading || selectedUser.role === 'HELPER'}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    selectedUser.role === 'HELPER'
+                      ? 'bg-emerald-600 text-white shadow cursor-default'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
+                  } disabled:opacity-50`}
+                >
+                  Helper (Provider)
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-800">
               <button
+                type="button"
+                onClick={() => handleDeleteUser(selectedUser.id)}
+                disabled={actionLoading}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-900/50 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Delete Account
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setSelectedUser(null)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium transition-colors"
               >

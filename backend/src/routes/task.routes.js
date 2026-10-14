@@ -12,6 +12,7 @@ import {
   searchTasks,
   updateTaskStatus,
   cancelTask,
+  deleteTask,
   getTaskStats,
 } from "../controllers/task.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
@@ -40,6 +41,7 @@ router.post("/:id/accept", authMiddleware, allowRoles("HELPER"), acceptTask);
 router.post("/:id/decline", authMiddleware, allowRoles("HELPER"), declineTask);
 router.put("/:id/status", authMiddleware, updateTaskStatus);
 router.put("/:id/cancel", authMiddleware, cancelTask);
+router.delete("/:id", authMiddleware, deleteTask);
 
 // Get task details (must be last)
 router.get("/:id", authMiddleware, getTaskById);

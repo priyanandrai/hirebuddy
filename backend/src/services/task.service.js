@@ -222,6 +222,17 @@ export const assignHelper = async (user, taskId) => {
     throw new Error("Only helpers can accept tasks");
   }
 
+  // Ensure helper is verified before accepting tasks
+  const helperUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { idVerificationStatus: true },
+  });
+  if (helperUser?.idVerificationStatus !== "VERIFIED") {
+    throw new Error(
+      "Your account is not verified yet. Please complete document verification and wait for admin approval to accept tasks."
+    );
+  }
+
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     select: {
@@ -330,7 +341,7 @@ export const declineHelperRequest = async (user, taskId, reason = "Helper is una
 /**
  * Get task by ID
  */
-export const getTaskById = async (userId, taskId) => {
+export const getTaskById = async (userId, taskId, user = null) => {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: {
@@ -362,10 +373,11 @@ export const getTaskById = async (userId, taskId) => {
     return null;
   }
 
+  const isAdmin = user?.role === "ADMIN" || user?.isAdmin || userId === "admin";
   const isOwner = task.createdById === userId;
   const isAssignee = task.assignedToId === userId;
 
-  if (!isOwner && !isAssignee) {
+  if (!isOwner && !isAssignee && !isAdmin) {
     return null;
   }
 
@@ -422,7 +434,7 @@ export const getTasksCreatedByUser = (userId) => {
 /**
  * Update task status
  */
-export const updateTaskStatus = async (taskId, userId, newStatus) => {
+export const updateTaskStatus = async (taskId, userId, newStatus, user = null) => {
   try {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
@@ -433,14 +445,15 @@ export const updateTaskStatus = async (taskId, userId, newStatus) => {
       throw new Error("Task not found");
     }
 
+    const isAdmin = user?.role === "ADMIN" || user?.isAdmin || userId === "admin";
     const isOwner = task.createdById === userId;
     const isAssignee = task.assignedToId === userId;
 
-    if (!isOwner && !isAssignee) {
+    if (!isOwner && !isAssignee && !isAdmin) {
       throw new Error("You are not authorized to update this task");
     }
 
-    // Validate status transitions
+    // Validate status transitions (admins can override to any valid status)
     const validTransitions = {
       OPEN: ["ASSIGNED", "CANCELLED"],
       REQUESTED: ["ASSIGNED", "CANCELLED"],
@@ -450,7 +463,7 @@ export const updateTaskStatus = async (taskId, userId, newStatus) => {
       CANCELLED: [],
     };
 
-    if (!validTransitions[task.status]?.includes(newStatus)) {
+    if (!isAdmin && !validTransitions[task.status]?.includes(newStatus)) {
       throw new Error(`Cannot transition from ${task.status} to ${newStatus}`);
     }
 
@@ -490,8 +503,8 @@ export const updateTaskStatus = async (taskId, userId, newStatus) => {
 };
 
 // Index task after status update
-export const updateTaskStatusAndIndex = async (taskId, userId, newStatus) => {
-  const updated = await updateTaskStatus(taskId, userId, newStatus);
+export const updateTaskStatusAndIndex = async (taskId, userId, newStatus, user = null) => {
+  const updated = await updateTaskStatus(taskId, userId, newStatus, user);
   try {
     await indexTask(updated);
   } catch (e) {
@@ -573,6 +586,16 @@ export const getTaskStats = async (userId) => {
   }
 };
 
+export const deleteTaskService = async (taskId) => {
+  return prisma.$transaction(async (tx) => {
+    await tx.notification.deleteMany({ where: { taskId } });
+    await tx.message.deleteMany({ where: { taskId } });
+    await tx.review.deleteMany({ where: { taskId } });
+    await tx.payment.deleteMany({ where: { taskId } });
+    return tx.task.delete({ where: { id: taskId } });
+  });
+};
+
 export default {
   createTask,
   getUserTasks,
@@ -586,4 +609,5 @@ export default {
   cancelTask,
   getTaskStats,
   calculateDistance,
+  deleteTaskService,
 };

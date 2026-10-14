@@ -5,8 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { getAssignedTasks, acceptTask, declineTask } from "@/app/components/services/task.service";
 import { getUnreadNotificationCount } from "@/app/components/services/notification.service";
 import { initializeSocket, onReceiveNotification } from "@/app/components/config/socketClient";
+import { getUserProfile } from "@/app/components/services/user.service";
+import HelperDocumentVerificationModal from "@/app/components/ui/HelperDocumentVerificationModal";
+import { ShieldCheck, CheckCircle2, ChevronRight, AlertCircle, Clock } from "lucide-react";
 
 export default function HelperDashboardPage() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -14,15 +19,47 @@ export default function HelperDashboardPage() {
 
   const loadDashboard = async () => {
     try {
-      const [assignedRes, unreadRes] = await Promise.all([
+      const [assignedRes, unreadRes, profileRes] = await Promise.allSettled([
         getAssignedTasks(),
         getUnreadNotificationCount(),
+        getUserProfile(),
       ]);
 
-      const assignedTasks = assignedRes?.tasks || assignedRes?.data || (Array.isArray(assignedRes) ? assignedRes : []);
-      setTasks(assignedTasks);
+      if (assignedRes.status === "fulfilled") {
+        const assignedTasks =
+          assignedRes.value?.tasks ||
+          assignedRes.value?.data ||
+          (Array.isArray(assignedRes.value) ? assignedRes.value : []);
+        setTasks(assignedTasks);
+      }
 
-      setUnreadCount(Number(unreadRes?.unreadCount || unreadRes?.data?.unreadCount || 0));
+      if (unreadRes.status === "fulfilled") {
+        setUnreadCount(
+          Number(
+            unreadRes.value?.unreadCount ||
+              unreadRes.value?.data?.unreadCount ||
+              0
+          )
+        );
+      }
+
+      if (profileRes.status === "fulfilled" && profileRes.value?.user) {
+        const u = profileRes.value.user;
+        setCurrentUser(u);
+        try {
+          const currentStored = JSON.parse(localStorage.getItem("user") || "{}");
+          localStorage.setItem("user", JSON.stringify({ ...currentStored, ...u }));
+        } catch (e) {}
+
+        const isJustRegistered = sessionStorage.getItem("just_registered_helper") === "true";
+        const modalDismissed = sessionStorage.getItem("helper_doc_modal_dismissed") === "true";
+        const isUnverified = !u.idVerificationStatus || u.idVerificationStatus === "UNVERIFIED";
+
+        if (isJustRegistered || (isUnverified && !modalDismissed)) {
+          setShowVerificationModal(true);
+          sessionStorage.removeItem("just_registered_helper");
+        }
+      }
     } catch (error) {
       console.error("Failed to load helper dashboard", error);
     } finally {
@@ -31,6 +68,18 @@ export default function HelperDashboardPage() {
   };
 
   useEffect(() => {
+    try {
+      const stored = localStorage.getItem("user");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setCurrentUser(parsed);
+        const isJustRegistered = sessionStorage.getItem("just_registered_helper") === "true";
+        if (isJustRegistered) {
+          setShowVerificationModal(true);
+        }
+      }
+    } catch (e) {}
+
     loadDashboard();
 
     let unsubscribe = () => {};
@@ -54,6 +103,20 @@ export default function HelperDashboardPage() {
       unsubscribe();
     };
   }, []);
+
+  const handleCloseVerificationModal = () => {
+    setShowVerificationModal(false);
+    sessionStorage.setItem("helper_doc_modal_dismissed", "true");
+  };
+
+  const handleCompleteVerification = (updatedUser) => {
+    setCurrentUser(updatedUser);
+    try {
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+    } catch (e) {}
+    setShowVerificationModal(false);
+    sessionStorage.setItem("helper_doc_modal_dismissed", "true");
+  };
 
   const pendingRequests = useMemo(() => {
     return tasks.filter((task) => task.status === "REQUESTED");
@@ -108,13 +171,142 @@ export default function HelperDashboardPage() {
     }
   };
 
+  const isUnverified = !currentUser?.idVerificationStatus || currentUser?.idVerificationStatus === "UNVERIFIED";
+  const isPending = currentUser?.idVerificationStatus === "PENDING";
+  const isRejected = currentUser?.idVerificationStatus === "REJECTED";
+  const isVerified = currentUser?.idVerificationStatus === "VERIFIED";
+
   return (
-    <main className="min-h-screen bg-slate-950 px-5 py-6 text-slate-100">
-      <div className="mx-auto max-w-5xl space-y-6">
+    <main className="min-h-screen bg-slate-950 px-4 sm:px-6 py-6 text-slate-100">
+      <div className="mx-auto max-w-5xl space-y-5">
+        {/* Verification Status Banners */}
+        {isUnverified && (
+          <section className="relative overflow-hidden rounded-[2rem] border-2 border-amber-500/50 bg-gradient-to-r from-amber-500/15 via-amber-600/10 to-slate-900/90 p-5 sm:p-6 shadow-2xl shadow-amber-950/20">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500/20 text-2xl text-amber-400 border border-amber-500/30">
+                  ⚠️
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-300 border border-amber-500/30">
+                      Action Required
+                    </span>
+                    <span className="text-xs text-slate-400">Step 1 of 3 Pending</span>
+                  </div>
+                  <h2 className="text-base sm:text-lg font-bold text-white mt-1">
+                    Complete 3-Step Verification
+                  </h2>
+                  <p className="text-xs text-slate-300 mt-0.5 max-w-xl">
+                    Upload your selfie, ID proof, and address proof to get your <strong>Verified Partner Badge</strong> and start receiving direct customer tasks.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowVerificationModal(true)}
+                className="shrink-0 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold px-5 py-3 text-xs sm:text-sm shadow-lg shadow-amber-950/30 transition active:scale-95"
+              >
+                <span>Upload Documents Now (3 Steps)</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </section>
+        )}
+
+        {isPending && (
+          <section className="relative overflow-hidden rounded-[2rem] border border-blue-500/40 bg-gradient-to-r from-blue-500/10 via-blue-600/5 to-slate-900/90 p-5 sm:p-6 shadow-xl shadow-blue-950/20">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-500/20 text-2xl text-blue-400 border border-blue-500/30">
+                  ⏳
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-blue-500/20 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-blue-300 border border-blue-500/30">
+                      In Review
+                    </span>
+                    <span className="text-xs text-slate-400">Under Admin Verification</span>
+                  </div>
+                  <h2 className="text-base sm:text-lg font-bold text-white mt-1">
+                    Verification Documents Submitted
+                  </h2>
+                  <p className="text-xs text-slate-300 mt-0.5 max-w-xl">
+                    Your 3 documents (Photo, ID Proof, and Address Proof) are being verified by our team. You&apos;ll receive a confirmation soon.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowVerificationModal(true)}
+                className="shrink-0 flex items-center justify-center gap-2 rounded-2xl border border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 font-semibold px-4 py-2.5 text-xs transition"
+              >
+                <span>Update Documents</span>
+              </button>
+            </div>
+          </section>
+        )}
+
+        {isRejected && (
+          <section className="relative overflow-hidden rounded-[2rem] border-2 border-rose-500/50 bg-gradient-to-r from-rose-500/15 via-rose-600/10 to-slate-900/90 p-5 sm:p-6 shadow-2xl shadow-rose-950/20">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-500/20 text-2xl text-rose-400 border border-rose-500/30">
+                  ❌
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-rose-500/20 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-rose-300 border border-rose-500/30">
+                      Action Required
+                    </span>
+                  </div>
+                  <h2 className="text-base sm:text-lg font-bold text-white mt-1">
+                    Verification Was Not Approved
+                  </h2>
+                  <p className="text-xs text-slate-300 mt-0.5 max-w-xl">
+                    One or more of your documents could not be verified. Please re-upload clear photos of your ID and Address Proof.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowVerificationModal(true)}
+                className="shrink-0 flex items-center justify-center gap-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-bold px-5 py-3 text-xs sm:text-sm shadow-lg shadow-rose-950/30 transition active:scale-95"
+              >
+                <span>Re-upload Documents (3 Steps)</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </section>
+        )}
+
         {/* Welcome Section */}
-        <section className="rounded-[2rem] border border-slate-800 bg-slate-900/80 p-8 shadow-2xl shadow-slate-950/30">
-          <h1 className="text-3xl font-bold text-white">Hello 👋</h1>
-          <p className="mt-2 text-sm text-slate-300">Welcome back. What would you like to do today?</p>
+        <section className="rounded-[2rem] border border-slate-800 bg-slate-900/80 p-6 sm:p-8 shadow-2xl shadow-slate-950/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl sm:text-3xl font-bold text-white">
+                Hello {currentUser?.name ? currentUser.name : ""} 👋
+              </h1>
+              {isVerified && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3 py-1 text-xs font-bold text-emerald-400">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Verified Partner
+                </span>
+              )}
+            </div>
+            <p className="mt-2 text-sm text-slate-300">Welcome back. What would you like to do today?</p>
+          </div>
+          {!isVerified && (
+            <button
+              onClick={() => setShowVerificationModal(true)}
+              className="inline-flex items-center gap-2 self-start sm:self-auto rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition"
+            >
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>
+                {isPending ? "View Submitted Proofs" : "Upload Documents (3 Steps)"}
+              </span>
+            </button>
+          )}
         </section>
 
         {/* ⚡ PROMINENT BOOKING REQUESTS PROMPT ⚡ */}
@@ -305,6 +497,14 @@ export default function HelperDashboardPage() {
           </Link>
         </section>
       </div>
+
+      {/* Helper 3-Step Document Verification Modal */}
+      <HelperDocumentVerificationModal
+        isOpen={showVerificationModal}
+        onClose={handleCloseVerificationModal}
+        onComplete={handleCompleteVerification}
+        user={currentUser}
+      />
     </main>
   );
 }

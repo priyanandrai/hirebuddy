@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import { useSession, signIn } from "next-auth/react";
 import Header from "../components/layout/Header";
 import Footer from "../components/layout/Footer";
-import { googleBackendLogin, sendOtpApi, verifyOtpApi } from "../components/lib/api";
+import { googleBackendLogin, sendOtpApi, verifyOtpApi, manualLogin } from "../components/lib/api";
 
 export default function OtpLoginPage() {
+  const [loginMode, setLoginMode] = useState("otp"); // "otp" | "password"
   const [step, setStep] = useState("phone");
   const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timer, setTimer] = useState(30);
   const [isResendEnabled, setIsResendEnabled] = useState(false);
@@ -157,6 +160,33 @@ export default function OtpLoginPage() {
     }
   };
 
+  /* Password login */
+  const handlePasswordLogin = async (e) => {
+    if (e) e.preventDefault();
+    if (!phone.trim()) {
+      setError("Please enter your registered mobile number or helper ID.");
+      return;
+    }
+    if (!password) {
+      setError("Please enter your password.");
+      return;
+    }
+
+    setError("");
+    setLoading(true);
+    try {
+      const data = await manualLogin(phone.trim(), password);
+      if (data?.token) {
+        localStorage.setItem("token", data.token);
+      }
+      redirectByRole(data.user?.role);
+    } catch (err) {
+      setError(err.message || "Invalid credentials. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (pageLoading) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-6">
@@ -209,10 +239,48 @@ export default function OtpLoginPage() {
 
         <div className="w-full max-w-md rounded-[2rem] border border-slate-800 bg-slate-900/95 shadow-sm p-8">
 
+          {/* Mode Switcher Tabs */}
+          <div className="flex rounded-2xl bg-slate-950 p-1 mb-6 border border-slate-800">
+            <button
+              type="button"
+              onClick={() => { setLoginMode("otp"); setError(""); }}
+              className={`flex-1 rounded-xl py-2 text-xs font-semibold transition ${
+                loginMode === "otp"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              📱 Mobile OTP
+            </button>
+            <button
+              type="button"
+              onClick={() => { setLoginMode("password"); setError(""); }}
+              className={`flex-1 rounded-xl py-2 text-xs font-semibold transition ${
+                loginMode === "password"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              🔑 Password / Helper ID
+            </button>
+          </div>
+
           {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-semibold text-white">{step === "phone" ? "Log in with OTP" : "Enter OTP"}</h1>
-            <p className="mt-2 text-sm text-slate-300">{step === "phone" ? "We’ll send a one-time password to your mobile number" : `OTP sent to +91 ${phone}`}</p>
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-semibold text-white">
+              {loginMode === "password"
+                ? "Log in with Password"
+                : step === "phone"
+                ? "Log in with OTP"
+                : "Enter OTP"}
+            </h1>
+            <p className="mt-2 text-sm text-slate-300">
+              {loginMode === "password"
+                ? "Enter your registered mobile or Helper ID and password"
+                : step === "phone"
+                ? "We’ll send a one-time password to your mobile number"
+                : `OTP sent to +91 ${phone}`}
+            </p>
           </div>
 
           {/* Error banner */}
@@ -222,8 +290,73 @@ export default function OtpLoginPage() {
             </div>
           )}
 
-          {/* PHONE STEP */}
-          {step === "phone" && (
+          {/* PASSWORD LOGIN FORM */}
+          {loginMode === "password" && (
+            <form onSubmit={handlePasswordLogin} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Mobile Number or Helper ID
+                </label>
+                <div className="flex rounded-2xl border border-slate-700 bg-slate-950">
+                  <span className="flex items-center rounded-l-2xl px-3 text-sm text-slate-400">+91</span>
+                  <input
+                    type="text"
+                    placeholder="10-digit mobile number or email"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full rounded-r-2xl bg-slate-950 px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-slate-300">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => { setLoginMode("otp"); setError(""); }}
+                    className="text-xs text-blue-400 hover:underline"
+                  >
+                    Forgot? Use OTP
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2.5 pr-11 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400 hover:text-white px-1 py-0.5 rounded"
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={!phone.trim() || !password || loading}
+                className={`w-full rounded-2xl py-2.5 text-sm font-medium text-white transition ${
+                  phone.trim() && password && !loading
+                    ? "bg-blue-600 hover:bg-blue-700"
+                    : "bg-slate-800 text-slate-400 cursor-not-allowed"
+                }`}
+              >
+                {loading ? "Signing in..." : "Log In"}
+              </button>
+            </form>
+          )}
+
+          {/* OTP LOGIN - PHONE STEP */}
+          {loginMode === "otp" && step === "phone" && (
             <div className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">
@@ -252,8 +385,8 @@ export default function OtpLoginPage() {
             </div>
           )}
 
-          {/* OTP STEP */}
-          {step === "otp" && (
+          {/* OTP LOGIN - OTP STEP */}
+          {loginMode === "otp" && step === "otp" && (
             <div className="space-y-5">
               <div className="flex justify-center gap-3">
                 {otp.map((digit, index) => (

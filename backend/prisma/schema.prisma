@@ -39,7 +39,10 @@ model User {
 
   // ID verification
   idVerificationStatus IDVerificationStatus @default(UNVERIFIED)
-  idDocumentUrl String?
+  idDocumentUrl String? @db.VarChar(1000)
+  addressProofUrl String? @db.VarChar(1000)
+  idDocumentType String?
+  addressProofType String?
   idVerifiedAt DateTime?
   idVerificationNotes String?
  

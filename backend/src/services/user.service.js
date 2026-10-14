@@ -1,4 +1,5 @@
 import prisma from "../utils/prisma.js";
+import bcrypt from "bcrypt";
 import { indexHelper, deleteHelper } from "./es.client.js";
 
 export const setRoleService = (userId, role) => {
@@ -25,16 +26,25 @@ export const updateHelperProfileService = (userId, data) => {
   });
 };
 
-export const submitIdDocumentService = async (userId, idDocumentUrl) => {
+export const submitIdDocumentService = async (userId, payload = {}) => {
+  const data = typeof payload === "string" ? { idDocumentUrl: payload } : payload;
+  const { idDocumentUrl, addressProofUrl, image, selfieUrl, idDocumentType, addressProofType } = data;
+
+  const updateData = {
+    idVerificationStatus: "PENDING",
+  };
+  if (idDocumentUrl) updateData.idDocumentUrl = idDocumentUrl;
+  if (addressProofUrl) updateData.addressProofUrl = addressProofUrl;
+  if (image || selfieUrl) updateData.image = image || selfieUrl;
+  if (idDocumentType) updateData.idDocumentType = idDocumentType;
+  if (addressProofType) updateData.addressProofType = addressProofType;
+
   const user = await prisma.user.update({
     where: { id: userId },
-    data: {
-      idDocumentUrl,
-      idVerificationStatus: 'PENDING',
-    },
+    data: updateData,
   });
 
-  try { await indexHelper(user); } catch (e) { console.error('Index after ID submit failed', e); }
+  try { await indexHelper(user); } catch (e) { console.error("Index after ID submit failed", e); }
   return user;
 };
 
@@ -48,6 +58,30 @@ export const verifyUserIdService = async (userId, status, notes = null) => {
   const user = await prisma.user.update({ where: { id: userId }, data });
   try { await indexHelper(user); } catch (e) { console.error('Index after ID verify failed', e); }
   return user;
+};
+
+export const getMyProfileService = async (userId) => {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      image: true,
+      role: true,
+      city: true,
+      address: true,
+      skills: true,
+      hourlyRate: true,
+      idVerificationStatus: true,
+      idDocumentUrl: true,
+      addressProofUrl: true,
+      idDocumentType: true,
+      addressProofType: true,
+      idVerifiedAt: true,
+    },
+  });
 };
 
 export const getHelper = async (id) => {
@@ -118,10 +152,15 @@ export const getPendingIdSubmissionsService = async () => {
     select: {
       id: true,
       name: true,
+      email: true,
       phone: true,
       image: true,
       city: true,
+      skills: true,
       idDocumentUrl: true,
+      idDocumentType: true,
+      addressProofUrl: true,
+      addressProofType: true,
       idVerificationStatus: true,
       createdAt: true,
     },
@@ -287,6 +326,116 @@ export const getAllUsersService = async ({ role, search, limit = 50, offset = 0 
   ]);
 
   return { total, users };
+};
+
+export const updateUserRoleService = async (userId, role) => {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { role },
+  });
+};
+
+export const deleteUserService = async (userId) => {
+  return prisma.$transaction(async (tx) => {
+    await tx.notification.deleteMany({
+      where: { OR: [{ senderId: userId }, { receiverId: userId }] },
+    });
+    await tx.message.deleteMany({
+      where: { OR: [{ senderId: userId }, { receiverId: userId }] },
+    });
+    await tx.review.deleteMany({
+      where: { OR: [{ givenById: userId }, { givenToId: userId }] },
+    });
+    await tx.payment.deleteMany({
+      where: { OR: [{ payerId: userId }, { payeeId: userId }] },
+    });
+    await tx.task.updateMany({
+      where: { assignedToId: userId },
+      data: { assignedToId: null, status: "OPEN" },
+    });
+    await tx.task.deleteMany({
+      where: { createdById: userId },
+    });
+    return tx.user.delete({
+      where: { id: userId },
+    });
+  });
+};
+
+export const createHelperService = async ({
+  name,
+  phone,
+  password,
+  email,
+  city,
+  skills,
+  hourlyRate,
+  isVerified = true,
+}) => {
+  const digitsOnly = String(phone || "").replace(/\D/g, "");
+  const cleanPhone = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
+
+  if (!cleanPhone || cleanPhone.length !== 10) {
+    throw new Error("A valid 10-digit mobile number is required");
+  }
+
+  if (!password || password.trim().length < 4) {
+    throw new Error("Password must be at least 4 characters long");
+  }
+
+  // Check if user already exists
+  const existing = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { phone: cleanPhone },
+        ...(email ? [{ email: email.trim().toLowerCase() }] : []),
+      ],
+    },
+  });
+
+  if (existing) {
+    throw new Error(
+      `A user with this ${existing.phone === cleanPhone ? 'mobile number' : 'email'} already exists (${existing.role || 'USER'})`
+    );
+  }
+
+  const hashedPassword = await bcrypt.hash(password.trim(), 10);
+  const helperEmail = email?.trim()?.toLowerCase() || `${cleanPhone}@hirebuddy.local`;
+
+  const user = await prisma.user.create({
+    data: {
+      name: name?.trim() || "Helper Partner",
+      phone: cleanPhone,
+      email: helperEmail,
+      password: hashedPassword,
+      role: "HELPER",
+      city: city?.trim() || "Meerut, UP",
+      skills: skills?.trim() || "General Helper",
+      hourlyRate: hourlyRate ? Number(hourlyRate) * 100 : null,
+      isAvailable: true,
+      idVerificationStatus: isVerified ? "VERIFIED" : "PENDING",
+      idVerifiedAt: isVerified ? new Date() : null,
+      idVerificationNotes: isVerified ? "Account created and verified directly by Administrator" : null,
+    },
+  });
+
+  try {
+    await indexHelper(user);
+  } catch (err) {
+    console.warn("Index helper failed:", err.message);
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    phone: user.phone,
+    email: user.email,
+    role: user.role,
+    city: user.city,
+    skills: user.skills,
+    idVerificationStatus: user.idVerificationStatus,
+    createdAt: user.createdAt,
+  };
 };
 
 

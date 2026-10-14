@@ -3,11 +3,15 @@ import {
     setRoleService,
     updateHelperProfileService,
     getHelper,
+    getMyProfileService,
     getHelpersListService,
     submitIdDocumentService,
     verifyUserIdService,
     getPendingIdSubmissionsService,
     getAllUsersService,
+    updateUserRoleService,
+    deleteUserService,
+    createHelperService,
   } from "../services/user.service.js";
   
   export const setRole = async (req, res) => {
@@ -25,6 +29,17 @@ import {
       return res.status(404).json({ message: "Helper not found" });
     }
     res.json(helper);
+  };
+
+  export const getMyProfile = async (req, res) => {
+    try {
+      const user = await getMyProfileService(req.user.id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      res.json({ success: true, user });
+    } catch (error) {
+      console.error("Get profile error:", error);
+      res.status(500).json({ message: "Failed to get profile" });
+    }
   };
 
   export const getHelpersList = async (req, res) => {
@@ -103,21 +118,30 @@ import {
   export const submitIdDocument = async (req, res) => {
     try {
       const userId = req.user.id;
-      const { idDocumentUrl } = req.body;
-      if (!idDocumentUrl) return res.status(400).json({ message: 'idDocumentUrl is required' });
-      const user = await submitIdDocumentService(userId, idDocumentUrl);
+      const { idDocumentUrl, addressProofUrl, image, selfieUrl, idDocumentType, addressProofType } = req.body;
+      if (!idDocumentUrl && !addressProofUrl && !image && !selfieUrl) {
+        return res.status(400).json({ message: 'At least one document or photo is required' });
+      }
+      const user = await submitIdDocumentService(userId, {
+        idDocumentUrl,
+        addressProofUrl,
+        image: image || selfieUrl,
+        idDocumentType,
+        addressProofType,
+      });
       res.json({ success: true, user });
     } catch (error) {
       console.error('Submit ID error', error);
-      res.status(500).json({ message: 'Failed to submit ID document' });
+      res.status(500).json({ message: 'Failed to submit ID document: ' + error.message });
     }
   };
 
-  // Simple admin-style verification endpoint using an ADMIN token in body (env check)
+  // Admin-style verification endpoint
   export const verifyUserId = async (req, res) => {
     try {
       const adminToken = req.body.adminToken || req.query.adminToken;
-      if (!adminToken || adminToken !== process.env.ID_VERIFY_TOKEN) {
+      const isAuthorized = req.isAdmin || (adminToken && adminToken === process.env.ID_VERIFY_TOKEN);
+      if (!isAuthorized) {
         return res.status(403).json({ message: 'Invalid admin token' });
       }
 
@@ -143,6 +167,53 @@ import {
     } catch (error) {
       console.error('Get all users error', error);
       res.status(500).json({ message: 'Failed to fetch users' });
+    }
+  };
+
+  export const updateUserRole = async (req, res) => {
+    try {
+      const { id } = req.params;
+      let { role } = req.body;
+      if (role === 'CUSTOMER') role = 'USER';
+      if (!['USER', 'HELPER'].includes(role)) {
+        return res.status(400).json({ message: 'Invalid role. Must be USER or HELPER.' });
+      }
+      const user = await updateUserRoleService(id, role);
+      res.json({ success: true, user });
+    } catch (error) {
+      console.error('Update user role error', error);
+      res.status(500).json({ message: 'Failed to update user role' });
+    }
+  };
+
+  export const deleteUser = async (req, res) => {
+    try {
+      const { id } = req.params;
+      await deleteUserService(id);
+      res.json({ success: true, message: 'User deleted successfully' });
+    } catch (error) {
+      console.error('Delete user error', error);
+      res.status(500).json({ message: error.message || 'Failed to delete user' });
+    }
+  };
+
+  export const createHelperByAdmin = async (req, res) => {
+    try {
+      const adminToken = req.body.adminToken || req.query.adminToken;
+      const isAuthorized = req.isAdmin || (adminToken && adminToken === process.env.ID_VERIFY_TOKEN);
+      if (!isAuthorized) {
+        return res.status(403).json({ success: false, message: "Admin authorization required" });
+      }
+
+      const helper = await createHelperService(req.body);
+      res.status(201).json({
+        success: true,
+        message: "Helper account created successfully",
+        helper,
+      });
+    } catch (error) {
+      console.error("Create helper by admin error:", error);
+      res.status(400).json({ success: false, message: error.message || "Failed to create helper" });
     }
   };
 

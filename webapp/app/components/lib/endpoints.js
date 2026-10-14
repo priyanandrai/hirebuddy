@@ -4,6 +4,11 @@ export const AUTH_ENDPOINTS = {
     SEND_OTP: "/auth/send-otp",
     VERIFY_OTP: "/auth/verify-otp",
     GOOGLE_AUTH: "/auth/google",
+    REGISTER_HELPER: "/auth/register-helper",
+};
+
+export const UPLOAD_ENDPOINTS = {
+  DOCUMENT: "/upload/document",
 };
 
 export const USER_ENDPOINTS = {

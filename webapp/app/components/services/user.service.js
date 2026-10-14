@@ -9,6 +9,10 @@ export const getHelperByID = (id) => {
   return apiClient(`${USER_ENDPOINTS.GET_HELPER_BY_ID}/${id}`, { method: "GET" });
 };
 
+export const getUserProfile = () => {
+  return apiClient(USER_ENDPOINTS.GET_PROFILE, { method: "GET" });
+};
+
 export const submitIdDocument = (payload) => {
   return apiClient(USER_ENDPOINTS.SUBMIT_ID, {
     method: "POST",

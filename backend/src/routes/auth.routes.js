@@ -5,6 +5,7 @@ import {
   googleAuth,
   signup,         
   becomeHelper,
+  registerHelperPublic,
   login
 } from "../controllers/auth.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
@@ -19,6 +20,8 @@ router.post("/google", googleAuth);
 router.post("/signup", signup);
 router.post("/login", login);
 
+// 👇 Public helper registration (from become-a-helper)
+router.post("/register-helper", registerHelperPublic);
 
 // 👇 Become helper (post-login)
 router.post("/become-helper", authMiddleware, becomeHelper);

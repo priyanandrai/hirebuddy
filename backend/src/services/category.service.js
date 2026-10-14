@@ -35,3 +35,53 @@ export const getCategoryBySlug = async (slug) => {
     where: { slug: slug.toLowerCase() },
   });
 };
+
+/**
+ * Create a new category
+ */
+export const createCategory = async (data) => {
+  const { name, slug, description, icon, subServices, isPopular = true } = data;
+  const generatedSlug = slug
+    ? slug.toLowerCase().trim().replace(/\s+/g, '-')
+    : name.toLowerCase().trim().replace(/\s+/g, '-');
+
+  return prisma.category.create({
+    data: {
+      name: name.trim(),
+      slug: generatedSlug,
+      description: description || null,
+      icon: icon || null,
+      subServices: Array.isArray(subServices) ? subServices : [],
+      isPopular: Boolean(isPopular),
+    },
+  });
+};
+
+/**
+ * Update an existing category
+ */
+export const updateCategory = async (id, data) => {
+  const { name, slug, description, icon, subServices, isPopular } = data;
+  const updateData = {};
+  if (name !== undefined) updateData.name = name.trim();
+  if (slug !== undefined) updateData.slug = slug.toLowerCase().trim().replace(/\s+/g, '-');
+  if (description !== undefined) updateData.description = description;
+  if (icon !== undefined) updateData.icon = icon;
+  if (subServices !== undefined) updateData.subServices = Array.isArray(subServices) ? subServices : [];
+  if (isPopular !== undefined) updateData.isPopular = Boolean(isPopular);
+
+  return prisma.category.update({
+    where: { id },
+    data: updateData,
+  });
+};
+
+/**
+ * Delete a category
+ */
+export const deleteCategory = async (id) => {
+  return prisma.category.delete({
+    where: { id },
+  });
+};
+

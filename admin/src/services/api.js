@@ -107,6 +107,13 @@ export const adminApi = {
     return apiRequest(`/user/helper/${id}`);
   },
 
+  createHelper: async (helperData) => {
+    return apiRequest('/user/helper/create', {
+      method: 'POST',
+      body: helperData,
+    });
+  },
+
   // Users
   getUsers: async (filters = {}) => {
     return apiRequest('/user/all', {
@@ -128,16 +135,66 @@ export const adminApi = {
     return apiRequest(`/tasks/${id}`);
   },
 
+  updateTaskStatus: async (taskId, status) => {
+    return apiRequest(`/tasks/${taskId}/status`, {
+      method: 'PUT',
+      body: { status },
+    });
+  },
+
+  deleteTask: async (taskId) => {
+    return apiRequest(`/tasks/${taskId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Users Management
+  updateUserRole: async (userId, role) => {
+    return apiRequest(`/user/${userId}/role`, {
+      method: 'PATCH',
+      body: { role },
+    });
+  },
+
+  deleteUser: async (userId) => {
+    return apiRequest(`/user/${userId}`, {
+      method: 'DELETE',
+    });
+  },
+
   // Categories
   getCategories: async () => {
-    return apiRequest('/tasks/categories');
+    return apiRequest('/categories');
+  },
+
+  createCategory: async (categoryData) => {
+    return apiRequest('/categories', {
+      method: 'POST',
+      body: categoryData,
+    });
+  },
+
+  updateCategory: async (id, categoryData) => {
+    return apiRequest(`/categories/${id}`, {
+      method: 'PUT',
+      body: categoryData,
+    });
+  },
+
+  deleteCategory: async (id) => {
+    return apiRequest(`/categories/${id}`, {
+      method: 'DELETE',
+    });
   },
 
   // Health
   checkHealth: async () => {
     try {
-      const res = await fetch(`${API_BASE_URL.replace('/api', '')}/`);
-      return res.ok;
+      const baseUrl = API_BASE_URL.replace(/\/api\/?$/, '');
+      const res = await fetch(`${baseUrl}/health`).catch(() => null);
+      if (res && res.ok) return true;
+      const rootRes = await fetch(`${baseUrl}/`).catch(() => null);
+      return !!(rootRes && rootRes.ok);
     } catch {
       return false;
     }
