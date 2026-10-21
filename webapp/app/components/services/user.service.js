@@ -31,4 +31,10 @@ export const getPendingIdSubmissions = (adminToken) => {
   const q = adminToken ? `?adminToken=${encodeURIComponent(adminToken)}` : "";
   return apiClient(`${USER_ENDPOINTS.PENDING_IDS}${q}`, { method: "GET" });
 };
-  
+
+export const updateHelperProfile = (payload) => {
+  return apiClient(USER_ENDPOINTS.UPDATE_HELPER_PROFILE, {
+    method: "POST",
+    body: payload,
+  });
+};

@@ -9,7 +9,28 @@ export const setRoleService = (userId, role) => {
   });
 };
 
-export const updateHelperProfileService = (userId, data) => {
+export const updateHelperProfileService = (userId, rawData) => {
+  const data = {};
+  if (rawData.name !== undefined) {
+    data.name = rawData.name;
+  } else if (rawData.firstName || rawData.lastName) {
+    data.name = `${rawData.firstName || ""} ${rawData.lastName || ""}`.trim();
+  }
+  if (rawData.phone !== undefined) data.phone = rawData.phone;
+  if (rawData.city !== undefined) data.city = rawData.city;
+  if (rawData.address !== undefined) data.address = rawData.address;
+  if (rawData.image !== undefined) data.image = rawData.image;
+  if (rawData.skills !== undefined) {
+    data.skills = Array.isArray(rawData.skills) ? rawData.skills.join(", ") : rawData.skills;
+  } else if (rawData.services !== undefined) {
+    data.skills = Array.isArray(rawData.services) ? rawData.services.join(", ") : rawData.services;
+  }
+  if (rawData.experience !== undefined) data.experience = Number(rawData.experience) || 0;
+  if (rawData.hourlyRate !== undefined) data.hourlyRate = Number(rawData.hourlyRate) || 0;
+  if (rawData.isAvailable !== undefined) data.isAvailable = Boolean(rawData.isAvailable);
+  if (rawData.latitude !== undefined && rawData.latitude !== null) data.latitude = Number(rawData.latitude);
+  if (rawData.longitude !== undefined && rawData.longitude !== null) data.longitude = Number(rawData.longitude);
+
   return prisma.user.update({
     where: { id: userId },
     data: {
@@ -61,7 +82,7 @@ export const verifyUserIdService = async (userId, status, notes = null) => {
 };
 
 export const getMyProfileService = async (userId) => {
-  return prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
     select: {
       id: true,
@@ -73,15 +94,34 @@ export const getMyProfileService = async (userId) => {
       city: true,
       address: true,
       skills: true,
+      experience: true,
       hourlyRate: true,
+      isAvailable: true,
+      averageRating: true,
+      totalReviews: true,
+      walletBalance: true,
       idVerificationStatus: true,
       idDocumentUrl: true,
       addressProofUrl: true,
       idDocumentType: true,
       addressProofType: true,
       idVerifiedAt: true,
+      createdAt: true,
     },
   });
+  if (!user) return null;
+
+  const tasksCompleted = await prisma.task.count({
+    where: {
+      assignedToId: userId,
+      status: "COMPLETED",
+    },
+  });
+
+  return {
+    ...user,
+    tasksCompleted,
+  };
 };
 
 export const getHelper = async (id) => {

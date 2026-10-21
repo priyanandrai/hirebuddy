@@ -125,9 +125,7 @@ export default function HelperTasksPage() {
   const isVerified = currentUser?.idVerificationStatus === "VERIFIED";
   const isPending = currentUser?.idVerificationStatus === "PENDING";
   const isRejected = currentUser?.idVerificationStatus === "REJECTED";
-  const isUnverified =
-    !currentUser?.idVerificationStatus ||
-    currentUser?.idVerificationStatus === "UNVERIFIED";
+
 
   async function handleAcceptTask(taskId) {
     if (!isVerified) {

@@ -360,6 +360,9 @@ export default function HelperDocumentVerificationModal({
       localStorage.setItem("user", JSON.stringify(updatedUser));
       sessionStorage.removeItem("just_registered_helper");
       localStorage.removeItem("helper_doc_modal_skipped");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("userProfileUpdated"));
+      }
 
       setSuccess(true);
       if (onComplete) {
