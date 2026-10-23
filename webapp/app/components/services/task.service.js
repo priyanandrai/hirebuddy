@@ -60,6 +60,14 @@ export const updateTaskStatus = (taskId, status, token) => {
   });
 };
 
+export const cancelTask = (taskId, reason, token) => {
+  return apiClient(`${TASK_ENDPOINTS.CANCEL_TASK}/${taskId}/cancel`, {
+    method: "PUT",
+    body: { reason },
+    token,
+  });
+};
+
 export const getTaskCategories = () => {
   return apiClient(TASK_ENDPOINTS.GET_CATEGORIES, {
     method: "GET",

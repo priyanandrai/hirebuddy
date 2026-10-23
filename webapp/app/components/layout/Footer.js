@@ -1,35 +1,46 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+
 export default function Footer() {
+  const pathname = usePathname();
+  const hideTopBanner =
+    pathname?.startsWith("/dashboard/my-tasks") ||
+    pathname?.startsWith("/dashboard-tasker");
+
   return (
     <footer className="bg-slate-950 text-slate-300">
       <div className="mx-auto max-w-7xl px-6 py-16">
-        <div className="rounded-[2rem] border border-white/10 bg-slate-900/90 p-10 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
-          <div className="grid gap-10 lg:grid-cols-[1.3fr_auto] lg:items-center">
-            <div className="space-y-4">
-              <p className="text-sm uppercase tracking-[0.3em] text-emerald-400">HireBuddy</p>
-              <h2 className="text-3xl font-semibold text-white sm:text-4xl">
-                Ready to get your task done?
-              </h2>
-              <p className="max-w-2xl text-base leading-7 text-slate-400">
-                Post a task and reach trusted local helpers instantly. Manage requests, chat with helpers, and stay in control from start to finish.
-              </p>
-            </div>
+        {!hideTopBanner && (
+          <div className="rounded-[2rem] border border-white/10 bg-slate-900/90 p-10 shadow-2xl shadow-slate-950/30 backdrop-blur-xl">
+            <div className="grid gap-10 lg:grid-cols-[1.3fr_auto] lg:items-center">
+              <div className="space-y-4">
+                <p className="text-sm uppercase tracking-[0.3em] text-emerald-400">HireBuddy</p>
+                <h2 className="text-3xl font-semibold text-white sm:text-4xl">
+                  Ready to get your task done?
+                </h2>
+                <p className="max-w-2xl text-base leading-7 text-slate-400">
+                  Post a task and reach trusted local helpers instantly. Manage requests, chat with helpers, and stay in control from start to finish.
+                </p>
+              </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-              <a
-                href="/post-task"
-                className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-600"
-              >
-                Post a Task
-              </a>
-              <a
-                href="/become-a-helper"
-                className="inline-flex items-center justify-center rounded-2xl border border-slate-700 bg-slate-950/80 px-6 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-900"
-              >
-                Become a Helper
-              </a>
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <a
+                  href="/post-task"
+                  className="inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-600"
+                >
+                  Post a Task
+                </a>
+                <a
+                  href="/become-a-helper"
+                  className="inline-flex items-center justify-center rounded-2xl border border-slate-700 bg-slate-950/80 px-6 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-900"
+                >
+                  Become a Helper
+                </a>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className="mt-12 grid gap-10 text-sm text-slate-400 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-4">

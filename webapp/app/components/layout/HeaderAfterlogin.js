@@ -117,8 +117,9 @@ export default function AuthenticatedHeader() {
   return (
     <header className="fixed top-0 z-50 w-full border-b bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl h-16 border-gray-200 dark:border-slate-800">
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
-        <Link href="/dashboard" className="text-xl font-bold text-blue-600 dark:text-blue-400">
-          HireBuddy
+        <Link href="/dashboard" className="text-xl font-bold tracking-tight">
+          <span className="text-emerald-400">Hire</span>
+          <span className="text-slate-900 dark:text-white">Buddy</span>
         </Link>
 
         <div className="hidden flex-1 justify-center px-4 sm:flex">
@@ -242,6 +243,17 @@ export default function AuthenticatedHeader() {
               <span className="hidden sm:block text-sm text-slate-200 capitalize">
                 {session?.user?.name}
               </span>
+              <svg
+                className="hidden sm:block h-3.5 w-3.5 text-slate-400 ml-0.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
             </button>
 
             {profileOpen && (
