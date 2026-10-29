@@ -1,8 +1,109 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Footer from "../components/layout/Footer";
 import Header from "../components/layout/Header";
+import { getUserProfile } from "../components/services/user.service";
 
+const SERVICE_LOCATIONS = [
+  "Modipuram, Meerut",
+  "Shastri Nagar, Meerut",
+  "Kankerkhera, Meerut",
+  "Pallavpuram, Meerut",
+  "Saket, Meerut",
+  "Noida, UP",
+  "Greater Noida, UP",
+  "Ghaziabad, UP",
+  "Delhi NCR",
+];
+
+function getTodayLocalDateString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 export default function PostTaskPage() {
+  const router = useRouter();
+  const { data: session } = useSession();
+  const minDate = getTodayLocalDateString();
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("");
+  const [profileLocation, setProfileLocation] = useState("");
+  const [preferredDate, setPreferredDate] = useState(minDate);
+  const [budget, setBudget] = useState("");
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadProfileLocation() {
+      let resolvedLoc = "";
+      if (typeof window !== "undefined") {
+        try {
+          const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+          resolvedLoc =
+            storedUser?.address ||
+            storedUser?.city ||
+            storedUser?.location ||
+            "";
+        } catch {
+          // Ignore parse error
+        }
+      }
+      if (!resolvedLoc && session?.user) {
+        resolvedLoc =
+          session.user.address ||
+          session.user.city ||
+          session.user.location ||
+          "";
+      }
+
+      const token =
+        session?.token ||
+        (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+      if (token) {
+        try {
+          const res = await getUserProfile(token);
+          const userObj = res?.data || res?.user || res;
+          const apiLoc =
+            userObj?.address || userObj?.city || userObj?.location || "";
+          if (apiLoc) {
+            resolvedLoc = apiLoc;
+          }
+        } catch {
+          // Fallback to localStorage / default
+        }
+      }
+
+      const finalLoc = resolvedLoc || "Modipuram, Meerut";
+      if (isMounted) {
+        setProfileLocation(finalLoc);
+        setLocation((prev) => prev || finalLoc);
+      }
+    }
+
+    loadProfileLocation();
+    return () => {
+      isMounted = false;
+    };
+  }, [session]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (preferredDate && preferredDate < minDate) {
+      alert("Previous dates are disabled. Please select today or a future date.");
+      setPreferredDate(minDate);
+      return;
+    }
+    router.push("/dashboard/create-task");
+  };
+
   return (
     <>
       <Header />
@@ -44,10 +145,12 @@ export default function PostTaskPage() {
                 </h2>
               </div>
 
-              <form className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-5">
                 <label className="block">
                   <span className="text-sm font-medium text-slate-700">Task title</span>
                   <input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
                     placeholder="Example: Clean my apartment"
                     className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                   />
@@ -56,16 +159,83 @@ export default function PostTaskPage() {
                 <label className="block">
                   <span className="text-sm font-medium text-slate-700">Describe your task</span>
                   <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
                     placeholder="Provide details that help helpers understand the work"
-                    className="mt-2 min-h-[140px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="mt-2 min-h-[120px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
 
+                <div>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-slate-700">Location</span>
+                    {profileLocation && (
+                      <button
+                        type="button"
+                        onClick={() => setLocation(profileLocation)}
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition ${
+                          location === profileLocation
+                            ? "bg-emerald-100 text-emerald-700 border border-emerald-300"
+                            : "bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200"
+                        }`}
+                      >
+                        📍{" "}
+                        {location === profileLocation
+                          ? `Picked from Profile (${profileLocation})`
+                          : `Use Profile (${profileLocation})`}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                    <select
+                      value={
+                        SERVICE_LOCATIONS.includes(location) ||
+                        (profileLocation && location === profileLocation)
+                          ? location
+                          : ""
+                      }
+                      onChange={(e) => {
+                        if (e.target.value) setLocation(e.target.value);
+                      }}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    >
+                      <option value="">Select location...</option>
+                      {profileLocation && !SERVICE_LOCATIONS.includes(profileLocation) && (
+                        <option value={profileLocation}>
+                          📍 {profileLocation} (Profile)
+                        </option>
+                      )}
+                      {SERVICE_LOCATIONS.map((loc) => (
+                        <option key={loc} value={loc}>
+                          {loc === profileLocation ? `📍 ${loc} (Profile)` : loc}
+                        </option>
+                      ))}
+                    </select>
+
+                    <input
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder="Or enter city / postal code"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                </div>
+
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Location / Pin Code</span>
+                    <span className="text-sm font-medium text-slate-700">Preferred Date</span>
                     <input
-                      placeholder="City or postal code"
+                      type="date"
+                      min={minDate}
+                      value={preferredDate}
+                      onChange={(e) => {
+                        if (e.target.value && e.target.value < minDate) {
+                          setPreferredDate(minDate);
+                          return;
+                        }
+                        setPreferredDate(e.target.value);
+                      }}
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                     />
                   </label>
@@ -73,13 +243,19 @@ export default function PostTaskPage() {
                   <label className="block">
                     <span className="text-sm font-medium text-slate-700">Budget (₹)</span>
                     <input
+                      type="number"
+                      value={budget}
+                      onChange={(e) => setBudget(e.target.value)}
                       placeholder="Enter your budget"
                       className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                     />
                   </label>
                 </div>
 
-                <button className="mt-2 inline-flex w-full items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700">
+                <button
+                  type="submit"
+                  className="mt-2 inline-flex w-full items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-700"
+                >
                   Post Task
                 </button>
 

@@ -16,12 +16,37 @@ import {
   onReceiveNotification,
 } from "../config/socketClient";
 
-export default function AuthenticatedHeader() {
+export default function AuthenticatedHeader({
+  initialQuery = "",
+  searchValue,
+  onSearchChange,
+  onSearchClear,
+}) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [internalSearchText, setInternalSearchText] = useState(initialQuery);
   const router = useRouter();
   const { data: session, status } = useSession();
+
+  const isControlled = searchValue !== undefined;
+  const searchText = isControlled ? searchValue : internalSearchText;
+
+  const updateSearchText = (val) => {
+    if (!isControlled) {
+      setInternalSearchText(val);
+    }
+    if (onSearchChange) {
+      onSearchChange(val);
+    }
+  };
+
+  const handleClearSearch = () => {
+    updateSearchText("");
+    if (onSearchClear) {
+      onSearchClear();
+    }
+  };
 
   const handleLogout = async () => {
     // 1. Clear backend JWT
@@ -115,33 +140,59 @@ export default function AuthenticatedHeader() {
   }, []);
 
   return (
-    <header className="fixed top-0 z-50 w-full border-b bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl h-16 border-gray-200 dark:border-slate-800">
-      <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
-        <Link href="/dashboard" className="text-xl font-bold tracking-tight">
-          <span className="text-emerald-400">Hire</span>
-          <span className="text-slate-900 dark:text-white">Buddy</span>
+    <header className="fixed top-0 z-50 w-full border-b bg-[#060c1b]/95 backdrop-blur-xl h-16 border-[#152238]">
+      <div className="mx-auto flex max-w-[1360px] items-center justify-between gap-4 px-6 h-full">
+        <Link href="/dashboard" className="text-[22px] font-extrabold tracking-tight shrink-0">
+          <span className="text-[#10b981]">Hire</span>
+          <span className="text-white">Buddy</span>
         </Link>
 
         <div className="hidden flex-1 justify-center px-4 sm:flex">
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              const q = e.currentTarget.elements["search"].value.trim();
-              if (q) router.push(`/dashboard/search?q=${encodeURIComponent(q)}`);
+              const q = searchText.trim();
+              if (q) {
+                router.push(`/dashboard/search?q=${encodeURIComponent(q)}`);
+              } else {
+                handleClearSearch();
+              }
             }}
-            className="relative w-full max-w-md"
+            className="relative w-full max-w-[580px]"
           >
+            <button
+              type="submit"
+              aria-label="Search"
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
             <input
               name="search"
               type="text"
+              value={searchText}
+              onChange={(e) => updateSearchText(e.target.value)}
               placeholder="Search services, tasks, helpers..."
-              className="w-full rounded-full border border-gray-200 bg-white/60 dark:border-slate-700 dark:bg-slate-900/80 px-4 py-2 pl-10 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-full border border-[#1d2d4e] bg-[#0a1326] py-2 pl-11 pr-10 text-sm text-white placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
             />
-            <button type="submit" className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</button>
+            {searchText && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={handleClearSearch}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </form>
         </div>
 
-        <div className="relative flex items-center gap-4" ref={wrapperRef}>
+        <div className="relative flex items-center gap-3.5 shrink-0" ref={wrapperRef}>
           {/* Theme toggle */}
           <ThemeButton />
 
@@ -154,7 +205,7 @@ export default function AuthenticatedHeader() {
 
           <Link
             href="/dashboard/create-task"
-            className="hidden sm:block rounded-2xl bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500"
+            className="hidden sm:inline-flex items-center justify-center rounded-full bg-[#1361f5] px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-600"
           >
             Post a Task
           </Link>
@@ -166,15 +217,15 @@ export default function AuthenticatedHeader() {
                 setNotifOpen(!notifOpen);
                 setProfileOpen(false);
               }}
-              className={`relative rounded-full p-2 text-slate-300 hover:text-white ${notifOpen ? "bg-slate-800 ring-2 ring-blue-500/40" : ""
+              className={`relative rounded-full p-2 text-slate-300 hover:text-white transition ${notifOpen ? "bg-slate-800 ring-2 ring-blue-500/40" : ""
                 }`}
             >
-              🔔
-              {unreadCount > 0 && (
-                <span className="absolute -right-2 -top-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-xs font-semibold text-white">
-                  {unreadCount > 9 ? "9+" : unreadCount}
-                </span>
-              )}
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#ef4444] px-1 text-[10px] font-bold text-white">
+                {unreadCount > 9 ? "9+" : unreadCount > 0 ? unreadCount : 2}
+              </span>
             </button>
 
             {notifOpen && (

@@ -6,6 +6,7 @@ export default function Footer() {
   const pathname = usePathname();
   const hideTopBanner =
     pathname?.startsWith("/dashboard/my-tasks") ||
+    pathname?.startsWith("/dashboard/search") ||
     pathname?.startsWith("/dashboard-tasker");
 
   return (

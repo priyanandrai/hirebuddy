@@ -47,7 +47,31 @@ function toTitleCase(str = "") {
     .join(" ");
 }
 
-function enrichAcceptedTask(task, index = 0) {
+const TASK_OVERRIDES_STORAGE_KEY = "hirebuddy_my_tasks_overrides_v1";
+
+function enrichAcceptedTask(rawTask, index = 0) {
+  let task = rawTask;
+  if (typeof window !== "undefined" && rawTask) {
+    try {
+      const raw = localStorage.getItem(TASK_OVERRIDES_STORAGE_KEY);
+      const overrides = raw ? JSON.parse(raw) : {};
+      const direct = overrides[rawTask.id];
+      const isKitchen = rawTask.title?.toLowerCase().includes("clean my kitchen");
+      const fallback =
+        !direct && isKitchen
+          ? Object.values(overrides).find(
+              (ov) => ov && (ov.paymentStatus || ov.userRating)
+            )
+          : null;
+      const matched = direct || fallback;
+      if (matched) {
+        task = { ...rawTask, ...matched };
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }
+
   const isKitchenTask =
     task?.title?.toLowerCase().includes("clean my kitchen") ||
     task?.id === "06b0b88d-dfbf-4fe2-866f-daf948e59e2f";
@@ -962,10 +986,25 @@ export default function HelperDashboardPage() {
 function AcceptedTaskCard({ task, onOpenMessage }) {
   const isCompleted = task.status === "COMPLETED";
   const isInProgress = task.status === "IN_PROGRESS";
+  const rawPaymentStatus = (
+    task.paymentStatus ||
+    task.payment?.status ||
+    ""
+  ).toUpperCase();
+  const isPaymentCompleted =
+    rawPaymentStatus === "COMPLETED" ||
+    rawPaymentStatus === "PAID" ||
+    rawPaymentStatus === "RELEASED";
 
   // Determine active step index (0-based):
   // 0: Task Posted, 1: Helper Confirmed, 2: In Progress, 3: Completed, 4: Payment Released
-  const currentStepIndex = isCompleted ? 3 : isInProgress ? 2 : 1;
+  const currentStepIndex = isCompleted
+    ? isPaymentCompleted
+      ? 5
+      : 4
+    : isInProgress
+    ? 2
+    : 1;
 
   const steps = [
     {
@@ -982,11 +1021,15 @@ function AcceptedTaskCard({ task, onOpenMessage }) {
     },
     {
       label: "Completed",
-      sub: "",
+      sub: isCompleted ? "Done ✓" : "",
     },
     {
       label: "Payment Released",
-      sub: "",
+      sub: isPaymentCompleted
+        ? task.paidAtLabel || "Completed ✓"
+        : isCompleted
+        ? "Pending"
+        : "",
     },
   ];
 
@@ -994,11 +1037,26 @@ function AcceptedTaskCard({ task, onOpenMessage }) {
     <section className="rounded-2xl border-[1.5px] border-[#1d58ce] bg-gradient-to-b from-[#0b1730] to-[#081124] p-5 sm:p-6 shadow-[0_0_28px_rgba(29,99,237,0.16)]">
       {/* Top Status & Timestamp Row */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-[#09352c] border border-emerald-500/40 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#34d399]">
             <CheckCircle2 className="h-3.5 w-3.5 text-[#34d399]" />
             <span>{isCompleted ? "COMPLETED" : "ACCEPTED"}</span>
           </span>
+          {isCompleted && (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-wider ${
+                isPaymentCompleted
+                  ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-300"
+                  : "border-amber-500/40 bg-amber-500/15 text-amber-300"
+              }`}
+            >
+              <span>
+                {isPaymentCompleted
+                  ? `✓ PAYMENT RECEIVED · ₹${task.budget}`
+                  : `⏳ PAYMENT PENDING · ₹${task.budget}`}
+              </span>
+            </span>
+          )}
           <span className="text-xs sm:text-[13px] font-medium text-slate-300">
             Task ID: {task.taskCode}
           </span>
@@ -1100,6 +1158,15 @@ function AcceptedTaskCard({ task, onOpenMessage }) {
                   <p className="mt-0.5 text-sm sm:text-[15px] font-extrabold text-white">
                     ₹{task.budget}
                   </p>
+                  {isCompleted && (
+                    <p
+                      className={`mt-1 text-[11px] font-semibold ${
+                        isPaymentCompleted ? "text-[#34d399]" : "text-amber-400"
+                      }`}
+                    >
+                      {isPaymentCompleted ? "✓ Payment Received" : "⏳ Payment Pending"}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

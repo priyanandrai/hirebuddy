@@ -9,6 +9,7 @@ import {
   cancelTask,
   updateTaskStatus,
 } from "@/app/components/services/task.service";
+import { getUserProfile } from "@/app/components/services/user.service";
 import {
   initializeSocket,
   onTaskUpdate,
@@ -30,6 +31,13 @@ import {
   X,
   Send,
   Clock,
+  CreditCard,
+  Star,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+  Wallet,
+  Banknote,
 } from "lucide-react";
 
 const DEFAULT_KITCHEN_TASK = {
@@ -70,21 +78,80 @@ const DEFAULT_KITCHEN_TASK = {
   },
 };
 
+const RATING_COMPLIMENT_TAGS = [
+  "Punctual & On Time",
+  "Sparkling Clean",
+  "Polite & Friendly",
+  "Value for Money",
+  "Professional Work",
+];
+
+const SERVICE_LOCATIONS = [
+  "Noida, UP",
+  "Modipuram, Meerut",
+  "Shastri Nagar, Meerut",
+  "Kankerkhera, Meerut",
+  "Pallavpuram, Meerut",
+  "Saket, Meerut",
+  "Greater Noida, UP",
+  "Ghaziabad, UP",
+  "Delhi NCR",
+];
+
+function getTodayLocalDateString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+const TASK_OVERRIDES_STORAGE_KEY = "hirebuddy_my_tasks_overrides_v1";
+const REORDERED_TASKS_STORAGE_KEY = "hirebuddy_reordered_tasks_v1";
+
 export default function MyTasksPage() {
   const router = useRouter();
   const { data: session } = useSession();
 
+  const minDate = getTodayLocalDateString();
+
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("ALL");
+  const [profileLocation, setProfileLocation] = useState("");
+  const [openLocationDropdownId, setOpenLocationDropdownId] = useState(null);
 
   // Interactive modals & dropdowns
   const [openStatusDropdownId, setOpenStatusDropdownId] = useState(null);
   const [rescheduleModalTask, setRescheduleModalTask] = useState(null);
-  const [rescheduleDate, setRescheduleDate] = useState("2026-10-23");
+  const [rescheduleDate, setRescheduleDate] = useState(minDate);
   const [rescheduleTimeSlot, setRescheduleTimeSlot] = useState(
     "10:00 AM - 12:00 PM"
   );
+  const [rescheduleLocation, setRescheduleLocation] = useState("Noida, UP");
+
+  // Payment Modal State
+  const [paymentModalTask, setPaymentModalTask] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState("UPI");
+  const [upiId, setUpiId] = useState("priyasharma@okaxis");
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+
+  // Rate & Review Helper Modal State
+  const [ratingModalTask, setRatingModalTask] = useState(null);
+  const [ratingStars, setRatingStars] = useState(5);
+  const [hoverStars, setHoverStars] = useState(0);
+  const [ratingTags, setRatingTags] = useState([
+    "Punctual & On Time",
+    "Sparkling Clean",
+  ]);
+  const [ratingComment, setRatingComment] = useState("");
+
+  // Reorder Task Modal State
+  const [reorderModalTask, setReorderModalTask] = useState(null);
+  const [reorderDate, setReorderDate] = useState(minDate);
+  const [reorderTimeSlot, setReorderTimeSlot] = useState("10:00 AM - 12:00 PM");
+  const [reorderLocation, setReorderLocation] = useState("Noida, UP");
+  const [reorderSameHelper, setReorderSameHelper] = useState(true);
 
   const [messageModalTask, setMessageModalTask] = useState(null);
   const [messageText, setMessageText] = useState("");
@@ -94,7 +161,44 @@ export default function MyTasksPage() {
 
   const showToast = (msg) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 3200);
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const saveTaskOverride = (taskId, patch) => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(TASK_OVERRIDES_STORAGE_KEY);
+      const existing = raw ? JSON.parse(raw) : {};
+      existing[taskId] = { ...(existing[taskId] || {}), ...patch };
+      localStorage.setItem(
+        TASK_OVERRIDES_STORAGE_KEY,
+        JSON.stringify(existing)
+      );
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  const applyStoredOverrides = (rawTasks) => {
+    if (typeof window === "undefined") return rawTasks;
+    try {
+      const overridesRaw = localStorage.getItem(TASK_OVERRIDES_STORAGE_KEY);
+      const overrides = overridesRaw ? JSON.parse(overridesRaw) : {};
+      const reorderedRaw = localStorage.getItem(REORDERED_TASKS_STORAGE_KEY);
+      const reorderedList = reorderedRaw ? JSON.parse(reorderedRaw) : [];
+
+      const existingIds = new Set(rawTasks.map((t) => t.id));
+      const mergedList = [
+        ...reorderedList.filter((rt) => !existingIds.has(rt.id)),
+        ...rawTasks,
+      ];
+
+      return mergedList.map((t) =>
+        overrides[t.id] ? { ...t, ...overrides[t.id] } : t
+      );
+    } catch {
+      return rawTasks;
+    }
   };
 
   useEffect(() => {
@@ -102,6 +206,52 @@ export default function MyTasksPage() {
       session?.token ||
       (typeof window !== "undefined" ? localStorage.getItem("token") : null);
     getMyTask(token);
+
+    // Load user's profile location
+    let resolvedLoc = "";
+    if (typeof window !== "undefined") {
+      try {
+        const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+        resolvedLoc =
+          storedUser?.address ||
+          storedUser?.city ||
+          storedUser?.location ||
+          "";
+      } catch {
+        // Ignore parse error
+      }
+    }
+    if (!resolvedLoc && session?.user) {
+      resolvedLoc =
+        session.user.address ||
+        session.user.city ||
+        session.user.location ||
+        "";
+    }
+    if (resolvedLoc) {
+      setProfileLocation(resolvedLoc);
+    }
+
+    if (token) {
+      getUserProfile(token)
+        .then((res) => {
+          const userObj = res?.data || res?.user || res;
+          const apiLoc =
+            userObj?.address || userObj?.city || userObj?.location || "";
+          if (apiLoc) {
+            setProfileLocation(apiLoc);
+          } else if (!resolvedLoc) {
+            setProfileLocation("Noida, UP");
+          }
+        })
+        .catch(() => {
+          if (!resolvedLoc) {
+            setProfileLocation("Noida, UP");
+          }
+        });
+    } else if (!resolvedLoc) {
+      setProfileLocation("Noida, UP");
+    }
   }, [session]);
 
   // Listen to real-time socket updates for tasks
@@ -129,7 +279,7 @@ export default function MyTasksPage() {
 
   const getMyTask = async (token) => {
     if (!token) {
-      setTasks([DEFAULT_KITCHEN_TASK]);
+      setTasks(applyStoredOverrides([DEFAULT_KITCHEN_TASK]));
       setLoading(false);
       return;
     }
@@ -138,13 +288,13 @@ export default function MyTasksPage() {
       const res = await myTask(token);
       const list = Array.isArray(res) ? res : res?.data || res?.tasks || [];
       if (list.length > 0) {
-        setTasks(list);
+        setTasks(applyStoredOverrides(list));
       } else {
-        setTasks([DEFAULT_KITCHEN_TASK]);
+        setTasks(applyStoredOverrides([DEFAULT_KITCHEN_TASK]));
       }
     } catch (error) {
       console.error("Failed to fetch tasks", error);
-      setTasks([DEFAULT_KITCHEN_TASK]);
+      setTasks(applyStoredOverrides([DEFAULT_KITCHEN_TASK]));
     } finally {
       setLoading(false);
     }
@@ -153,16 +303,22 @@ export default function MyTasksPage() {
   // Enrich raw DB tasks so every card has rich display properties matching user_my_task_page.png
   const normalizedTasks = useMemo(() => {
     return tasks.map((task, idx) => {
-      const isKitchenTask =
-        task.title?.toLowerCase().includes("clean my kitchen") ||
-        task.id === DEFAULT_KITCHEN_TASK.id;
+      const isKitchenTask = task.id === DEFAULT_KITCHEN_TASK.id;
+      const statusUpper = (
+        task.status || (isKitchenTask ? "ASSIGNED" : "OPEN")
+      ).toUpperCase();
 
       const rawHelper = task.assignedTo;
+      const hasHelper =
+        statusUpper !== "OPEN" &&
+        (Boolean(rawHelper) ||
+          isKitchenTask ||
+          ["ASSIGNED", "IN_PROGRESS", "COMPLETED"].includes(statusUpper));
+
       const usePriyaPreset =
         isKitchenTask ||
-        !rawHelper ||
-        rawHelper.name?.toLowerCase() === "prreto g" ||
-        rawHelper.name?.toLowerCase().includes("priya");
+        rawHelper?.name?.toLowerCase() === "prreto g" ||
+        rawHelper?.name?.toLowerCase().includes("priya");
 
       const helperSkills = (() => {
         if (isKitchenTask) {
@@ -181,46 +337,70 @@ export default function MyTasksPage() {
         return DEFAULT_KITCHEN_TASK.assignedTo.skills;
       })();
 
-      const helper = {
-        id: rawHelper?.id || "priya-sharma",
-        name: isKitchenTask
-          ? "Priya Sharma"
-          : rawHelper?.name || "Priya Sharma",
-        image: usePriyaPreset
-          ? "/images/priya_sharma.png"
-          : rawHelper?.image || "/images/priya_sharma.png",
-        phone: rawHelper?.phone || "+91 98765 43210",
-        location: isKitchenTask
-          ? "Noida, UP"
-          : rawHelper?.city || task.location || "Noida, UP",
-        rating:
-          rawHelper?.averageRating && Number(rawHelper.averageRating) > 0
-            ? Number(rawHelper.averageRating).toFixed(1)
-            : "4.8",
-        reviewCount:
-          rawHelper?.totalReviews && Number(rawHelper.totalReviews) > 0
-            ? Number(rawHelper.totalReviews)
-            : 120,
-        isAvailable: rawHelper?.isAvailable ?? true,
-        isVerified: true,
-        bio:
-          rawHelper?.bio ||
-          DEFAULT_KITCHEN_TASK.assignedTo.bio,
-        skills: helperSkills,
-      };
+      const baseRating =
+        rawHelper?.averageRating && Number(rawHelper.averageRating) > 0
+          ? Number(rawHelper.averageRating)
+          : 4.8;
+      const baseReviewCount =
+        rawHelper?.totalReviews && Number(rawHelper.totalReviews) > 0
+          ? Number(rawHelper.totalReviews)
+          : 120;
+
+      const displayedRating = task.userRating
+        ? (
+            (baseRating * baseReviewCount + Number(task.userRating)) /
+            (baseReviewCount + 1)
+          ).toFixed(1)
+        : baseRating.toFixed(1);
+
+      const displayedReviewCount = task.userRating
+        ? baseReviewCount + 1
+        : baseReviewCount;
+
+      const helper = hasHelper
+        ? {
+            id: rawHelper?.id || "priya-sharma",
+            name: isKitchenTask
+              ? "Priya Sharma"
+              : rawHelper?.name || "Priya Sharma",
+            image: usePriyaPreset
+              ? "/images/priya_sharma.png"
+              : rawHelper?.image || "/images/priya_sharma.png",
+            phone: rawHelper?.phone || "+91 98765 43210",
+            location: isKitchenTask
+              ? "Noida, UP"
+              : rawHelper?.city || task.location || "Noida, UP",
+            rating: displayedRating,
+            reviewCount: displayedReviewCount,
+            isAvailable: rawHelper?.isAvailable ?? true,
+            isVerified: true,
+            bio:
+              rawHelper?.bio ||
+              DEFAULT_KITCHEN_TASK.assignedTo.bio,
+            skills: helperSkills,
+          }
+        : null;
 
       const formattedDate = formatTaskDate(
         task.preferredAt || task.date || task.createdAt || "2026-10-23"
       );
 
+      const postedDateFormatted = formatTaskDate(
+        task.createdAt || task.preferredAt || task.date || "2026-10-23"
+      );
+
       return {
         ...task,
+        status: statusUpper,
+        hasHelper,
         taskCode: task.taskCode || (idx === 0 ? "HB-1023" : `HB-${1023 + idx}`),
-        displayLocation: isKitchenTask
-          ? task.customLocation || "Noida, UP"
-          : task.location || "Noida, UP",
+        displayLocation:
+          task.customLocation ||
+          (isKitchenTask
+            ? profileLocation || "Noida, UP"
+            : task.location || profileLocation || "Noida, UP"),
         displayDate: task.customDateLabel || formattedDate,
-        displayPostedDate: isKitchenTask ? "23 Oct 2026" : formattedDate,
+        displayPostedDate: isKitchenTask ? "23 Oct 2026" : postedDateFormatted,
         displayTimeSlot: task.timeSlot || "10:00 AM - 12:00 PM",
         displayCategory: task.category || "Cleaning",
         displaySubCategory:
@@ -232,14 +412,19 @@ export default function MyTasksPage() {
           task.budget > 10000 ? Math.round(task.budget / 100) : task.budget || 300,
         displayDescription: isKitchenTask
           ? "Need deep cleaning of kitchen including slab, stove, sink and tiles."
-          : task.description ||
-            "Need deep cleaning of kitchen including slab, stove, sink and tiles.",
-        postedTimeLabel: task.postedTimeLabel || "23 Oct, 09:00 AM",
-        confirmedTimeLabel: task.confirmedTimeLabel || "23 Oct, 10:30 AM",
+          : task.description || "No description provided.",
+        postedTimeLabel:
+          task.postedTimeLabel ||
+          (isKitchenTask ? "23 Oct, 09:00 AM" : postedDateFormatted),
+        confirmedTimeLabel:
+          task.confirmedTimeLabel ||
+          (hasHelper && statusUpper !== "REQUESTED"
+            ? "23 Oct, 10:30 AM"
+            : ""),
         helper,
       };
     });
-  }, [tasks]);
+  }, [tasks, profileLocation]);
 
   // Filter tasks based on active tab
   const filteredTasks = useMemo(() => {
@@ -270,7 +455,8 @@ export default function MyTasksPage() {
       session?.token ||
       (typeof window !== "undefined" ? localStorage.getItem("token") : null);
 
-    // Optimistic UI update
+    // Optimistic UI update + localStorage persistence
+    saveTaskOverride(task.id, { status: newStatus });
     setTasks((prev) =>
       prev.map((t) => (t.id === task.id ? { ...t, status: newStatus } : t))
     );
@@ -287,25 +473,187 @@ export default function MyTasksPage() {
     }
   };
 
+  const handleLocationChange = (task, newLocation) => {
+    setOpenLocationDropdownId(null);
+    if (!newLocation || !newLocation.trim()) return;
+    const trimmed = newLocation.trim();
+    const patch = {
+      location: trimmed,
+      customLocation: trimmed,
+    };
+    saveTaskOverride(task.id, patch);
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? { ...t, ...patch } : t))
+    );
+    showToast(`Task location updated to ${trimmed}`);
+  };
+
   const handleConfirmReschedule = (e) => {
     e.preventDefault();
     if (!rescheduleModalTask) return;
 
+    if (rescheduleDate < minDate) {
+      showToast("Previous dates are disabled. Please select today or a future date.");
+      setRescheduleDate(minDate);
+      return;
+    }
+
     const newDateFormatted = formatTaskDate(rescheduleDate);
+    const updatedLoc =
+      (rescheduleLocation && rescheduleLocation.trim()) ||
+      rescheduleModalTask.displayLocation ||
+      profileLocation ||
+      "Noida, UP";
+    const patch = {
+      preferredAt: rescheduleDate,
+      customDateLabel: newDateFormatted,
+      timeSlot: rescheduleTimeSlot,
+      location: updatedLoc,
+      customLocation: updatedLoc,
+    };
+    saveTaskOverride(rescheduleModalTask.id, patch);
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === rescheduleModalTask.id
-          ? {
-              ...t,
-              preferredAt: rescheduleDate,
-              customDateLabel: newDateFormatted,
-              timeSlot: rescheduleTimeSlot,
-            }
-          : t
+        t.id === rescheduleModalTask.id ? { ...t, ...patch } : t
       )
     );
     setRescheduleModalTask(null);
-    showToast(`Task rescheduled to ${newDateFormatted}, ${rescheduleTimeSlot}`);
+    showToast(
+      `Task rescheduled to ${newDateFormatted}, ${rescheduleTimeSlot} (${updatedLoc})`
+    );
+  };
+
+  const handleReleasePayment = (e) => {
+    e.preventDefault();
+    if (!paymentModalTask) return;
+    setPaymentProcessing(true);
+
+    setTimeout(() => {
+      const methodLabel =
+        paymentMethod === "UPI"
+          ? `UPI (${upiId || "Instant UPI"})`
+          : paymentMethod === "CARD"
+            ? "Card"
+            : "Cash";
+      const patch = {
+        paymentStatus: "COMPLETED",
+        paidMethod: methodLabel,
+        paidAtLabel: "23 Oct, 12:15 PM",
+      };
+      saveTaskOverride(paymentModalTask.id, patch);
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === paymentModalTask.id ? { ...t, ...patch } : t
+        )
+      );
+      setPaymentProcessing(false);
+      const paidTask = paymentModalTask;
+      setPaymentModalTask(null);
+      showToast(
+        `₹${paidTask.displayBudget} payment released to ${paidTask.helper?.name || "Helper"}!`
+      );
+    }, 500);
+  };
+
+  const handleOpenRatingModal = (task) => {
+    setRatingModalTask(task);
+    setRatingStars(task.userRating || 5);
+    setHoverStars(0);
+    setRatingTags(
+      task.userReviewTags || ["Punctual & On Time", "Sparkling Clean"]
+    );
+    setRatingComment(task.userReview || "");
+  };
+
+  const toggleRatingTag = (tag) => {
+    setRatingTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const handleSubmitRating = (e) => {
+    e.preventDefault();
+    if (!ratingModalTask) return;
+
+    const patch = {
+      userRating: ratingStars,
+      userReviewTags: ratingTags,
+      userReview:
+        ratingComment.trim() ||
+        `${ratingModalTask.helper?.name || "Helper"} did a great job!`,
+      ratedAtLabel: "Just now",
+    };
+
+    saveTaskOverride(ratingModalTask.id, patch);
+    setTasks((prev) =>
+      prev.map((t) => (t.id === ratingModalTask.id ? { ...t, ...patch } : t))
+    );
+    const helperName = ratingModalTask.helper?.name || "Helper";
+    setRatingModalTask(null);
+    showToast(`Thank you! You rated ${helperName} ${ratingStars}.0 ★`);
+  };
+
+  const handleConfirmReorder = (e) => {
+    e.preventDefault();
+    if (!reorderModalTask) return;
+
+    if (reorderDate < minDate) {
+      showToast("Previous dates are disabled. Please select today or a future date.");
+      setReorderDate(minDate);
+      return;
+    }
+
+    const newDateFormatted = formatTaskDate(reorderDate);
+    const newTaskCode = `HB-${Math.floor(1040 + Math.random() * 890)}`;
+    const chosenLocation =
+      (reorderLocation && reorderLocation.trim()) ||
+      reorderModalTask.displayLocation ||
+      profileLocation ||
+      "Noida, UP";
+    const keepHelper =
+      reorderSameHelper && Boolean(reorderModalTask.hasHelper && reorderModalTask.helper);
+    const reorderedTask = {
+      ...reorderModalTask,
+      id: `reorder-${Date.now()}`,
+      taskCode: newTaskCode,
+      status: keepHelper ? "REQUESTED" : "OPEN",
+      assignedTo: keepHelper
+        ? reorderModalTask.assignedTo || reorderModalTask.helper
+        : null,
+      paymentStatus: "PENDING",
+      paidMethod: null,
+      paidAtLabel: null,
+      userRating: null,
+      userReview: null,
+      userReviewTags: null,
+      preferredAt: reorderDate,
+      customDateLabel: newDateFormatted,
+      timeSlot: reorderTimeSlot,
+      location: chosenLocation,
+      customLocation: chosenLocation,
+      postedTimeLabel: "Just now",
+      confirmedTimeLabel: keepHelper ? "Pending acceptance" : "",
+    };
+
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem(REORDERED_TASKS_STORAGE_KEY);
+        const existing = raw ? JSON.parse(raw) : [];
+        localStorage.setItem(
+          REORDERED_TASKS_STORAGE_KEY,
+          JSON.stringify([reorderedTask, ...existing])
+        );
+      } catch {
+        // Ignore storage errors
+      }
+    }
+
+    setTasks((prev) => [reorderedTask, ...prev]);
+    setReorderModalTask(null);
+    setActiveTab("ALL");
+    showToast(
+      `Task "${reorderedTask.title}" reordered (${newTaskCode}) for ${newDateFormatted}!`
+    );
   };
 
   const handleSendMessage = (e) => {
@@ -333,6 +681,7 @@ export default function MyTasksPage() {
     } catch (e) {
       // Proceed with local state update even if endpoint rejects transition
     } finally {
+      saveTaskOverride(targetId, { status: "CANCELLED" });
       setTasks((prev) =>
         prev.map((t) =>
           t.id === targetId ? { ...t, status: "CANCELLED" } : t
@@ -431,15 +780,49 @@ export default function MyTasksPage() {
               <TaskDetailCard
                 key={task.id}
                 task={task}
+                profileLocation={profileLocation}
                 openStatusDropdownId={openStatusDropdownId}
                 setOpenStatusDropdownId={setOpenStatusDropdownId}
                 onStatusChange={handleStatusChange}
+                openLocationDropdownId={openLocationDropdownId}
+                setOpenLocationDropdownId={setOpenLocationDropdownId}
+                onLocationChange={handleLocationChange}
                 onOpenReschedule={() => {
                   setRescheduleModalTask(task);
+                  setRescheduleDate(minDate);
                   setRescheduleTimeSlot(task.displayTimeSlot);
+                  setRescheduleLocation(
+                    task.displayLocation || profileLocation || "Noida, UP"
+                  );
                 }}
-                onChangeHelper={() => router.push("/categories/cleaning")}
+                onChangeHelper={() => {
+                  const params = new URLSearchParams();
+                  if (task.displayLocation) {
+                    params.set("location", task.displayLocation);
+                  }
+                  if (task.displayCategory) {
+                    params.set("category", task.displayCategory);
+                  }
+                  if (task.id) {
+                    params.set("taskId", String(task.id));
+                  }
+                  if (task.title) {
+                    params.set("taskTitle", task.title);
+                  }
+                  router.push(`/dashboard/helpers?${params.toString()}`);
+                }}
                 onCancelTask={() => setCancelConfirmTask(task)}
+                onOpenPayment={() => setPaymentModalTask(task)}
+                onOpenRating={() => handleOpenRatingModal(task)}
+                onOpenReorder={() => {
+                  setReorderModalTask(task);
+                  setReorderDate(minDate);
+                  setReorderTimeSlot(task.displayTimeSlot);
+                  setReorderLocation(
+                    task.displayLocation || profileLocation || "Noida, UP"
+                  );
+                  setReorderSameHelper(Boolean(task.hasHelper && task.helper));
+                }}
                 onOpenMessage={() => setMessageModalTask(task)}
                 onViewProfile={() =>
                   router.push(`/helpers/${task.helper?.id || "priya-sharma"}`)
@@ -508,16 +891,88 @@ export default function MyTasksPage() {
 
             <form onSubmit={handleConfirmReschedule} className="mt-5 space-y-4">
               <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <label className="block text-xs font-medium text-slate-300">
+                    Location
+                  </label>
+                  {profileLocation && (
+                    <button
+                      type="button"
+                      onClick={() => setRescheduleLocation(profileLocation)}
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition cursor-pointer ${
+                        rescheduleLocation === profileLocation
+                          ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                          : "bg-slate-800 text-slate-300 hover:bg-emerald-500/15 hover:text-emerald-300 border border-slate-700"
+                      }`}
+                    >
+                      <MapPin className="h-3 w-3" />
+                      {rescheduleLocation === profileLocation
+                        ? `From Profile (${profileLocation})`
+                        : `Use Profile (${profileLocation})`}
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <select
+                    value={
+                      SERVICE_LOCATIONS.includes(rescheduleLocation) ||
+                      (profileLocation && rescheduleLocation === profileLocation)
+                        ? rescheduleLocation
+                        : ""
+                    }
+                    onChange={(e) => {
+                      if (e.target.value) setRescheduleLocation(e.target.value);
+                    }}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-xs text-white focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="">Select location...</option>
+                    {profileLocation &&
+                      !SERVICE_LOCATIONS.includes(profileLocation) && (
+                        <option value={profileLocation}>
+                          📍 {profileLocation} (Profile)
+                        </option>
+                      )}
+                    {SERVICE_LOCATIONS.map((loc) => (
+                      <option key={loc} value={loc}>
+                        {loc === profileLocation ? `📍 ${loc} (Profile)` : loc}
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="text"
+                    value={rescheduleLocation}
+                    onChange={(e) => setRescheduleLocation(e.target.value)}
+                    placeholder="Or enter location"
+                    required
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-300">
                   Select New Date
                 </label>
                 <input
                   type="date"
+                  min={minDate}
                   value={rescheduleDate}
-                  onChange={(e) => setRescheduleDate(e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value && e.target.value < minDate) {
+                      showToast("Previous dates are disabled.");
+                      setRescheduleDate(minDate);
+                      return;
+                    }
+                    setRescheduleDate(e.target.value);
+                  }}
                   required
                   className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none"
                 />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Past dates are disabled (earliest: {minDate})
+                </p>
               </div>
 
               <div>
@@ -623,7 +1078,10 @@ export default function MyTasksPage() {
               <span className="font-semibold text-slate-200">
                 “{cancelConfirmTask.title}”
               </span>
-              ? The assigned helper will be notified immediately.
+              ?{" "}
+              {cancelConfirmTask.hasHelper
+                ? "The assigned helper will be notified immediately."
+                : "This task will be removed from the marketplace."}
             </p>
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
@@ -647,6 +1105,498 @@ export default function MyTasksPage() {
           </div>
         </div>
       )}
+
+      {/* Release Payment Modal */}
+      {paymentModalTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-[#0b1120] p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                  <CreditCard className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-white">
+                    {paymentModalTask.paymentStatus === "COMPLETED"
+                      ? "Payment Receipt"
+                      : "Pay & Release Payment"}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Task ID: {paymentModalTask.taskCode} · {paymentModalTask.title}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPaymentModalTask(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Payment Summary Box */}
+            <div className="mt-4 rounded-2xl border border-slate-800/90 bg-slate-900/70 p-4 space-y-2.5">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>Assigned Helper</span>
+                <span className="font-semibold text-white">
+                  {paymentModalTask.helper?.name}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>Task Amount</span>
+                <span className="font-semibold text-slate-200">
+                  ₹{paymentModalTask.displayBudget}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>Platform Protection Fee</span>
+                <span className="font-semibold text-emerald-400">FREE (₹0)</span>
+              </div>
+              <div className="border-t border-slate-800 pt-2.5 flex items-center justify-between">
+                <span className="text-sm font-bold text-white">Total Payable</span>
+                <span className="text-lg font-extrabold text-emerald-400">
+                  ₹{paymentModalTask.displayBudget}
+                </span>
+              </div>
+            </div>
+
+            {paymentModalTask.paymentStatus === "COMPLETED" ? (
+              <div className="mt-5 space-y-4">
+                <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-slate-950">
+                    <Check className="h-5 w-5 stroke-[3]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-emerald-300">
+                      Payment Released Successfully
+                    </p>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      Paid ₹{paymentModalTask.displayBudget} via{" "}
+                      {paymentModalTask.paidMethod || "UPI"} ·{" "}
+                      {paymentModalTask.paidAtLabel || "23 Oct, 12:15 PM"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentModalTask(null)}
+                    className="rounded-xl bg-slate-800 px-5 py-2.5 text-xs font-semibold text-white hover:bg-slate-700 cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleReleasePayment} className="mt-5 space-y-4">
+                <div>
+                  <label className="mb-2 block text-xs font-semibold text-slate-300">
+                    Select Payment Method
+                  </label>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    {[
+                      { key: "UPI", label: "UPI App", icon: Wallet },
+                      { key: "CARD", label: "Card", icon: CreditCard },
+                      { key: "CASH", label: "Cash Paid", icon: Banknote },
+                    ].map((item) => {
+                      const IconComp = item.icon;
+                      const active = paymentMethod === item.key;
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => setPaymentMethod(item.key)}
+                          className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-xs font-semibold transition cursor-pointer ${
+                            active
+                              ? "border-emerald-500 bg-emerald-500/15 text-emerald-300 shadow-md shadow-emerald-500/10"
+                              : "border-slate-800 bg-slate-900/80 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                          }`}
+                        >
+                          <IconComp className="h-4 w-4" />
+                          <span>{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {paymentMethod === "UPI" && (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-slate-400">
+                      UPI ID (GPay / PhonePe / Paytm)
+                    </label>
+                    <input
+                      type="text"
+                      value={upiId}
+                      onChange={(e) => setUpiId(e.target.value)}
+                      placeholder="yourname@upi"
+                      required
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-400" />
+                  <span>
+                    100% secure HireBuddy escrow release directly to{" "}
+                    {paymentModalTask.helper?.name}.
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentModalTask(null)}
+                    className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={paymentProcessing}
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-xs sm:text-sm font-bold text-slate-950 shadow-lg shadow-emerald-500/25 hover:bg-emerald-400 disabled:opacity-60 cursor-pointer"
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    <span>
+                      {paymentProcessing
+                        ? "Processing..."
+                        : `Pay ₹${paymentModalTask.displayBudget} & Release`}
+                    </span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Rate & Review Helper Modal */}
+      {ratingModalTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-[#0b1120] p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <img
+                  src={ratingModalTask.helper?.image || "/images/priya_sharma.png"}
+                  alt={ratingModalTask.helper?.name}
+                  className="h-11 w-11 rounded-2xl object-cover object-top border border-slate-700"
+                />
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-1.5">
+                    <span>Rate {ratingModalTask.helper?.name}</span>
+                    <VerifiedBadgeIcon />
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    For “{ratingModalTask.title}”
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setRatingModalTask(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitRating} className="mt-5 space-y-5">
+              {/* Interactive 5-Star Selector */}
+              <div className="flex flex-col items-center rounded-2xl border border-slate-800/90 bg-slate-900/60 py-4 px-3">
+                <p className="text-xs font-medium text-slate-400 mb-2">
+                  How was your experience with {ratingModalTask.helper?.name}?
+                </p>
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => {
+                    const active = (hoverStars || ratingStars) >= star;
+                    return (
+                      <button
+                        key={star}
+                        type="button"
+                        onMouseEnter={() => setHoverStars(star)}
+                        onMouseLeave={() => setHoverStars(0)}
+                        onClick={() => setRatingStars(star)}
+                        className="p-1 transition-transform hover:scale-110 cursor-pointer"
+                      >
+                        <Star
+                          className={`h-8 w-8 transition ${
+                            active
+                              ? "fill-amber-400 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]"
+                              : "text-slate-700"
+                          }`}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="mt-2 text-xs font-bold text-amber-400">
+                  {(hoverStars || ratingStars) === 5
+                    ? "5.0 ★ — Excellent Service!"
+                    : (hoverStars || ratingStars) === 4
+                      ? "4.0 ★ — Very Good!"
+                      : (hoverStars || ratingStars) === 3
+                        ? "3.0 ★ — Good"
+                        : (hoverStars || ratingStars) === 2
+                          ? "2.0 ★ — Fair"
+                          : "1.0 ★ — Needs Improvement"}
+                </span>
+              </div>
+
+              {/* Compliment Tags */}
+              <div>
+                <label className="mb-2 block text-xs font-semibold text-slate-300">
+                  What went well? (Select compliments)
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {RATING_COMPLIMENT_TAGS.map((tag) => {
+                    const selected = ratingTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => toggleRatingTag(tag)}
+                        className={`rounded-full border px-3 py-1 text-xs font-medium transition cursor-pointer ${
+                          selected
+                            ? "border-amber-400/60 bg-amber-500/15 text-amber-300"
+                            : "border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                        }`}
+                      >
+                        {selected ? `✓ ${tag}` : tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Written Review */}
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-slate-300">
+                  Share your feedback (Optional)
+                </label>
+                <textarea
+                  rows={3}
+                  value={ratingComment}
+                  onChange={(e) => setRatingComment(e.target.value)}
+                  placeholder={`Share how ${ratingModalTask.helper?.name} performed on your task...`}
+                  className="w-full rounded-2xl border border-slate-700 bg-slate-900 p-3 text-sm text-white placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setRatingModalTask(null)}
+                  className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 px-5 py-2.5 text-xs sm:text-sm font-bold text-slate-950 shadow-lg shadow-amber-500/25 hover:bg-amber-400 cursor-pointer"
+                >
+                  <Star className="h-4 w-4 fill-slate-950" />
+                  <span>Submit Rating</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reorder / Book Again Modal */}
+      {reorderModalTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-[#0b1120] p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400">
+                  <RotateCcw className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-white">
+                    Reorder Task
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Book “{reorderModalTask.title}” again
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setReorderModalTask(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmReorder} className="mt-5 space-y-4">
+              {/* Task Summary Card */}
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3.5 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-white">
+                    {reorderModalTask.title}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {reorderModalTask.displayCategory} ·{" "}
+                    {reorderModalTask.displayLocation}
+                  </p>
+                </div>
+                <span className="rounded-xl bg-emerald-500/15 border border-emerald-500/30 px-3 py-1 text-sm font-bold text-emerald-300">
+                  ₹{reorderModalTask.displayBudget}
+                </span>
+              </div>
+
+              {/* Same Helper Option */}
+              {reorderModalTask.hasHelper && reorderModalTask.helper && (
+                <label className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900/50 p-3.5 cursor-pointer hover:border-slate-700">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={
+                        reorderModalTask.helper?.image || "/images/priya_sharma.png"
+                      }
+                      alt={reorderModalTask.helper?.name}
+                      className="h-10 w-10 rounded-xl object-cover object-top border border-slate-700"
+                    />
+                    <div>
+                      <p className="text-xs font-bold text-white">
+                        Request {reorderModalTask.helper?.name} again
+                      </p>
+                      <p className="text-[11px] text-emerald-400">
+                        ★ {reorderModalTask.helper?.rating} · Available for re-booking
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={reorderSameHelper}
+                    onChange={(e) => setReorderSameHelper(e.target.checked)}
+                    className="h-4 w-4 rounded accent-blue-600"
+                  />
+                </label>
+              )}
+
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <label className="block text-xs font-medium text-slate-300">
+                    Location for Reorder
+                  </label>
+                  {profileLocation && (
+                    <button
+                      type="button"
+                      onClick={() => setReorderLocation(profileLocation)}
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition cursor-pointer ${
+                        reorderLocation === profileLocation
+                          ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                          : "bg-slate-800 text-slate-300 hover:bg-emerald-500/15 hover:text-emerald-300 border border-slate-700"
+                      }`}
+                    >
+                      <MapPin className="h-3 w-3" />
+                      {reorderLocation === profileLocation
+                        ? `From Profile (${profileLocation})`
+                        : `Use Profile (${profileLocation})`}
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <select
+                    value={
+                      SERVICE_LOCATIONS.includes(reorderLocation) ||
+                      (profileLocation && reorderLocation === profileLocation)
+                        ? reorderLocation
+                        : ""
+                    }
+                    onChange={(e) => {
+                      if (e.target.value) setReorderLocation(e.target.value);
+                    }}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-xs text-white focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="">Select location...</option>
+                    {profileLocation &&
+                      !SERVICE_LOCATIONS.includes(profileLocation) && (
+                        <option value={profileLocation}>
+                          📍 {profileLocation} (Profile)
+                        </option>
+                      )}
+                    {SERVICE_LOCATIONS.map((loc) => (
+                      <option key={loc} value={loc}>
+                        {loc === profileLocation ? `📍 ${loc} (Profile)` : loc}
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="text"
+                    value={reorderLocation}
+                    onChange={(e) => setReorderLocation(e.target.value)}
+                    placeholder="Or enter location"
+                    required
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-300">
+                  Select Date for Reorder
+                </label>
+                <input
+                  type="date"
+                  min={minDate}
+                  value={reorderDate}
+                  onChange={(e) => {
+                    if (e.target.value && e.target.value < minDate) {
+                      showToast("Previous dates are disabled.");
+                      setReorderDate(minDate);
+                      return;
+                    }
+                    setReorderDate(e.target.value);
+                  }}
+                  required
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+                />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Past dates are disabled (earliest: {minDate})
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-300">
+                  Preferred Time Slot
+                </label>
+                <select
+                  value={reorderTimeSlot}
+                  onChange={(e) => setReorderTimeSlot(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="08:00 AM - 10:00 AM">08:00 AM - 10:00 AM</option>
+                  <option value="10:00 AM - 12:00 PM">10:00 AM - 12:00 PM</option>
+                  <option value="12:00 PM - 02:00 PM">12:00 PM - 02:00 PM</option>
+                  <option value="03:00 PM - 05:00 PM">03:00 PM - 05:00 PM</option>
+                  <option value="05:00 PM - 07:00 PM">05:00 PM - 07:00 PM</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setReorderModalTask(null)}
+                  className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-blue-600/25 hover:bg-blue-500 cursor-pointer"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  <span>Confirm Reorder</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -655,28 +1605,38 @@ export default function MyTasksPage() {
 
 function TaskDetailCard({
   task,
+  profileLocation,
   openStatusDropdownId,
   setOpenStatusDropdownId,
   onStatusChange,
+  openLocationDropdownId,
+  setOpenLocationDropdownId,
+  onLocationChange,
   onOpenReschedule,
   onChangeHelper,
   onCancelTask,
+  onOpenPayment,
+  onOpenRating,
+  onOpenReorder,
   onOpenMessage,
   onViewProfile,
   onCallHelper,
 }) {
   const [imgError, setImgError] = useState(false);
-  const statusUpper = (task.status || "ASSIGNED").toUpperCase();
+  const statusUpper = (task.status || "OPEN").toUpperCase();
+  const hasHelper = Boolean(task.hasHelper && task.helper);
   const isDropdownOpen = openStatusDropdownId === task.id;
+  const isLocationDropdownOpen = openLocationDropdownId === task.id;
+  const isPaid = task.paymentStatus === "COMPLETED";
 
   const statusMeta = getStatusBadgeMeta(statusUpper);
   const visibleSkills = (task.helper?.skills || []).slice(0, 3);
   const extraSkillsCount = Math.max((task.helper?.skills || []).length - 3, 2);
 
-  // Determine active progress step index (0 to 4)
+  // Determine active progress step index (0 to 5, where 5 means all 5 steps completed)
   const activeStepIndex = (() => {
-    if (task.paymentStatus === "COMPLETED") return 4;
-    if (statusUpper === "COMPLETED") return 3;
+    if (isPaid) return 5;
+    if (statusUpper === "COMPLETED") return 4;
     if (statusUpper === "IN_PROGRESS") return 2;
     if (statusUpper === "ASSIGNED") return 1;
     return 0;
@@ -692,7 +1652,11 @@ function TaskDetailCard({
       sub:
         activeStepIndex >= 1
           ? task.confirmedTimeLabel || "23 Oct, 10:30 AM"
-          : "",
+          : statusUpper === "REQUESTED"
+            ? "Pending acceptance"
+            : statusUpper === "OPEN"
+              ? "Waiting for helper"
+              : "",
     },
     {
       label: "In Progress",
@@ -704,16 +1668,21 @@ function TaskDetailCard({
     },
     {
       label: "Payment Released",
-      sub: activeStepIndex >= 4 ? "Released" : "",
+      sub: isPaid
+        ? task.paidAtLabel || "Released ✓"
+        : statusUpper === "COMPLETED"
+          ? `Pay ₹${task.displayBudget} →`
+          : "",
+      isActionable: statusUpper === "COMPLETED" && !isPaid,
     },
   ];
 
   // Progress bar percentage between first node center (10%) and last node center (90%)
-  const progressLinePercentages = ["0%", "20%", "40%", "60%", "80%"];
+  const progressLinePercentages = ["0%", "20%", "40%", "60%", "80%", "80%"];
   const activeLineWidth =
     statusUpper === "CANCELLED"
       ? "0%"
-      : progressLinePercentages[activeStepIndex] || "20%";
+      : progressLinePercentages[activeStepIndex] || "0%";
 
   return (
     <div className="rounded-3xl border border-slate-800/90 bg-[#0b1120]/95 p-6 sm:p-7 shadow-2xl shadow-black/60">
@@ -751,15 +1720,21 @@ function TaskDetailCard({
             <span
               className={`flex h-4 w-4 items-center justify-center rounded-full ${statusMeta.iconBgClass}`}
             >
-              <Check className="h-2.5 w-2.5 stroke-[3] text-slate-950" />
+              {statusUpper === "OPEN" || statusUpper === "REQUESTED" ? (
+                <Clock className="h-2.5 w-2.5 stroke-[2.8] text-slate-950" />
+              ) : (
+                <Check className="h-2.5 w-2.5 stroke-[3] text-slate-950" />
+              )}
             </span>
             <span>{statusMeta.label}</span>
             <ChevronDown className="h-3.5 w-3.5 opacity-80" />
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-48 rounded-2xl border border-slate-700 bg-slate-900 py-1.5 shadow-2xl z-30">
+            <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-700 bg-slate-900 py-1.5 shadow-2xl z-30">
               {[
+                { key: "OPEN", label: "Open (Waiting for Helper)" },
+                { key: "REQUESTED", label: "Requested (Pending Helper)" },
                 { key: "ASSIGNED", label: "Helper Confirmed" },
                 { key: "IN_PROGRESS", label: "In Progress" },
                 { key: "COMPLETED", label: "Completed" },
@@ -787,13 +1762,73 @@ function TaskDetailCard({
       {/* 2. Five-Column Metadata Row */}
       <div className="grid grid-cols-1 gap-4 py-5 border-b border-slate-800/80 sm:grid-cols-2 lg:grid-cols-12 lg:gap-0 lg:divide-x lg:divide-slate-800/80">
         {/* Location */}
-        <div className="flex items-start gap-3 lg:col-span-2 lg:pr-4">
+        <div className="relative flex items-start gap-3 lg:col-span-2 lg:pr-4">
           <MapPin className="mt-0.5 h-5 w-5 shrink-0 text-sky-400" />
-          <div>
-            <p className="text-xs text-slate-400">Location</p>
-            <p className="mt-0.5 text-sm font-semibold text-white">
-              {task.displayLocation}
-            </p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs text-slate-400">Location</p>
+              {profileLocation && task.displayLocation === profileLocation && (
+                <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.2 text-[9px] font-semibold text-emerald-300">
+                  Profile
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setOpenLocationDropdownId(
+                  isLocationDropdownOpen ? null : task.id
+                )
+              }
+              title="Click to select location or pick from profile"
+              className="mt-0.5 inline-flex items-center gap-1 text-left text-sm font-semibold text-white hover:text-sky-400 transition cursor-pointer"
+            >
+              <span className="truncate">{task.displayLocation}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            </button>
+
+            {isLocationDropdownOpen && (
+              <div className="absolute left-0 top-12 z-30 w-56 rounded-2xl border border-slate-700 bg-slate-900 py-1.5 shadow-2xl">
+                <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                  Select Location
+                </div>
+                {profileLocation && (
+                  <button
+                    type="button"
+                    onClick={() => onLocationChange(task, profileLocation)}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs font-medium hover:bg-slate-800 ${
+                      task.displayLocation === profileLocation
+                        ? "text-emerald-400 font-semibold"
+                        : "text-emerald-300"
+                    }`}
+                  >
+                    <span>📍 {profileLocation} (From Profile)</span>
+                    {task.displayLocation === profileLocation && (
+                      <Check className="h-3.5 w-3.5 shrink-0" />
+                    )}
+                  </button>
+                )}
+                {SERVICE_LOCATIONS.filter((l) => l !== profileLocation).map(
+                  (loc) => (
+                    <button
+                      key={loc}
+                      type="button"
+                      onClick={() => onLocationChange(task, loc)}
+                      className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-xs font-medium hover:bg-slate-800 ${
+                        task.displayLocation === loc
+                          ? "text-sky-400 font-semibold"
+                          : "text-slate-300"
+                      }`}
+                    >
+                      <span>{loc}</span>
+                      {task.displayLocation === loc && (
+                        <Check className="h-3.5 w-3.5 shrink-0" />
+                      )}
+                    </button>
+                  )
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -825,14 +1860,29 @@ function TaskDetailCard({
           </div>
         </div>
 
-        {/* Budget */}
+        {/* Budget + Payment Status Badge */}
         <div className="flex items-start gap-3 lg:col-span-2 lg:px-4">
           <CircleDollarSign className="mt-0.5 h-5 w-5 shrink-0 text-sky-400" />
           <div>
             <p className="text-xs text-slate-400">Budget</p>
-            <p className="mt-0.5 text-sm font-bold text-white">
-              ₹{task.displayBudget}
-            </p>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2">
+              <p className="text-sm font-bold text-white">
+                ₹{task.displayBudget}
+              </p>
+              {isPaid ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                  ✓ Paid
+                </span>
+              ) : statusUpper === "COMPLETED" ? (
+                <button
+                  type="button"
+                  onClick={onOpenPayment}
+                  className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300 hover:bg-amber-500/25 transition cursor-pointer"
+                >
+                  Pay Now →
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -848,126 +1898,230 @@ function TaskDetailCard({
         </div>
       </div>
 
-      {/* 3. Assigned Helper + Quick Contact Circles + Task Actions */}
+      {/* 3. Assigned Helper / Unassigned State + Quick Contact Circles + Task Actions */}
       <div className="grid grid-cols-1 gap-6 py-6 border-b border-slate-800/80 lg:grid-cols-12 lg:items-center">
-        {/* Left: Assigned Helper Info (6 cols) */}
-        <div className="lg:col-span-6">
-          <h3 className="mb-3.5 text-sm sm:text-base font-bold text-white">
-            Assigned Helper
-          </h3>
-
-          <div className="flex flex-col sm:flex-row items-start gap-4">
-            {/* Helper Photo + Available Indicator */}
-            <div className="flex flex-col items-center shrink-0">
-              <div className="h-24 w-24 sm:h-[108px] sm:w-[108px] overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-800 shadow-lg">
-                <img
-                  src={
-                    imgError
-                      ? "/images/priya_sharma.png"
-                      : task.helper?.image || "/images/priya_sharma.png"
-                  }
-                  alt={task.helper?.name || "Priya Sharma"}
-                  onError={() => setImgError(true)}
-                  className="h-full w-full object-cover object-top"
-                />
+        {hasHelper ? (
+          <>
+            {/* Left: Assigned Helper Info (6 cols) */}
+            <div className="lg:col-span-6">
+              <div className="mb-3.5 flex flex-wrap items-center gap-2.5">
+                <h3 className="text-sm sm:text-base font-bold text-white">
+                  {statusUpper === "REQUESTED"
+                    ? "Requested Helper"
+                    : "Assigned Helper"}
+                </h3>
+                {statusUpper === "REQUESTED" && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber-300">
+                    <Clock className="h-3 w-3" />
+                    Awaiting Helper Acceptance
+                  </span>
+                )}
               </div>
-              <div className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-slate-200">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                <span>Available</span>
+
+              <div className="flex flex-col sm:flex-row items-start gap-4">
+                {/* Helper Photo + Available Indicator */}
+                <div className="flex flex-col items-center shrink-0">
+                  <div className="h-24 w-24 sm:h-[108px] sm:w-[108px] overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-800 shadow-lg">
+                    <img
+                      src={
+                        imgError
+                          ? "/images/priya_sharma.png"
+                          : task.helper?.image || "/images/priya_sharma.png"
+                      }
+                      alt={task.helper?.name || "Priya Sharma"}
+                      onError={() => setImgError(true)}
+                      className="h-full w-full object-cover object-top"
+                    />
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-slate-200">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                    <span>Available</span>
+                  </div>
+                </div>
+
+                {/* Helper Details */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-lg sm:text-xl font-bold text-white tracking-tight">
+                      {task.helper?.name}
+                    </h4>
+                    <VerifiedBadgeIcon />
+                    {task.userRating && (
+                      <button
+                        type="button"
+                        onClick={onOpenRating}
+                        className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-bold text-amber-300 hover:bg-amber-500/25 transition cursor-pointer"
+                      >
+                        <span>Your Rating: {task.userRating}.0 ★</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Rating & Location */}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-xs sm:text-sm">
+                    <div className="flex items-center gap-1">
+                      <span className="text-amber-400 text-sm">★</span>
+                      <span className="font-bold text-white">
+                        {task.helper?.rating}
+                      </span>
+                      <span className="text-slate-300">
+                        ({task.helper?.reviewCount} reviews)
+                      </span>
+                    </div>
+                    <span className="text-slate-700">|</span>
+                    <div className="flex items-center gap-1 text-slate-200">
+                      <MapPin className="h-3.5 w-3.5 text-sky-400" />
+                      <span>{task.helper?.location}</span>
+                    </div>
+                    {statusUpper === "COMPLETED" && !task.userRating && (
+                      <>
+                        <span className="text-slate-700">|</span>
+                        <button
+                          type="button"
+                          onClick={onOpenRating}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-amber-400 hover:text-amber-300 underline underline-offset-2 cursor-pointer"
+                        >
+                          <Star className="h-3.5 w-3.5 fill-amber-400" />
+                          <span>Give Rating</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Bio */}
+                  <p className="mt-2.5 text-xs sm:text-[13px] leading-relaxed text-slate-300">
+                    {task.helper?.bio}
+                  </p>
+
+                  {/* User Review Feedback Preview (if rated) */}
+                  {task.userRating && (
+                    <div className="mt-2.5 rounded-xl border border-amber-500/25 bg-amber-500/5 px-3 py-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-amber-300">
+                          Your Review · {"★".repeat(task.userRating)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={onOpenRating}
+                          className="text-[11px] font-medium text-slate-400 hover:text-white cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                      {task.userReview && (
+                        <p className="mt-0.5 text-xs text-slate-200 italic">
+                          “{task.userReview}”
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Skill Pills */}
+                  <div className="mt-3.5 flex flex-wrap items-center gap-2">
+                    {visibleSkills.map((skill, i) => (
+                      <span
+                        key={i}
+                        className="rounded-full border border-slate-700/80 bg-[#131c31] px-3 py-1 text-xs font-medium text-slate-200"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                    <span className="rounded-full border border-slate-700/80 bg-[#131c31] px-2.5 py-1 text-xs font-medium text-slate-300">
+                      +{extraSkillsCount}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Helper Details */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h4 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-                  {task.helper?.name}
-                </h4>
-                <VerifiedBadgeIcon />
-              </div>
-
-              {/* Rating & Location */}
-              <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-xs sm:text-sm">
-                <div className="flex items-center gap-1">
-                  <span className="text-amber-400 text-sm">★</span>
-                  <span className="font-bold text-white">
-                    {task.helper?.rating}
-                  </span>
-                  <span className="text-slate-300">
-                    ({task.helper?.reviewCount} reviews)
-                  </span>
+            {/* Middle: Call, Message, View Profile Circle Buttons (3 cols) */}
+            <div className="flex items-center justify-center gap-6 sm:gap-7 py-2 lg:col-span-3 lg:border-x lg:border-slate-800/80 lg:py-6">
+              <button
+                type="button"
+                onClick={onCallHelper}
+                className="group flex flex-col items-center gap-2 cursor-pointer"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-700/80 bg-[#131c31] text-slate-100 shadow-md transition group-hover:border-blue-500/50 group-hover:bg-slate-800">
+                  <Phone className="h-5 w-5 fill-current" />
                 </div>
-                <span className="text-slate-700">|</span>
-                <div className="flex items-center gap-1 text-slate-200">
-                  <MapPin className="h-3.5 w-3.5 text-sky-400" />
-                  <span>{task.helper?.location}</span>
-                </div>
-              </div>
-
-              {/* Bio */}
-              <p className="mt-2.5 text-xs sm:text-[13px] leading-relaxed text-slate-300">
-                {task.helper?.bio}
-              </p>
-
-              {/* Skill Pills */}
-              <div className="mt-3.5 flex flex-wrap items-center gap-2">
-                {visibleSkills.map((skill, i) => (
-                  <span
-                    key={i}
-                    className="rounded-full border border-slate-700/80 bg-[#131c31] px-3 py-1 text-xs font-medium text-slate-200"
-                  >
-                    {skill}
-                  </span>
-                ))}
-                <span className="rounded-full border border-slate-700/80 bg-[#131c31] px-2.5 py-1 text-xs font-medium text-slate-300">
-                  +{extraSkillsCount}
+                <span className="text-xs font-medium text-slate-200 group-hover:text-white">
+                  Call
                 </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenMessage}
+                className="group flex flex-col items-center gap-2 cursor-pointer"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-700/80 bg-[#131c31] text-slate-100 shadow-md transition group-hover:border-blue-500/50 group-hover:bg-slate-800">
+                  <MessageSquare className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-medium text-slate-200 group-hover:text-white">
+                  Message
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onViewProfile}
+                className="group flex flex-col items-center gap-2 cursor-pointer"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-700/80 bg-[#131c31] text-slate-100 shadow-md transition group-hover:border-blue-500/50 group-hover:bg-slate-800">
+                  <User className="h-5 w-5 fill-current" />
+                </div>
+                <span className="text-xs font-medium text-slate-200 group-hover:text-white">
+                  View Profile
+                </span>
+              </button>
+            </div>
+          </>
+        ) : (
+          /* Unassigned State (No Helper Assigned Yet) */
+          <div className="lg:col-span-9 lg:border-r lg:border-slate-800/80 lg:pr-6">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm sm:text-base font-bold text-white">
+                Helper Assignment
+              </h3>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/35 bg-amber-500/10 px-3 py-0.5 text-xs font-semibold text-amber-300">
+                <Clock className="h-3.5 w-3.5" />
+                Waiting for Helper
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-dashed border-slate-700/90 bg-slate-900/45 p-4 sm:p-5">
+              <div className="flex items-start gap-3.5">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-400">
+                  <Clock className="h-6 w-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm sm:text-base font-bold text-white">
+                    No Helper Assigned Yet
+                  </h4>
+                  <p className="mt-1 text-xs sm:text-[13px] leading-relaxed text-slate-400 max-w-xl">
+                    Your task is live in the marketplace. Verified helpers near{" "}
+                    <span className="font-semibold text-slate-200">
+                      {task.displayLocation}
+                    </span>{" "}
+                    can accept this task, or you can browse and invite a helper
+                    directly.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={onChangeHelper}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs font-bold text-slate-950 shadow-md shadow-emerald-500/20 hover:bg-emerald-400 transition cursor-pointer"
+                >
+                  <User className="h-3.5 w-3.5" />
+                  <span>Browse & Invite Helpers</span>
+                </button>
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Middle: Call, Message, View Profile Circle Buttons (3 cols) */}
-        <div className="flex items-center justify-center gap-6 sm:gap-7 py-2 lg:col-span-3 lg:border-x lg:border-slate-800/80 lg:py-6">
-          <button
-            type="button"
-            onClick={onCallHelper}
-            className="group flex flex-col items-center gap-2 cursor-pointer"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-700/80 bg-[#131c31] text-slate-100 shadow-md transition group-hover:border-blue-500/50 group-hover:bg-slate-800">
-              <Phone className="h-5 w-5 fill-current" />
-            </div>
-            <span className="text-xs font-medium text-slate-200 group-hover:text-white">
-              Call
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onOpenMessage}
-            className="group flex flex-col items-center gap-2 cursor-pointer"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-700/80 bg-[#131c31] text-slate-100 shadow-md transition group-hover:border-blue-500/50 group-hover:bg-slate-800">
-              <MessageSquare className="h-5 w-5" />
-            </div>
-            <span className="text-xs font-medium text-slate-200 group-hover:text-white">
-              Message
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onViewProfile}
-            className="group flex flex-col items-center gap-2 cursor-pointer"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-slate-700/80 bg-[#131c31] text-slate-100 shadow-md transition group-hover:border-blue-500/50 group-hover:bg-slate-800">
-              <User className="h-5 w-5 fill-current" />
-            </div>
-            <span className="text-xs font-medium text-slate-200 group-hover:text-white">
-              View Profile
-            </span>
-          </button>
-        </div>
+        )}
 
         {/* Right: Task Actions Column (3 cols) */}
         <div className="lg:col-span-3 lg:pl-2">
@@ -975,53 +2129,133 @@ function TaskDetailCard({
             Task Actions
           </h4>
 
-          <div className="space-y-2.5">
-            <button
-              type="button"
-              onClick={onOpenReschedule}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500 cursor-pointer"
-            >
-              <RescheduleIcon />
-              <span>Reschedule</span>
-            </button>
+          {statusUpper === "COMPLETED" ? (
+            <div className="space-y-2.5">
+              {/* 1. Payment Option Button */}
+              {isPaid ? (
+                <button
+                  type="button"
+                  onClick={onOpenPayment}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-2.5 text-xs sm:text-sm font-bold text-emerald-300 transition hover:bg-emerald-500/25 cursor-pointer"
+                >
+                  <Check className="h-4 w-4 stroke-[3] text-emerald-400" />
+                  <span>Payment Released · ₹{task.displayBudget}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onOpenPayment}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs sm:text-sm font-bold text-slate-950 shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-400 cursor-pointer"
+                >
+                  <CreditCard className="h-4 w-4 stroke-[2.2]" />
+                  <span>Pay & Release ₹{task.displayBudget}</span>
+                </button>
+              )}
 
-            <button
-              type="button"
-              onClick={onChangeHelper}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700/90 bg-[#0d1424] px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-200 transition hover:border-slate-600 hover:bg-slate-800/80 cursor-pointer"
-            >
-              <ArrowLeftRight className="h-4 w-4 text-slate-300" />
-              <span>Change Helper</span>
-            </button>
+              {/* 2. Rate Helper Button */}
+              <button
+                type="button"
+                onClick={onOpenRating}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/15 px-4 py-2.5 text-xs sm:text-sm font-semibold text-amber-300 transition hover:bg-amber-500/25 cursor-pointer"
+              >
+                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                <span>
+                  {task.userRating
+                    ? `Rated ${task.userRating}.0 ★ (Edit Review)`
+                    : "Rate Helper"}
+                </span>
+              </button>
 
-            <button
-              type="button"
-              onClick={onCancelTask}
-              disabled={statusUpper === "CANCELLED"}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-500/40 bg-rose-950/15 px-4 py-2.5 text-xs sm:text-sm font-semibold text-rose-400 transition hover:bg-rose-500/15 disabled:opacity-50 cursor-pointer"
-            >
-              <Trash2 className="h-4 w-4 text-rose-400" />
-              <span>
-                {statusUpper === "CANCELLED" ? "Task Cancelled" : "Cancel Task"}
-              </span>
-            </button>
-          </div>
+              {/* 3. Reorder Task Button */}
+              <button
+                type="button"
+                onClick={onOpenReorder}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500 cursor-pointer"
+              >
+                <RotateCcw className="h-4 w-4" />
+                <span>Reorder Task</span>
+              </button>
+            </div>
+          ) : statusUpper === "CANCELLED" ? (
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={onOpenReorder}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500 cursor-pointer"
+              >
+                <RotateCcw className="h-4 w-4" />
+                <span>Reorder Task</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onChangeHelper}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700/90 bg-[#0d1424] px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-200 transition hover:border-slate-600 hover:bg-slate-800/80 cursor-pointer"
+              >
+                <ArrowLeftRight className="h-4 w-4 text-slate-300" />
+                <span>Browse Helpers</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={onOpenReschedule}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500 cursor-pointer"
+              >
+                <RescheduleIcon />
+                <span>Reschedule</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onChangeHelper}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700/90 bg-[#0d1424] px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-200 transition hover:border-slate-600 hover:bg-slate-800/80 cursor-pointer"
+              >
+                <ArrowLeftRight className="h-4 w-4 text-slate-300" />
+                <span>{hasHelper ? "Change Helper" : "Find / Invite Helper"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onCancelTask}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-500/40 bg-rose-950/15 px-4 py-2.5 text-xs sm:text-sm font-semibold text-rose-400 transition hover:bg-rose-500/15 cursor-pointer"
+              >
+                <Trash2 className="h-4 w-4 text-rose-400" />
+                <span>Cancel Task</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* 4. Task Progress Stepper */}
       <div className="pt-5">
-        <h3 className="mb-5 text-sm sm:text-base font-bold text-white">
-          Task Progress
-        </h3>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm sm:text-base font-bold text-white">
+            Task Progress
+          </h3>
+          {statusUpper === "COMPLETED" && !isPaid && (
+            <button
+              type="button"
+              onClick={onOpenPayment}
+              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition cursor-pointer"
+            >
+              <CreditCard className="h-3.5 w-3.5" />
+              <span>Release Payment (₹{task.displayBudget}) to complete final step</span>
+            </button>
+          )}
+        </div>
 
         <div className="relative grid grid-cols-5 text-center">
           {/* Background Connector Line (from col 1 center 10% to col 5 center 90%) */}
           <div className="absolute top-3.5 left-[10%] right-[10%] h-[2px] bg-slate-800" />
 
-          {/* Active Blue Progress Line */}
+          {/* Active Blue/Emerald Progress Line */}
           <div
-            className="absolute top-3.5 left-[10%] h-[2px] bg-blue-500 transition-all duration-300"
+            className={`absolute top-3.5 left-[10%] h-[2px] transition-all duration-300 ${
+              isPaid ? "bg-emerald-500" : "bg-blue-500"
+            }`}
             style={{ width: activeLineWidth }}
           />
 
@@ -1034,7 +2268,10 @@ function TaskDetailCard({
             return (
               <div
                 key={step.label}
-                className="relative z-10 flex flex-col items-center px-1"
+                onClick={step.isActionable ? onOpenPayment : undefined}
+                className={`relative z-10 flex flex-col items-center px-1 ${
+                  step.isActionable ? "cursor-pointer group" : ""
+                }`}
               >
                 {isCompleted ? (
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md shadow-emerald-500/30">
@@ -1057,7 +2294,13 @@ function TaskDetailCard({
                 </p>
 
                 {step.sub && (
-                  <p className="mt-0.5 text-[10px] sm:text-xs text-slate-400">
+                  <p
+                    className={`mt-0.5 text-[10px] sm:text-xs ${
+                      step.isActionable
+                        ? "font-bold text-emerald-400 group-hover:underline"
+                        : "text-slate-400"
+                    }`}
+                  >
                     {step.sub}
                   </p>
                 )}
@@ -1099,6 +2342,20 @@ function formatStatusLabel(status) {
 
 function getStatusBadgeMeta(statusUpper) {
   switch (statusUpper) {
+    case "OPEN":
+      return {
+        label: "Open · Waiting for Helper",
+        pillClass:
+          "border-amber-500/40 bg-amber-500/10 text-amber-300 hover:border-amber-400/60",
+        iconBgClass: "bg-amber-400",
+      };
+    case "REQUESTED":
+      return {
+        label: "Requested · Pending Helper",
+        pillClass:
+          "border-sky-500/40 bg-sky-500/10 text-sky-300 hover:border-sky-400/60",
+        iconBgClass: "bg-sky-400",
+      };
     case "ASSIGNED":
       return {
         label: "Helper Confirmed",
@@ -1129,10 +2386,10 @@ function getStatusBadgeMeta(statusUpper) {
       };
     default:
       return {
-        label: "Helper Confirmed",
+        label: "Open · Waiting for Helper",
         pillClass:
-          "border-emerald-500/40 bg-[#0c2823] text-emerald-400 hover:border-emerald-400/60",
-        iconBgClass: "bg-emerald-400",
+          "border-amber-500/40 bg-amber-500/10 text-amber-300 hover:border-amber-400/60",
+        iconBgClass: "bg-amber-400",
       };
   }
 }

@@ -1,11 +1,32 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { createTask, getTaskCategories } from "@/app/components/services/task.service";
-import { getHelperByID } from "@/app/components/services/user.service";
+import { getHelperByID, getUserProfile } from "@/app/components/services/user.service";
 import CustomSelect from "@/app/components/reuseable/CustomSelect";
+import { MapPin, Navigation, UserCheck, Calendar } from "lucide-react";
+
+const SERVICE_LOCATIONS = [
+  "Modipuram, Meerut",
+  "Shastri Nagar, Meerut",
+  "Kankerkhera, Meerut",
+  "Pallavpuram, Meerut",
+  "Saket, Meerut",
+  "Noida, UP",
+  "Greater Noida, UP",
+  "Ghaziabad, UP",
+  "Delhi NCR",
+];
+
+function getTodayLocalDateString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 export default function CreateTaskPage() {
   return (
@@ -17,26 +38,125 @@ export default function CreateTaskPage() {
 
 function CreateTaskContent() {
   const searchParams = useSearchParams();
-  const helperId = searchParams.get("helper"); 
+  const helperId = searchParams.get("helper");
   const prefilledCategory = searchParams.get("category") || "";
-  const { data: session, status } = useSession();
-  const router = useRouter()
-  
+  const { data: session } = useSession();
+  const router = useRouter();
+
+  const minDate = useMemo(() => getTodayLocalDateString(), []);
 
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
+  const [profileLocation, setProfileLocation] = useState("");
+  const [detectingGps, setDetectingGps] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
     category: prefilledCategory,
     description: "",
     location: "",
-    date: "",
+    date: getTodayLocalDateString(),
     budget: "",
-    helperId: helperId || null, // 👈 NEW
+    helperId: helperId || null,
   });
+
+  // Load user's saved location from profile (localStorage + API)
+  useEffect(() => {
+    const extractLocationFromUser = (u) => {
+      if (!u) return "";
+      const parts = [u.address, u.city].map((s) => (s || "").trim()).filter(Boolean);
+      if (parts.length > 0) {
+        // Avoid duplicating if address already contains city
+        if (
+          parts.length === 2 &&
+          parts[0].toLowerCase().includes(parts[1].toLowerCase())
+        ) {
+          return parts[0];
+        }
+        return parts.join(", ");
+      }
+      return (u.location || "").trim();
+    };
+
+    try {
+      const storedRaw = localStorage.getItem("user");
+      if (storedRaw) {
+        const parsed = JSON.parse(storedRaw);
+        const loc = extractLocationFromUser(parsed);
+        if (loc) {
+          setProfileLocation(loc);
+          setForm((prev) => ({ ...prev, location: prev.location || loc }));
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
+
+    const token = session?.token || localStorage.getItem("token");
+    if (token) {
+      getUserProfile()
+        .then((res) => {
+          const u = res?.user || res?.data || res;
+          const loc = extractLocationFromUser(u);
+          if (loc) {
+            setProfileLocation(loc);
+            setForm((prev) => ({ ...prev, location: prev.location || loc }));
+          }
+        })
+        .catch(() => {
+          // ignore profile fetch error
+        });
+    }
+  }, [session]);
+
+  const handleDetectCurrentLocation = () => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.");
+      return;
+    }
+    setDetectingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        try {
+          const resp = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+          );
+          const data = await resp.json();
+          const addr = data?.address || {};
+          const area =
+            addr.suburb ||
+            addr.neighbourhood ||
+            addr.residential ||
+            addr.village ||
+            addr.town ||
+            "";
+          const city =
+            addr.city || addr.state_district || addr.county || addr.state || "";
+          const formatted = [area, city].filter(Boolean).join(", ");
+          const finalLoc =
+            formatted ||
+            data?.display_name?.split(",").slice(0, 2).join(", ") ||
+            `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+          setForm((prev) => ({ ...prev, location: finalLoc }));
+        } catch {
+          setForm((prev) => ({
+            ...prev,
+            location: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+          }));
+        } finally {
+          setDetectingGps(false);
+        }
+      },
+      () => {
+        setDetectingGps(false);
+        alert("Unable to retrieve your current location. Please select a location from the list.");
+      },
+      { timeout: 8000 }
+    );
+  };
 
   // Fetch categories from DB
   useEffect(() => {
@@ -94,7 +214,13 @@ function CreateTaskContent() {
   };
 
   function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === "date" && value && value < minDate) {
+      alert("Previous dates are disabled. Please select today or a future date.");
+      setForm({ ...form, date: minDate });
+      return;
+    }
+    setForm({ ...form, [name]: value });
   }
 
   function handleFileChange(e) {
@@ -112,6 +238,16 @@ function CreateTaskContent() {
 
     if (!form.category) {
       alert("Please select a task category");
+      return;
+    }
+
+    if (!form.location || !form.location.trim()) {
+      alert("Please select or enter a location");
+      return;
+    }
+
+    if (form.date && form.date < minDate) {
+      alert("Previous dates cannot be selected. Please choose today or a future date.");
       return;
     }
 
@@ -224,28 +360,118 @@ function CreateTaskContent() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Location</label>
-              <input
-                name="location"
-                value={form.location}
-                onChange={handleChange}
-                required
-                placeholder="Pickup / service location"
-                className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Location
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {profileLocation && (
+                    <button
+                      type="button"
+                      onClick={() => setForm((prev) => ({ ...prev, location: profileLocation }))}
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                        form.location === profileLocation
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-500/10 hover:text-emerald-500 border border-gray-200 dark:border-slate-700"
+                      }`}
+                    >
+                      <span>📍</span>
+                      {form.location === profileLocation
+                        ? `Picked from Profile (${profileLocation})`
+                        : `Use Profile Location (${profileLocation})`}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleDetectCurrentLocation}
+                    disabled={detectingGps}
+                    className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 transition hover:bg-blue-500/20 disabled:opacity-50"
+                  >
+                    <span>🎯</span>
+                    {detectingGps ? "Detecting..." : "Use Current GPS"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <select
+                    value={
+                      SERVICE_LOCATIONS.includes(form.location) ||
+                      (profileLocation && form.location === profileLocation)
+                        ? form.location
+                        : ""
+                    }
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setForm((prev) => ({ ...prev, location: e.target.value }));
+                      }
+                    }}
+                    className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  >
+                    <option value="">Select location from list...</option>
+                    {profileLocation && !SERVICE_LOCATIONS.includes(profileLocation) && (
+                      <option value={profileLocation}>
+                        📍 {profileLocation} (Profile Location)
+                      </option>
+                    )}
+                    {SERVICE_LOCATIONS.map((loc) => (
+                      <option key={loc} value={loc}>
+                        {loc === profileLocation ? `📍 ${loc} (Profile)` : loc}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <input
+                    name="location"
+                    value={form.location}
+                    onChange={handleChange}
+                    required
+                    placeholder="Or enter custom pickup / service location"
+                    className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* Quick-select location pills */}
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-medium text-slate-400 mr-1">Quick select:</span>
+                {SERVICE_LOCATIONS.slice(0, 5).map((loc) => (
+                  <button
+                    key={loc}
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, location: loc }))}
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition ${
+                      form.location === loc
+                        ? "bg-blue-600 text-white"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    {loc}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Preferred Date</label>
+                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Preferred Date
+                </label>
                 <input
                   type="date"
                   name="date"
+                  min={minDate}
                   value={form.date}
                   onChange={handleChange}
                   required
                   className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Past dates are disabled (earliest: {minDate})
+                </p>
               </div>
 
               <div>
