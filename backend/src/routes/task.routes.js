@@ -5,6 +5,7 @@ import {
   acceptTask,
   declineTask,
   getCategories,
+  addCategory,
   getTaskById,
   getAssignedTasks,
   getCreatedTasks,
@@ -20,8 +21,9 @@ import { allowRoles } from "../middlewares/role.middleware.js";
 
 const router = express.Router();
 
-// Category list (no auth needed)
+// Category list and creation
 router.get("/categories", getCategories);
+router.post("/categories", addCategory);
 
 // Task search and discovery
 router.get("/search", searchTasks);

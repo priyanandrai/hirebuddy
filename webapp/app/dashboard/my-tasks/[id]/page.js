@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { getTaskById } from "@/app/components/services/task.service";
+import { TaskDetailShimmer } from "@/app/components/ui/Shimmer";
 import Link from "next/link";
 
 export default function TaskDetailsPage() {
@@ -27,8 +28,8 @@ export default function TaskDetailsPage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-950 px-6 py-8 text-slate-100">
-        <div className="mx-auto max-w-3xl rounded-[2rem] border border-slate-800 bg-slate-900/80 p-8 text-center text-slate-300">
-          Loading task details...
+        <div className="mx-auto max-w-3xl">
+          <TaskDetailShimmer />
         </div>
       </main>
     );

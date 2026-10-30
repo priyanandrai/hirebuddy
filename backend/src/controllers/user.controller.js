@@ -1,6 +1,7 @@
 import { getUserTasks } from "../services/task.service.js";
 import {
     setRoleService,
+    updateMyProfileService,
     updateHelperProfileService,
     getHelper,
     getMyProfileService,
@@ -17,6 +18,23 @@ import {
   export const setRole = async (req, res) => {
     const user = await setRoleService(req.user.id, req.body.role);
     res.json(user);
+  };
+
+  export const updateMyProfile = async (req, res) => {
+    try {
+      const user = await updateMyProfileService(req.user.id, req.body);
+      res.json({
+        success: true,
+        message: "Profile updated successfully",
+        user,
+      });
+    } catch (error) {
+      console.error("Update profile error:", error);
+      res.status(400).json({
+        success: false,
+        message: error.message || "Failed to update profile",
+      });
+    }
   };
   
   export const updateHelperProfile = async (req, res) => {

@@ -78,3 +78,22 @@ export const deleteCategory = async (req, res) => {
   }
 };
 
+/**
+ * Get filtered services and category counts for User Home Page
+ */
+export const getFilteredServices = async (req, res) => {
+  try {
+    const result = await categoryService.getFilteredServices(req.query);
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error("Get filtered services error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch filtered services",
+    });
+  }
+};
+

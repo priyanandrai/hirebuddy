@@ -11,6 +11,7 @@ import {
   getNotifications,
   getUnreadNotificationCount,
 } from "../services/notification.service";
+import { getUserProfile } from "../services/user.service";
 import {
   initializeSocket,
   onReceiveNotification,
@@ -39,6 +40,11 @@ export default function AuthenticatedHeader({
     if (onSearchChange) {
       onSearchChange(val);
     }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("hirebuddy:search-change", { detail: val })
+      );
+    }
   };
 
   const handleClearSearch = () => {
@@ -66,6 +72,58 @@ export default function AuthenticatedHeader({
 
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentNotifications, setRecentNotifications] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Sync user profile from localStorage, API, and userProfileUpdated events
+  useEffect(() => {
+    const syncLocalUser = () => {
+      try {
+        const stored = localStorage.getItem("user");
+        if (stored) {
+          setCurrentUser(JSON.parse(stored));
+        }
+      } catch (e) {}
+    };
+
+    syncLocalUser();
+
+    getUserProfile()
+      .then((res) => {
+        if (res?.user) {
+          setCurrentUser((prev) => ({ ...(prev || {}), ...res.user }));
+          try {
+            const prevStored = JSON.parse(localStorage.getItem("user") || "{}");
+            localStorage.setItem(
+              "user",
+              JSON.stringify({ ...prevStored, ...res.user })
+            );
+          } catch (e) {}
+        }
+      })
+      .catch(() => {});
+
+    window.addEventListener("storage", syncLocalUser);
+    window.addEventListener("userProfileUpdated", syncLocalUser);
+
+    return () => {
+      window.removeEventListener("storage", syncLocalUser);
+      window.removeEventListener("userProfileUpdated", syncLocalUser);
+    };
+  }, [session]);
+
+  const displayUser = {
+    ...(session?.user || {}),
+    ...(currentUser || {}),
+    name: currentUser?.name || session?.user?.name || "Puja Rai",
+    email: currentUser?.email || session?.user?.email || "",
+    image:
+      currentUser?.image !== undefined
+        ? currentUser.image
+        : session?.user?.image || "",
+    role: currentUser?.role || session?.user?.role || "USER",
+    city: currentUser?.city || "",
+    address: currentUser?.address || "",
+  };
 
   // Fetch real notifications and listen to socket events
   useEffect(() => {
@@ -174,7 +232,7 @@ export default function AuthenticatedHeader({
               type="text"
               value={searchText}
               onChange={(e) => updateSearchText(e.target.value)}
-              placeholder="Search services, tasks, helpers..."
+              placeholder="Search services (e.g. cleaning, driver, plumber...)"
               className="w-full rounded-full border border-[#1d2d4e] bg-[#0a1326] py-2 pl-11 pr-10 text-sm text-white placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
             />
             {searchText && (
@@ -205,9 +263,10 @@ export default function AuthenticatedHeader({
 
           <Link
             href="/dashboard/create-task"
-            className="hidden sm:inline-flex items-center justify-center rounded-full bg-[#1361f5] px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-600"
+            className="hidden sm:inline-flex items-center justify-center gap-1.5 rounded-full bg-[#1361f5] px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-600"
           >
-            Post a Task
+            <span className="text-sm leading-none font-normal">+</span>
+            <span>Post a Task</span>
           </Link>
 
           <div className="relative">
@@ -278,22 +337,24 @@ export default function AuthenticatedHeader({
                 }`}
             >
               <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-slate-700 text-sm font-semibold text-slate-100">
-                {session?.user?.image ? (
-                  // <img src={session.user.image} alt={session?.user?.image || "User"} className="h-full w-full object-cover" />
-                  <Image
-                    src={session.user.image}
-                    alt={session?.user?.name || "User"}
-                    width={32}
-                    height={32}
+                {displayUser.image ? (
+                  <img
+                    src={displayUser.image}
+                    alt={displayUser.name || "User"}
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span>{(session?.user?.name || "U").charAt(0).toUpperCase()}</span>
+                  <span>{(displayUser.name || "U").charAt(0).toUpperCase()}</span>
                 )}
               </div>
-              <span className="hidden sm:block text-sm text-slate-200 capitalize">
-                {session?.user?.name}
-              </span>
+              <div className="hidden sm:flex flex-col items-start leading-tight text-left">
+                <span className="text-xs font-semibold text-slate-100 capitalize">
+                  {displayUser.name}
+                </span>
+                <span className="text-[10.5px] text-slate-400">
+                  {displayUser.role === "USER" ? "User" : "Helper"}
+                </span>
+              </div>
               <svg
                 className="hidden sm:block h-3.5 w-3.5 text-slate-400 ml-0.5"
                 viewBox="0 0 24 24"
@@ -312,16 +373,21 @@ export default function AuthenticatedHeader({
                 <div className="absolute -top-2 right-6 h-4 w-4 rotate-45 border-l border-t border-slate-700 bg-slate-900"></div>
                 <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-slate-950/40">
                   <div className="flex items-center gap-3 border-b border-slate-700 px-4 py-4">
-                    <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-slate-700 font-semibold text-slate-100">
-                      {session?.user?.image ? (
-                        <img src={session.user.image} alt={session?.user?.name || "User"} className="h-full w-full object-cover" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-700 font-semibold text-slate-100">
+                      {displayUser.image ? (
+                        <img src={displayUser.image} alt={displayUser.name || "User"} className="h-full w-full object-cover" />
                       ) : (
-                        <span>{(session?.user?.name || "U").charAt(0).toUpperCase()}</span>
+                        <span>{(displayUser.name || "U").charAt(0).toUpperCase()}</span>
                       )}
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-white">{session?.user?.name}</p>
-                      <p className="text-xs text-slate-400">{session?.user?.email}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-white truncate">{displayUser.name}</p>
+                      <p className="text-xs text-slate-400 truncate">{displayUser.email}</p>
+                      {(displayUser.city || displayUser.address) && (
+                        <p className="text-[11px] text-emerald-400 truncate mt-0.5">
+                          📍 {displayUser.city || displayUser.address}
+                        </p>
+                      )}
                     </div>
                   </div>
 

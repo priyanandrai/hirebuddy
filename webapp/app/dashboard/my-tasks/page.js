@@ -14,6 +14,7 @@ import {
   initializeSocket,
   onTaskUpdate,
 } from "@/app/components/config/socketClient";
+import { MyTaskCardShimmer } from "@/app/components/ui/Shimmer";
 import {
   Plus,
   MapPin,
@@ -755,9 +756,7 @@ export default function MyTasksPage() {
 
         {/* Tasks List */}
         {loading ? (
-          <div className="rounded-3xl border border-slate-800/80 bg-[#0b1120]/90 p-10 text-center text-sm text-slate-400 shadow-2xl">
-            Loading your tasks...
-          </div>
+          <MyTaskCardShimmer count={2} />
         ) : filteredTasks.length === 0 ? (
           <div className="rounded-3xl border border-slate-800/80 bg-[#0b1120]/90 p-12 text-center shadow-2xl">
             <p className="text-base font-medium text-slate-300">

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getUserProfile } from "@/app/components/services/user.service";
 import HelperDocumentVerificationModal from "@/app/components/ui/HelperDocumentVerificationModal";
+import { HelperProfilePageShimmer } from "@/app/components/ui/Shimmer";
 import {
   User,
   Phone,
@@ -142,6 +143,10 @@ export default function TaskerProfilePage() {
         </section>
 
         {/* Hero Card */}
+        {(loading && !user) || refreshing ? (
+          <HelperProfilePageShimmer />
+        ) : (
+        <>
         <section className="relative overflow-hidden rounded-[2.5rem] border border-slate-800 bg-slate-900/80 p-6 sm:p-8 shadow-2xl shadow-slate-950/40 backdrop-blur-xl">
           {/* Subtle Ambient Glow */}
           <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
@@ -451,6 +456,8 @@ export default function TaskerProfilePage() {
             Back to Dashboard
           </Link>
         </div>
+        </>
+        )}
       </div>
 
       {/* Helper 3-Step Document Verification Modal */}

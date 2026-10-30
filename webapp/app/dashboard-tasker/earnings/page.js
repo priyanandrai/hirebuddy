@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getPaymentHistory } from "@/app/components/services/payment.service";
 import { getUserProfile } from "@/app/components/services/user.service";
 import HelperDocumentVerificationModal from "@/app/components/ui/HelperDocumentVerificationModal";
+import { PaymentRowShimmer } from "@/app/components/ui/Shimmer";
 import {
   Lock,
   Clock,
@@ -125,9 +126,7 @@ export default function TaskerEarningsPage() {
           <h2 className="mb-4 text-lg font-semibold text-white">Recent Payments</h2>
 
           {loading ? (
-            <div className="rounded-2xl border border-slate-700 bg-slate-950/60 p-4 text-sm text-slate-300">
-              Loading payment history...
-            </div>
+            <PaymentRowShimmer count={4} />
           ) : payments.length > 0 ? (
             <div className="space-y-3">
               {payments.map((item) => (

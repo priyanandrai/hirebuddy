@@ -6,6 +6,8 @@ import { useSession } from "next-auth/react";
 import Footer from "../components/layout/Footer";
 import Header from "../components/layout/Header";
 import { getUserProfile } from "../components/services/user.service";
+import { getTaskCategories, createTaskCategory } from "../components/services/task.service";
+import CustomSelect from "../components/reuseable/CustomSelect";
 
 const SERVICE_LOCATIONS = [
   "Modipuram, Meerut",
@@ -33,11 +35,57 @@ export default function PostTaskPage() {
   const minDate = getTodayLocalDateString();
 
   const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("");
+  const [categories, setCategories] = useState([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [creatingCategory, setCreatingCategory] = useState(false);
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
   const [profileLocation, setProfileLocation] = useState("");
   const [preferredDate, setPreferredDate] = useState(minDate);
   const [budget, setBudget] = useState("");
+
+  const fetchCategories = async () => {
+    try {
+      setLoadingCategories(true);
+      const res = await getTaskCategories();
+      const list = Array.isArray(res) ? res : res?.data || [];
+      setCategories(list);
+      if (list.length > 0 && !category) {
+        setCategory(list[0].name || list[0]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch categories from DB:", err);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const handleAddNewCategory = async (rawName) => {
+    const cleanName = String(rawName || "").trim();
+    if (!cleanName) return;
+    setCreatingCategory(true);
+    try {
+      const token =
+        session?.token ||
+        (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+      const created = await createTaskCategory({ name: cleanName }, token);
+      const saved = created?.data || created || { name: cleanName };
+      await fetchCategories();
+      setCategory(saved.name || cleanName);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("categoriesUpdated"));
+      }
+    } catch (err) {
+      console.error("Failed to add new category:", err);
+    } finally {
+      setCreatingCategory(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -101,7 +149,8 @@ export default function PostTaskPage() {
       setPreferredDate(minDate);
       return;
     }
-    router.push("/dashboard/create-task");
+    const query = category ? `?category=${encodeURIComponent(category)}` : "";
+    router.push(`/dashboard/create-task${query}`);
   };
 
   return (
@@ -155,6 +204,25 @@ export default function PostTaskPage() {
                     className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                   />
                 </label>
+
+                <div>
+                  <span className="mb-2 block text-sm font-medium text-slate-700">Category</span>
+                  <CustomSelect
+                    name="category"
+                    value={category}
+                    onChange={setCategory}
+                    options={categories}
+                    placeholder={
+                      loadingCategories
+                        ? "Loading categories from DB..."
+                        : "Select or add category"
+                    }
+                    disabled={loadingCategories}
+                    allowCreate={true}
+                    onCreateOption={handleAddNewCategory}
+                    creatingOption={creatingCategory}
+                  />
+                </div>
 
                 <label className="block">
                   <span className="text-sm font-medium text-slate-700">Describe your task</span>

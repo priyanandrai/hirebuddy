@@ -3,10 +3,10 @@
 import { Suspense, useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { createTask, getTaskCategories } from "@/app/components/services/task.service";
+import { createTask, getTaskCategories, createTaskCategory } from "@/app/components/services/task.service";
 import { getHelperByID, getUserProfile } from "@/app/components/services/user.service";
 import CustomSelect from "@/app/components/reuseable/CustomSelect";
-import { MapPin, Navigation, UserCheck, Calendar } from "lucide-react";
+import { MapPin, Navigation, UserCheck, Calendar, Plus } from "lucide-react";
 
 const SERVICE_LOCATIONS = [
   "Modipuram, Meerut",
@@ -49,6 +49,9 @@ function CreateTaskContent() {
   const [files, setFiles] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [showAddCategoryBox, setShowAddCategoryBox] = useState(false);
+  const [newCategoryInput, setNewCategoryInput] = useState("");
   const [profileLocation, setProfileLocation] = useState("");
   const [detectingGps, setDetectingGps] = useState(false);
 
@@ -173,6 +176,34 @@ function CreateTaskContent() {
       console.error("Failed to fetch categories from DB", error);
     } finally {
       setLoadingCategories(false);
+    }
+  };
+
+  const handleAddNewCategory = async (rawName) => {
+    const cleanName = String(rawName || "").trim();
+    if (!cleanName) return;
+
+    setCreatingCategory(true);
+    try {
+      const token = session?.token || (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+      const created = await createTaskCategory({ name: cleanName }, token);
+      const savedCategory = created?.data || created || { name: cleanName };
+      const resolvedName = savedCategory.name || cleanName;
+
+      // Refresh full category list from DB so order and metadata stay in sync
+      await fetchCategories();
+      setForm((prev) => ({ ...prev, category: resolvedName }));
+      setNewCategoryInput("");
+      setShowAddCategoryBox(false);
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("categoriesUpdated"));
+      }
+    } catch (err) {
+      console.error("Failed to add category to DB:", err);
+      alert(err.message || "Failed to save new category");
+    } finally {
+      setCreatingCategory(false);
     }
   };
 
@@ -321,14 +352,56 @@ function CreateTaskContent() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">Category</label>
+              <div className="mb-2 flex items-center justify-between">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Category
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowAddCategoryBox((prev) => !prev)}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-500 transition"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{showAddCategoryBox ? "Cancel" : "Add New Category"}</span>
+                </button>
+              </div>
+
+              {showAddCategoryBox && (
+                <div className="mb-3 flex items-center gap-2 rounded-xl border border-blue-500/30 bg-blue-500/5 p-2.5">
+                  <input
+                    type="text"
+                    value={newCategoryInput}
+                    onChange={(e) => setNewCategoryInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newCategoryInput.trim()) {
+                        e.preventDefault();
+                        handleAddNewCategory(newCategoryInput);
+                      }
+                    }}
+                    placeholder="Enter new category name (saved to DB)..."
+                    className="flex-1 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    disabled={!newCategoryInput.trim() || creatingCategory}
+                    onClick={() => handleAddNewCategory(newCategoryInput)}
+                    className="rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-50 transition"
+                  >
+                    {creatingCategory ? "Saving..." : "Save to DB"}
+                  </button>
+                </div>
+              )}
+
               <CustomSelect
                 name="category"
                 value={form.category}
                 onChange={(val) => setForm((prev) => ({ ...prev, category: val }))}
                 options={categories}
-                placeholder={loadingCategories ? "Loading categories from database..." : "Select category"}
+                placeholder={loadingCategories ? "Loading categories from database..." : "Select or add category"}
                 disabled={loadingCategories}
+                allowCreate={true}
+                onCreateOption={handleAddNewCategory}
+                creatingOption={creatingCategory}
                 required
               />
             </div>

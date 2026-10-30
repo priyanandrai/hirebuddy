@@ -35,6 +35,7 @@ export const TASK_ENDPOINTS = {
   CANCEL_TASK: "/tasks",
   GET_CATEGORIES: "/tasks/categories",
   GET_TASK_STATS: "/tasks/stats",
+  GET_FILTERED_SERVICES: "/categories/services",
 };
 
 export const MESSAGE_ENDPOINTS = {

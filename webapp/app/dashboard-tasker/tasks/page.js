@@ -5,6 +5,7 @@ import Link from "next/link";
 import { acceptTask, getOpenTasks } from "@/app/components/services/task.service";
 import { getUserProfile } from "@/app/components/services/user.service";
 import HelperDocumentVerificationModal from "@/app/components/ui/HelperDocumentVerificationModal";
+import { TaskerMyTaskRowShimmer } from "@/app/components/ui/Shimmer";
 import {
   Lock,
   Clock,
@@ -180,9 +181,7 @@ export default function HelperTasksPage() {
 
         <section className="space-y-4">
           {loading ? (
-            <div className="rounded-[1.5rem] border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-300">
-              Loading available tasks...
-            </div>
+            <TaskerMyTaskRowShimmer count={3} />
           ) : tasksToRender.length > 0 ? (
             tasksToRender.map((task) => (
               <div

@@ -87,3 +87,35 @@ body {
   animation: slideDown 0.2s ease-out;
 }
 
+@keyframes shimmerSweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(15, 29, 56, 0.85) 0%,
+    rgba(42, 74, 135, 0.72) 50%,
+    rgba(15, 29, 56, 0.85) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmerSweep 1.5s ease-in-out infinite;
+}
+
+.shimmer-skeleton-subtle {
+  background: linear-gradient(
+    90deg,
+    rgba(11, 21, 40, 0.9) 0%,
+    rgba(28, 51, 95, 0.65) 50%,
+    rgba(11, 21, 40, 0.9) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmerSweep 1.6s ease-in-out infinite;
+}
+
+

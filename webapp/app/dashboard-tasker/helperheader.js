@@ -2,13 +2,14 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Search, Bell, ChevronDown, Moon } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Search, Bell, ChevronDown, Moon, X } from "lucide-react";
 import { getUnreadNotificationCount } from "@/app/components/services/notification.service";
 import { getUserProfile } from "@/app/components/services/user.service";
 
 export default function HelperHeader() {
   const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
@@ -23,6 +24,17 @@ export default function HelperHeader() {
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const syncListener = (e) => {
+      if (typeof e.detail?.query === "string") {
+        setSearchQuery(e.detail.query);
+      }
+    };
+    window.addEventListener("hirebuddy:helper-search-sync", syncListener);
+    return () =>
+      window.removeEventListener("hirebuddy:helper-search-sync", syncListener);
   }, []);
 
   useEffect(() => {
@@ -96,64 +108,83 @@ export default function HelperHeader() {
     window.location.href = "/login";
   };
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      router.push(`/dashboard-tasker/tasks?q=${encodeURIComponent(searchQuery.trim())}`);
-    } else {
-      router.push("/dashboard-tasker/tasks");
+  const handleSearchChange = (value) => {
+    setSearchQuery(value);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("hirebuddy:helper-search", { detail: { query: value } })
+      );
     }
   };
 
-  const badgeCount = unreadCount > 0 ? unreadCount : 1;
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    const trimmed = searchQuery.trim();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("hirebuddy:helper-search", { detail: { query: trimmed } })
+      );
+    }
+    if (pathname !== "/dashboard-tasker") {
+      router.push(
+        trimmed
+          ? `/dashboard-tasker?search=${encodeURIComponent(trimmed)}`
+          : "/dashboard-tasker"
+      );
+    }
+  };
+
+  const badgeCount = unreadCount > 0 ? unreadCount : 3;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[#13203b] bg-[#060c1a]/95 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-[1160px] items-center justify-between gap-4 px-4 sm:px-6 py-3">
+    <header className="sticky top-0 z-50 border-b border-[#111e38] bg-[#040915]/95 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-4 sm:px-8 py-3">
         {/* Brand Logo */}
         <Link
           href="/dashboard-tasker"
           className="text-xl sm:text-[22px] font-extrabold tracking-tight shrink-0"
         >
-          <span className="text-[#2dd4bf]">Hire</span>
+          <span className="text-[#10b981]">Hire</span>
           <span className="text-white">Buddy</span>
         </Link>
 
         {/* Center Search Pill */}
         <form
           onSubmit={handleSearchSubmit}
-          className="hidden md:flex flex-1 max-w-[430px] mx-4"
+          className="hidden md:flex flex-1 max-w-[540px] mx-4"
         >
-          <div className="flex w-full items-center gap-2.5 rounded-full border border-[#1d2d4e] bg-[#0a1326] px-4 py-2 text-xs sm:text-sm text-slate-200 focus-within:border-blue-500/60 transition">
+          <div className="flex w-full items-center gap-2.5 rounded-full border border-[#192a4a] bg-[#081225] px-4 py-2 text-xs sm:text-sm text-slate-200 focus-within:border-[#3b82f6] transition">
             <Search className="h-4 w-4 text-slate-400 shrink-0" />
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search services, tasks, helpers..."
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search services (e.g. cleaning, driver, plumber...)"
               className="w-full bg-transparent text-xs sm:text-[13px] text-slate-200 placeholder-slate-400 focus:outline-none"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => handleSearchChange("")}
+                aria-label="Clear search"
+                className="text-slate-400 hover:text-white transition"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </form>
 
         {/* Right Controls */}
-        <div className="relative flex items-center gap-3 sm:gap-3.5" ref={dropdownRef}>
+        <div className="relative flex items-center gap-3.5 sm:gap-4" ref={dropdownRef}>
           {/* Theme Moon Button */}
           <button
             type="button"
             aria-label="Toggle theme"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[#1d2d4e] bg-[#0b1528] text-amber-400 hover:bg-[#132240] transition"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-[#1a2b4c] bg-[#091326] text-amber-400 hover:bg-[#132240] transition"
           >
             <Moon className="h-4 w-4 fill-amber-400 text-amber-400" />
           </button>
-
-          {/* Post a Task Pill Button */}
-          <Link
-            href="/dashboard/create-task"
-            className="rounded-full bg-[#1961f0] hover:bg-blue-600 px-4 sm:px-5 py-2 text-xs sm:text-[13px] font-bold text-white shadow-md shadow-blue-950/50 transition"
-          >
-            Post a Task
-          </Link>
 
           {/* Notification Bell with Red Badge */}
           <Link
@@ -171,17 +202,20 @@ export default function HelperHeader() {
           <button
             type="button"
             onClick={() => setOpen(!open)}
-            className="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-2 hover:bg-[#111e38]/70 transition"
+            className="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-2 hover:bg-[#111e38]/70 transition text-left"
           >
             <img
               src={currentUser?.image || "/images/helper_avatar.png"}
               alt={currentUser?.name || "prreto G"}
               className="h-9 w-9 rounded-full object-cover border border-slate-500/70"
             />
-            <span className="hidden sm:block text-sm font-semibold text-white">
-              {currentUser?.name || "prreto G"}
-            </span>
-            <ChevronDown className="h-4 w-4 text-slate-400" />
+            <div className="hidden sm:flex flex-col leading-tight">
+              <span className="text-[13px] font-semibold text-white">
+                {currentUser?.name || "prreto G"}
+              </span>
+              <span className="text-[11px] text-slate-400">Helper</span>
+            </div>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-400 ml-0.5" />
           </button>
 
           {/* Dropdown Menu */}
@@ -192,14 +226,7 @@ export default function HelperHeader() {
                 className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-[#132240]"
                 onClick={() => setOpen(false)}
               >
-                Dashboard
-              </Link>
-              <Link
-                href="/dashboard-tasker/tasks"
-                className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-[#132240]"
-                onClick={() => setOpen(false)}
-              >
-                Available Tasks
+                Helper Home
               </Link>
               <Link
                 href="/dashboard-tasker/my-tasks"
@@ -207,6 +234,13 @@ export default function HelperHeader() {
                 onClick={() => setOpen(false)}
               >
                 My Accepted Tasks
+              </Link>
+              <Link
+                href="/dashboard-tasker/tasks"
+                className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-[#132240]"
+                onClick={() => setOpen(false)}
+              >
+                Browse All Tasks
               </Link>
               {isVerified && (
                 <Link

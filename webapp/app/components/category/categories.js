@@ -1,145 +1,171 @@
 export const CATEGORIES = [
-  "Cleaning",
-  "Repairs",
+  "Home Cleaning",
+  "Driver Services",
+  "Delivery & Pickup",
+  "Plumbing",
+  "Electrical",
   "Furniture Assembly",
-  "Grocery Shopping",
-  "Elder Care",
-  "Delivery",
-  "Driver",
-  "Home Support",
+  "Cooking",
+  "Personal Care",
+  "Others",
 ];
 
-export function slugify(title) {
-  return String(title).toLowerCase().replace(/\s+/g, '-');
-}
+export const slugify = (s = "") =>
+  s
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^\w-]+/g, "")
+    .replace(/--+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "");
 
 export const CATEGORY_DETAILS = {
-  "cleaning": {
-    name: "Cleaning",
-    slug: "cleaning",
-    description: "Book verified and top-rated home, office, and deep cleaners in your neighborhood.",
-    icon: "✨",
+  "home-cleaning": {
+    name: "Home Cleaning",
+    slug: "home-cleaning",
+    icon: "🧹",
+    description:
+      "Professional home cleaning services for a cleaner and healthier home.",
     subServices: [
-      "Home Cleaning",
-      "Deep Cleaning",
-      "Office Cleaning",
-      "Kitchen Cleaning",
-      "Bathroom Cleaning",
-      "Sofa & Carpet",
-      "Sanitization",
+      "Full Home Deep Cleaning",
+      "Kitchen & Bathroom Sanitization",
+      "Sofa & Carpet Vacuuming",
+      "Floor Scrubbing & Polishing",
     ],
   },
-  "repairs": {
-    name: "Repairs",
-    slug: "repairs",
-    description: "Certified electricians, plumbers, carpenters, and appliance repair technicians at your doorstep.",
-    icon: "🔧",
+  "driver-services": {
+    name: "Driver Services",
+    slug: "driver-services",
+    icon: "🚗",
+    description:
+      "Safe and experienced drivers for local and outstation trips.",
     subServices: [
-      "Electrician",
-      "Plumber",
-      "Carpentry",
-      "Appliance Repair",
-      "Wiring Repair",
-      "Pipe Leakage",
-      "Geyser Repair",
+      "Local City Chauffeur",
+      "Outstation Round Trips",
+      "Airport Pickup & Drop",
+      "Hourly Personal Driver",
+    ],
+  },
+  "delivery-pickup": {
+    name: "Delivery & Pickup",
+    slug: "delivery-pickup",
+    icon: "📦",
+    description:
+      "Quick and reliable delivery and pickup services for your convenience.",
+    subServices: [
+      "Same-Day Parcel Delivery",
+      "Grocery & Medicine Pickup",
+      "Document Courier",
+      "Heavy Item Transport",
+    ],
+  },
+  plumbing: {
+    name: "Plumbing",
+    slug: "plumbing",
+    icon: "🚰",
+    description: "Fixing leaks, pipe repair, and all plumbing needs.",
+    subServices: [
+      "Tap & Pipe Leak Repair",
+      "Drain Blockage Clearing",
+      "Water Tank & Motor Fitting",
+      "Bathroom Fixture Installation",
+    ],
+  },
+  electrical: {
+    name: "Electrical",
+    slug: "electrical",
+    icon: "⚡",
+    description:
+      "Electrical repairs, installation and maintenance services.",
+    subServices: [
+      "Switchboard & Wiring Repair",
+      "Ceiling Fan & Light Installation",
+      "Inverter & UPS Setup",
+      "MCB & Fuse Troubleshooting",
     ],
   },
   "furniture-assembly": {
     name: "Furniture Assembly",
     slug: "furniture-assembly",
-    description: "Expert assembly and installation for IKEA, modular furniture, beds, tables, and wall mounts.",
     icon: "🪑",
+    description:
+      "Quick and professional furniture assembly and installation.",
     subServices: [
-      "IKEA Assembly",
-      "Bed Fitting",
-      "Wardrobe Setup",
-      "Office Desk Setup",
-      "Wall Shelves",
-      "TV Unit Assembly",
-      "Furniture Dismantling",
+      "Bed & Wardrobe Assembly",
+      "Modular Study Table Setup",
+      "TV Unit & Wall Mounting",
+      "Furniture Dismantling & Moving",
     ],
   },
-  "grocery-shopping": {
-    name: "Grocery Shopping",
-    slug: "grocery-shopping",
-    description: "Personal helpers for fresh veggies, supermarket runs, medicines, and daily household essentials.",
-    icon: "🛒",
+  cooking: {
+    name: "Cooking",
+    slug: "cooking",
+    icon: "🍳",
+    description:
+      "Hygienic and delicious home-cooked meals prepared by verified local cooks.",
     subServices: [
-      "Fresh Vegetables",
-      "Supermarket Runs",
-      "Daily Essentials",
-      "Pharmacy Pickup",
-      "Local Mandi Shopping",
-      "Urgent Grocery",
+      "Daily Home Meal Prep",
+      "North & South Indian Cooking",
+      "Party & Event Catering Help",
+      "Tiffin Preparation",
     ],
   },
-  "elder-care": {
-    name: "Elder Care",
-    slug: "elder-care",
-    description: "Compassionate caregivers and companions for seniors, doctor visits, walks, and mobility assistance.",
-    icon: "❤️",
+  "personal-care": {
+    name: "Personal Care",
+    slug: "personal-care",
+    icon: "🤝",
+    description:
+      "Compassionate personal care, elder assistance, and daily wellness support.",
     subServices: [
-      "Doctor Escort",
-      "Medicine Scheduling",
-      "Mobility Assistance",
-      "Companionship",
-      "Vital Signs Checking",
-      "Physiotherapy Support",
+      "Elder Companionship",
+      "Doctor Visit Escort",
+      "Patient Home Care",
+      "Mobility Support",
     ],
   },
-  "delivery": {
-    name: "Delivery",
-    slug: "delivery",
-    description: "Fast, reliable on-demand courier, parcels, documents, and local item pickup and delivery.",
-    icon: "📦",
+  others: {
+    name: "Others",
+    slug: "others",
+    icon: "✨",
+    description:
+      "Custom everyday tasks, gardening, errands, and general household assistance.",
     subServices: [
-      "Express Courier",
-      "Parcel Pickup",
-      "Document Drop",
-      "Bike Delivery",
-      "Tiffin Delivery",
-      "Fragile Delivery",
-    ],
-  },
-  "driver": {
-    name: "Driver",
-    slug: "driver",
-    description: "Licensed personal chauffeurs for city commutes, outstation travel, luxury cars, and airport drops.",
-    icon: "🚗",
-    subServices: [
-      "Personal Driver",
-      "City Chauffeur",
-      "Outstation Trips",
-      "Airport Drop",
-      "Daily Office Commute",
-      "Luxury Cars",
-    ],
-  },
-  "home-support": {
-    name: "Home Support",
-    slug: "home-support",
-    description: "Reliable domestic help for home cooking, laundry, clothes ironing, child support, and gardening.",
-    icon: "🏡",
-    subServices: [
-      "Home Cooking",
-      "Clothes Ironing",
-      "Laundry Folding",
-      "Child Day Support",
-      "Dishwashing",
-      "Plant Care",
+      "Gardening & Plant Care",
+      "Event Help & Setup",
+      "Pet Walking & Sitting",
+      "Custom Local Errands",
     ],
   },
 };
 
 export function getCategoryBySlug(slug) {
   if (!slug) return null;
-  const normalized = String(slug).toLowerCase();
-  return CATEGORY_DETAILS[normalized] || {
-    name: slug.split('-').map(s => s ? s[0].toUpperCase() + s.slice(1) : '').join(' '),
+  const normalized = slugify(slug);
+  if (CATEGORY_DETAILS[normalized]) {
+    return CATEGORY_DETAILS[normalized];
+  }
+  const found = CATEGORIES.find((c) => slugify(c) === normalized);
+  if (found) {
+    return {
+      name: found,
+      slug: normalized,
+      icon: "✨",
+      description: `Browse verified ${found} helpers near you.`,
+      subServices: [],
+    };
+  }
+  const readableName = normalized
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  return {
+    name: readableName,
     slug: normalized,
-    description: `Find trusted and verified helpers for ${slug} services in your area.`,
-    icon: "💼",
+    icon: "✨",
+    description: `Browse verified ${readableName} helpers near you.`,
     subServices: [],
   };
 }
-

@@ -1,6 +1,7 @@
 import express from "express";
 import {
   setRole,
+  updateMyProfile,
   updateHelperProfile,
   getHelperById,
   getHelpersList,
@@ -19,6 +20,9 @@ import { authMiddleware } from "../middlewares/auth.middleware.js";
 const router = express.Router();
 
 router.get("/profile", authMiddleware, getMyProfile);
+router.put("/profile", authMiddleware, updateMyProfile);
+router.patch("/profile", authMiddleware, updateMyProfile);
+router.post("/profile", authMiddleware, updateMyProfile);
 router.get("/all", authMiddleware, getAllUsers);
 router.post("/set-role", authMiddleware, setRole);
 router.post("/helper-profile", authMiddleware, updateHelperProfile);

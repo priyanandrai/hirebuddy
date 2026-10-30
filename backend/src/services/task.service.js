@@ -2,6 +2,12 @@ import prisma from "../utils/prisma.js";
 import { notificationEvents } from "./notification.service.js";
 import { indexTask, deleteTask } from "./es.client.js";
 import { emitToTaskRoom, emitToUser } from "../config/socket.config.js";
+import {
+  getAllCategories,
+  ensureCategoryInDb,
+  inferIconType,
+  inferEmojiIcon,
+} from "./category.service.js";
 
 /**
  * Calculate distance between two coordinates (Haversine formula)
@@ -35,11 +41,26 @@ export const createTask = async (data, user) => {
 
   const isDirectRequest = Boolean(helperId);
 
+  // Ensure the category exists in the Category DB table whenever a task is posted
+  let resolvedCategoryName = String(category || "Others").trim() || "Others";
+  try {
+    const dbCat = await ensureCategoryInDb(resolvedCategoryName, {
+      description: description
+        ? `Verified local helpers for ${resolvedCategoryName} tasks.`
+        : undefined,
+    });
+    if (dbCat?.name) {
+      resolvedCategoryName = dbCat.name;
+    }
+  } catch (catErr) {
+    console.warn("Could not ensure category in DB:", catErr?.message);
+  }
+
   const task = await prisma.task.create({
     data: {
       title,
       description,
-      category: category || "General",
+      category: resolvedCategoryName,
       location: location || "To be coordinated",
       latitude: latitude ? parseFloat(latitude) : null,
       longitude: longitude ? parseFloat(longitude) : null,
@@ -176,53 +197,435 @@ export const findNearbyTasks = async (helperId, radiusKm = 5, limit = 20, offset
   }
 };
 
+export const HELPER_CATEGORIES_LIST = [
+  { name: "Home Cleaning", slug: "home-cleaning", taskCategory: "Cleaning", tasksCount: 1, iconType: "cleaning" },
+  { name: "Driver Services", slug: "driver-services", taskCategory: "Driver", tasksCount: 1, iconType: "driver" },
+  { name: "Delivery & Pickup", slug: "delivery-pickup", taskCategory: "Delivery", tasksCount: 1, iconType: "delivery" },
+  { name: "Plumbing", slug: "plumbing", taskCategory: "Plumbing", tasksCount: 1, iconType: "plumbing" },
+  { name: "Electrical", slug: "electrical", taskCategory: "Electrical", tasksCount: 1, iconType: "electrical" },
+  { name: "Furniture Assembly", slug: "furniture-assembly", taskCategory: "Furniture Assembly", tasksCount: 1, iconType: "furniture" },
+  { name: "Cooking", slug: "cooking", taskCategory: "Cooking", tasksCount: 1, iconType: "cooking" },
+  { name: "Others", slug: "others", taskCategory: "Others", tasksCount: 1, iconType: "others" },
+];
+
+export const HELPER_TASKS_CATALOG = [
+  {
+    id: "helper-task-1",
+    title: "Home Cleaning",
+    category: "Home Cleaning",
+    categoryAliases: ["home cleaning", "cleaning", "deep cleaning"],
+    budget: 300,
+    location: "Modipuram, Meerut",
+    city: "Meerut",
+    dateLabel: "29 Oct 2026",
+    preferredAt: "2026-10-29T10:00:00.000Z",
+    timeSlot: "10:00 AM - 12:00 PM",
+    description: "Need deep cleaning for 2 BHK. Bring your own cleaning products if possible.",
+    image: "/images/helper_task_cleaning.png",
+    isNew: true,
+    status: "OPEN",
+    isDefaultGrid: true,
+    relevanceOrder: 1,
+  },
+  {
+    id: "helper-task-2",
+    title: "Medicine Pickup",
+    category: "Delivery & Pickup",
+    categoryAliases: ["delivery & pickup", "delivery", "pickup", "medicine pickup", "delivery-pickup"],
+    budget: 150,
+    location: "Meerut, UP",
+    city: "Meerut",
+    dateLabel: "29 Oct 2026",
+    preferredAt: "2026-10-29T14:00:00.000Z",
+    timeSlot: "02:00 PM - 04:00 PM",
+    description: "Need someone to pickup medicines from Apollo Pharmacy and deliver at home.",
+    image: "/images/helper_task_medicine.png",
+    isNew: true,
+    status: "OPEN",
+    isDefaultGrid: true,
+    relevanceOrder: 2,
+  },
+  {
+    id: "helper-task-3",
+    title: "Furniture Assembly",
+    category: "Furniture Assembly",
+    categoryAliases: ["furniture assembly", "furniture", "furniture-assembly"],
+    budget: 500,
+    location: "Modipuram, Meerut",
+    city: "Meerut",
+    dateLabel: "30 Oct 2026",
+    preferredAt: "2026-10-30T11:00:00.000Z",
+    timeSlot: "11:00 AM - 02:00 PM",
+    description: "Need help to assemble a wardrobe and a study table. All parts available.",
+    image: "/images/helper_task_furniture.png",
+    isNew: true,
+    status: "OPEN",
+    isDefaultGrid: true,
+    relevanceOrder: 3,
+  },
+  {
+    id: "helper-task-4",
+    title: "Driver Services",
+    category: "Driver Services",
+    categoryAliases: ["driver services", "driver", "driver-services"],
+    budget: 400,
+    location: "Meerut, UP",
+    city: "Meerut",
+    dateLabel: "28 Oct 2026",
+    preferredAt: "2026-10-28T09:00:00.000Z",
+    timeSlot: "09:00 AM - 05:00 PM",
+    description: "Need a driver for airport drop and pickup.",
+    image: "/images/helper_task_driver.png",
+    isNew: true,
+    status: "OPEN",
+    isDefaultGrid: true,
+    relevanceOrder: 4,
+  },
+  {
+    id: "helper-task-5",
+    title: "Plumbing",
+    category: "Plumbing",
+    categoryAliases: ["plumbing", "plumber"],
+    budget: 350,
+    location: "Modipuram, Meerut",
+    city: "Meerut",
+    dateLabel: "29 Oct 2026",
+    preferredAt: "2026-10-29T13:00:00.000Z",
+    timeSlot: "01:00 PM - 03:00 PM",
+    description: "Fixing a leaking sink and bathroom tap.",
+    image: "/images/helper_task_plumbing.png",
+    isNew: true,
+    status: "OPEN",
+    isDefaultGrid: true,
+    relevanceOrder: 5,
+  },
+  {
+    id: "helper-task-6",
+    title: "Cooking",
+    category: "Cooking",
+    categoryAliases: ["cooking", "cook", "meal"],
+    budget: 250,
+    location: "Meerut, UP",
+    city: "Meerut",
+    dateLabel: "28 Oct 2026",
+    preferredAt: "2026-10-28T18:00:00.000Z",
+    timeSlot: "06:00 PM - 08:00 PM",
+    description: "Need home-cooked meal for 3 days.",
+    image: "/images/helper_task_cooking.png",
+    isNew: true,
+    status: "OPEN",
+    isDefaultGrid: true,
+    relevanceOrder: 6,
+  },
+  {
+    id: "helper-task-7",
+    title: "Electrical Repair & Fan Fitting",
+    category: "Electrical",
+    categoryAliases: ["electrical", "electrician", "wiring"],
+    budget: 300,
+    location: "Modipuram, Meerut",
+    city: "Meerut",
+    dateLabel: "30 Oct 2026",
+    preferredAt: "2026-10-30T11:00:00.000Z",
+    timeSlot: "11:00 AM - 01:00 PM",
+    description: "Need an electrician to install two ceiling fans and inspect bedroom switchboard wiring.",
+    image: "/images/service_electrical.png",
+    isNew: true,
+    status: "OPEN",
+    isDefaultGrid: false,
+    relevanceOrder: 7,
+  },
+  {
+    id: "helper-task-8",
+    title: "Personal Care & Elder Assistance",
+    category: "Personal Care",
+    categoryAliases: ["personal care", "personal-care", "elder care", "care"],
+    budget: 450,
+    location: "Meerut, UP",
+    city: "Meerut",
+    dateLabel: "30 Oct 2026",
+    preferredAt: "2026-10-30T10:00:00.000Z",
+    timeSlot: "10:00 AM - 01:00 PM",
+    description: "Compassionate personal care, doctor visit accompaniment, and daily wellness support.",
+    image: "/images/helper_task_driver.png",
+    isNew: true,
+    status: "OPEN",
+    isDefaultGrid: false,
+    relevanceOrder: 8,
+  },
+  {
+    id: "helper-task-9",
+    title: "Balcony Garden & Errand Support",
+    category: "Others",
+    categoryAliases: ["others", "general", "home support", "errands", "gardening"],
+    budget: 250,
+    location: "Modipuram, Meerut",
+    city: "Meerut",
+    dateLabel: "31 Oct 2026",
+    preferredAt: "2026-10-31T09:30:00.000Z",
+    timeSlot: "09:30 AM - 11:30 AM",
+    description: "Need help repotting balcony plants and organizing household storage items.",
+    image: "/images/service_delivery.png",
+    isNew: true,
+    status: "OPEN",
+    isDefaultGrid: false,
+    relevanceOrder: 9,
+  },
+];
+
+const getCategoryImageForTask = (category = "", title = "") => {
+  const text = `${category} ${title}`.toLowerCase();
+  if (text.includes("clean")) return "/images/helper_task_cleaning.png";
+  if (text.includes("medicine") || text.includes("deliver") || text.includes("pickup"))
+    return "/images/helper_task_medicine.png";
+  if (text.includes("furniture") || text.includes("wardrobe") || text.includes("carpenter"))
+    return "/images/helper_task_furniture.png";
+  if (text.includes("driver") || text.includes("car") || text.includes("airport"))
+    return "/images/helper_task_driver.png";
+  if (text.includes("plumb") || text.includes("sink") || text.includes("pipe") || text.includes("leak"))
+    return "/images/helper_task_plumbing.png";
+  if (text.includes("cook") || text.includes("meal") || text.includes("food"))
+    return "/images/helper_task_cooking.png";
+  if (text.includes("electr")) return "/images/service_electrical.png";
+  return "/images/helper_task_cleaning.png";
+};
+
+const matchesHelperCategory = (task, filterCat) => {
+  if (!filterCat || filterCat === "all") return true;
+  const target = filterCat.toLowerCase().trim();
+  const taskCat = String(task.category || "").toLowerCase().trim();
+  const taskTitle = String(task.title || "").toLowerCase().trim();
+  const aliases = Array.isArray(task.categoryAliases) ? task.categoryAliases : [];
+
+  if (taskCat === target || taskTitle === target || aliases.includes(target)) return true;
+
+  if (target === "home cleaning" || target === "cleaning") {
+    return taskCat.includes("clean") || taskTitle.includes("clean");
+  }
+  if (target === "driver services" || target === "driver") {
+    return taskCat.includes("driver") || taskTitle.includes("driver");
+  }
+  if (target === "delivery & pickup" || target === "delivery" || target === "pickup") {
+    return (
+      taskCat.includes("deliver") ||
+      taskCat.includes("pickup") ||
+      taskTitle.includes("pickup") ||
+      taskTitle.includes("deliver") ||
+      taskTitle.includes("medicine")
+    );
+  }
+  if (target === "plumbing") {
+    return taskCat.includes("plumb") || taskTitle.includes("plumb");
+  }
+  if (target === "electrical") {
+    return taskCat.includes("electr") || taskTitle.includes("electr");
+  }
+  if (target === "furniture assembly" || target === "furniture") {
+    return taskCat.includes("furniture") || taskTitle.includes("furniture") || taskCat.includes("carpenter");
+  }
+  if (target === "cooking") {
+    return taskCat.includes("cook") || taskTitle.includes("cook");
+  }
+  if (target === "others") {
+    return (
+      taskCat === "others" ||
+      taskCat === "general" ||
+      taskCat === "home support" ||
+      taskCat.includes("other")
+    );
+  }
+  return taskCat.includes(target) || taskTitle.includes(target);
+};
+
 /**
- * Search tasks by category and location
+ * Search tasks by category, search query, budget, and location
  */
 export const searchTasks = async (filters = {}) => {
   try {
     const {
       category,
       city,
+      location,
+      search,
+      minBudget,
+      maxBudget,
+      includeCatalog,
+      view,
       latitude,
       longitude,
       radiusKm = 5,
       status,
       sortBy = "createdAt",
-      limit = 20,
+      limit = 50,
       offset = 0,
     } = filters;
 
     const where = {};
-
     if (status && status !== "ALL") where.status = status;
-    if (category && category !== "ALL") where.category = category;
-    if (city && city !== "ALL") where.city = city;
 
-    let tasks = await prisma.task.findMany({
+    let dbTasks = await prisma.task.findMany({
       where,
       include: {
         createdBy: { select: { id: true, name: true, image: true } },
         assignedTo: { select: { id: true, name: true, image: true } },
       },
-      orderBy: { [sortBy]: "desc" },
+      orderBy: { createdAt: "desc" },
       take: 1000,
     });
 
-    // Filter by distance if coordinates provided
+    // Normalize DB tasks with presentation fields if not present
+    const formattedDbTasks = dbTasks.map((t, index) => ({
+      ...t,
+      image: t.image || getCategoryImageForTask(t.category, t.title),
+      isNew: true,
+      dateLabel: t.preferredAt
+        ? new Date(t.preferredAt).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        : "29 Oct 2026",
+      timeSlot: t.timeSlot || "10:00 AM - 01:00 PM",
+      relevanceOrder: 100 + index,
+    }));
+
+    // Fetch categories from DB (`prisma.category`)
+    const dbCategories = await getAllCategories();
+
+    const useHelperCatalog =
+      includeCatalog === true ||
+      includeCatalog === "true" ||
+      view === "helper" ||
+      view === "home";
+
+    // Build dynamic catalog tasks so any newly added DB category also has a task entry if needed
+    const dynamicCatalogTasks = [...HELPER_TASKS_CATALOG];
+    for (const dbCat of dbCategories) {
+      const hasMatchInCatalog = dynamicCatalogTasks.some((t) =>
+        matchesHelperCategory(t, dbCat.name)
+      );
+      const hasMatchInDbTasks = formattedDbTasks.some((t) =>
+        matchesHelperCategory(t, dbCat.name)
+      );
+      if (!hasMatchInCatalog && !hasMatchInDbTasks) {
+        dynamicCatalogTasks.push({
+          id: `helper-task-${dbCat.slug || dbCat.id}`,
+          title: `${dbCat.name} Assistance`,
+          category: dbCat.name,
+          categoryAliases: [dbCat.name.toLowerCase(), (dbCat.slug || "").toLowerCase()],
+          budget: 300,
+          location: "Modipuram, Meerut",
+          city: "Meerut",
+          dateLabel: "30 Oct 2026",
+          preferredAt: "2026-10-30T10:00:00.000Z",
+          timeSlot: "10:00 AM - 01:00 PM",
+          description:
+            dbCat.description ||
+            `Need a verified helper for ${dbCat.name} services.`,
+          image: getCategoryImageForTask(dbCat.name, dbCat.name),
+          isNew: true,
+          status: "OPEN",
+          isDefaultGrid: false,
+          relevanceOrder: 20,
+        });
+      }
+    }
+
+    let combinedTasks = useHelperCatalog
+      ? [
+          ...dynamicCatalogTasks,
+          ...formattedDbTasks.filter(
+            (dbTask) =>
+              !dynamicCatalogTasks.some(
+                (catTask) =>
+                  catTask.title.toLowerCase() === String(dbTask.title || "").toLowerCase() &&
+                  Number(catTask.budget) === Number(dbTask.budget)
+              )
+          ),
+        ]
+      : formattedDbTasks.length > 0
+        ? formattedDbTasks
+        : [...dynamicCatalogTasks];
+
+    const normalizedCategory = String(category || "").trim().toLowerCase();
+    const normalizedSearch = String(search || "").trim().toLowerCase();
+    const normalizedLocation = String(location || city || "").trim().toLowerCase();
+
+    // Apply non-category filters first so category counts reflect active search/location/budget filters
+    if (normalizedSearch) {
+      combinedTasks = combinedTasks.filter(
+        (task) =>
+          String(task.title || "").toLowerCase().includes(normalizedSearch) ||
+          String(task.description || "").toLowerCase().includes(normalizedSearch) ||
+          String(task.category || "").toLowerCase().includes(normalizedSearch) ||
+          String(task.location || "").toLowerCase().includes(normalizedSearch) ||
+          (Array.isArray(task.categoryAliases) &&
+            task.categoryAliases.some((a) => a.toLowerCase().includes(normalizedSearch)))
+      );
+    }
+
+    if (normalizedLocation && normalizedLocation !== "all" && normalizedLocation !== "all locations") {
+      combinedTasks = combinedTasks.filter(
+        (task) =>
+          String(task.location || "").toLowerCase().includes(normalizedLocation) ||
+          String(task.city || "").toLowerCase().includes(normalizedLocation)
+      );
+    }
+
+    if (minBudget !== undefined && minBudget !== "" && !Number.isNaN(Number(minBudget))) {
+      combinedTasks = combinedTasks.filter((task) => Number(task.budget || 0) >= Number(minBudget));
+    }
+    if (maxBudget !== undefined && maxBudget !== "" && !Number.isNaN(Number(maxBudget))) {
+      combinedTasks = combinedTasks.filter((task) => Number(task.budget || 0) <= Number(maxBudget));
+    }
+
     if (latitude && longitude) {
-      tasks = tasks.filter((task) => {
-        if (!task.latitude || !task.longitude) return false;
+      combinedTasks = combinedTasks.filter((task) => {
+        if (!task.latitude || !task.longitude) return true;
         const distance = calculateDistance(latitude, longitude, task.latitude, task.longitude);
         return distance <= radiusKm;
       });
     }
 
+    const dynamicHelperCategories = dbCategories.map((dbCat) => ({
+      id: dbCat.id,
+      name: dbCat.name,
+      slug: dbCat.slug,
+      icon: dbCat.icon || inferEmojiIcon(dbCat.name),
+      iconType: inferIconType(dbCat.slug || dbCat.name),
+      taskCategory: dbCat.name,
+      tasksCount: combinedTasks.filter((task) => matchesHelperCategory(task, dbCat.name)).length,
+    }));
+
+    // Category filter
+    if (normalizedCategory && normalizedCategory !== "all") {
+      combinedTasks = combinedTasks.filter((task) => matchesHelperCategory(task, normalizedCategory));
+    }
+
+    // Sorting
+    const sortKey = String(sortBy || "relevance").toLowerCase();
+    if (sortKey === "budget_desc" || sortKey === "price_desc" || sortKey === "high_to_low") {
+      combinedTasks.sort((a, b) => Number(b.budget || 0) - Number(a.budget || 0));
+    } else if (sortKey === "budget_asc" || sortKey === "price_asc" || sortKey === "low_to_high") {
+      combinedTasks.sort((a, b) => Number(a.budget || 0) - Number(b.budget || 0));
+    } else if (useHelperCatalog) {
+      combinedTasks.sort((a, b) => (a.relevanceOrder || 99) - (b.relevanceOrder || 99));
+    }
+
     return {
-      tasks: tasks.slice(offset, offset + limit),
-      total: tasks.length,
+      tasks: combinedTasks.slice(offset, offset + limit),
+      categories: dynamicHelperCategories,
+      total: combinedTasks.length,
       limit,
       offset,
+      appliedFilters: {
+        category: category || null,
+        search: search || null,
+        location: location || city || null,
+        minBudget: minBudget ? Number(minBudget) : null,
+        maxBudget: maxBudget ? Number(maxBudget) : null,
+        sortBy: sortKey,
+      },
     };
   } catch (error) {
     console.error("Failed to search tasks:", error);
@@ -260,6 +663,14 @@ export const assignHelper = async (user, taskId) => {
   });
 
   if (!task) {
+    const catalogTask = HELPER_TASKS_CATALOG.find((t) => t.id === taskId);
+    if (catalogTask) {
+      return {
+        ...catalogTask,
+        status: "ASSIGNED",
+        assignedToId: user.id,
+      };
+    }
     throw new Error("Task not found");
   }
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useMemo } from "react";
 import { getAssignedTasks, acceptTask, declineTask } from "@/app/components/services/task.service";
+import { TaskerMyTaskRowShimmer } from "@/app/components/ui/Shimmer";
 
 const TASK_OVERRIDES_STORAGE_KEY = "hirebuddy_my_tasks_overrides_v1";
 
@@ -199,9 +200,7 @@ export default function TaskerMyTasksPage() {
 
         <section className="space-y-4">
           {loading ? (
-            <div className="rounded-[1.5rem] border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-300">
-              Loading your tasks...
-            </div>
+            <TaskerMyTaskRowShimmer count={4} />
           ) : filteredTasks.length > 0 ? (
             filteredTasks.map((task) => {
               const statusKey = task.status || "OPEN";

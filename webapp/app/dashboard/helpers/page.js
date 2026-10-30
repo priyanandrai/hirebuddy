@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useState, useMemo } from "react";
+import { Suspense, useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { getHelpers, getUserProfile } from "@/app/components/services/user.service";
 import { getTaskCategories } from "@/app/components/services/task.service";
+import { HelperDirectoryCardShimmer } from "@/app/components/ui/Shimmer";
 import {
   Search,
   MapPin,
@@ -37,15 +38,15 @@ const DEFAULT_LOCATIONS = [
 ];
 
 const DEFAULT_TASK_TYPES = [
-  "Delivery",
-  "Cleaning",
-  "Cooking",
-  "Driver",
+  "Home Cleaning",
+  "Driver Services",
+  "Delivery & Pickup",
   "Plumbing",
-  "Electrician",
-  "Shopping",
-  "Home Help",
-  "Moving & Packing",
+  "Electrical",
+  "Furniture Assembly",
+  "Cooking",
+  "Personal Care",
+  "Others",
 ];
 
 const PRESET_HELPERS = [
@@ -251,9 +252,7 @@ export default function HelpersPage() {
     <Suspense
       fallback={
         <main className="mx-auto max-w-6xl px-6 py-10 text-slate-100">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-10 text-center text-sm text-slate-400">
-            Loading helpers...
-          </div>
+          <HelperDirectoryCardShimmer count={6} />
         </main>
       }
     >
@@ -287,7 +286,19 @@ function HelpersPageContent() {
   const [dbCategories, setDbCategories] = useState([]);
   const [profileLocation, setProfileLocation] = useState("");
   const [loading, setLoading] = useState(true);
+  const [isFiltering, setIsFiltering] = useState(false);
+  const hasMountedRef = useRef(false);
   const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+    setIsFiltering(true);
+    const t = setTimeout(() => setIsFiltering(false), 240);
+    return () => clearTimeout(t);
+  }, [query, selectedLocation, selectedTaskType, sortBy, availableOnly]);
 
   // Sync URL search params when navigating with new query params
   useEffect(() => {
@@ -372,6 +383,26 @@ function HelpersPageContent() {
     };
 
     fetchData();
+
+    const handleCategoriesUpdated = () => {
+      getTaskCategories()
+        .then((res) => {
+          const cats = Array.isArray(res) ? res : res?.data || [];
+          setDbCategories(
+            cats.map((c) => (typeof c === "string" ? c : c?.name)).filter(Boolean)
+          );
+        })
+        .catch(() => {});
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("categoriesUpdated", handleCategoriesUpdated);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("categoriesUpdated", handleCategoriesUpdated);
+      }
+    };
   }, []);
 
   // Merge API helpers + rich preset helpers so every location & task type has strong coverage
@@ -440,17 +471,15 @@ function HelpersPageContent() {
     return merged;
   }, [apiHelpers, profileLocation]);
 
-  // Build available Task Type options
+  // Build available Task Type options directly from DB categories
   const taskTypeOptions = useMemo(() => {
-    const set = new Set([...DEFAULT_TASK_TYPES, ...dbCategories]);
+    const base = dbCategories.length > 0 ? dbCategories : DEFAULT_TASK_TYPES;
+    const set = new Set(base);
     if (initialCategoryParam && initialCategoryParam !== "ALL") {
       set.add(initialCategoryParam);
     }
-    for (const h of allHelpers) {
-      if (h.category) set.add(h.category);
-    }
     return Array.from(set);
-  }, [dbCategories, initialCategoryParam, allHelpers]);
+  }, [dbCategories, initialCategoryParam]);
 
   // Build available Location options
   const locationOptions = useMemo(() => {
@@ -484,14 +513,34 @@ function HelpersPageContent() {
   const matchesTaskType = (helper, filterType) => {
     if (!filterType || filterType === "ALL") return true;
     const fType = filterType.toLowerCase();
-    const catMatch = (helper.category || "").toLowerCase().includes(fType);
-    const taskTypesMatch = (helper.taskTypes || []).some((t) =>
-      t.toLowerCase().includes(fType)
-    );
-    const skillsMatch = (helper.skills || []).some((s) =>
-      s.toLowerCase().includes(fType)
-    );
-    return catMatch || taskTypesMatch || skillsMatch;
+    const hCat = (helper.category || "").toLowerCase();
+    const catMatch = hCat && (hCat.includes(fType) || fType.includes(hCat));
+    const taskTypesMatch = (helper.taskTypes || []).some((t) => {
+      const tLow = t.toLowerCase();
+      return tLow.includes(fType) || fType.includes(tLow);
+    });
+    const skillsMatch = (helper.skills || []).some((s) => {
+      const sLow = s.toLowerCase();
+      return sLow.includes(fType) || fType.includes(sLow);
+    });
+    if (catMatch || taskTypesMatch || skillsMatch) return true;
+
+    // Match root keywords (e.g., "Electrical" <-> "Electrician", "Furniture Assembly" <-> "Moving", "Personal Care" <-> "Home Help")
+    const textPool = [
+      hCat,
+      ...(helper.taskTypes || []).map((t) => t.toLowerCase()),
+      ...(helper.skills || []).map((s) => s.toLowerCase()),
+      (helper.bio || "").toLowerCase(),
+    ].join(" ");
+    if (fType.includes("electr") && textPool.includes("electr")) return true;
+    if (fType.includes("clean") && textPool.includes("clean")) return true;
+    if (fType.includes("deliver") && textPool.includes("deliver")) return true;
+    if (fType.includes("driver") && (textPool.includes("driver") || textPool.includes("driv"))) return true;
+    if (fType.includes("plumb") && textPool.includes("plumb")) return true;
+    if (fType.includes("cook") && textPool.includes("cook")) return true;
+    if (fType.includes("furniture") && (textPool.includes("furniture") || textPool.includes("moving") || textPool.includes("repair"))) return true;
+    if (fType.includes("care") && (textPool.includes("care") || textPool.includes("help") || textPool.includes("elder"))) return true;
+    return false;
   };
 
   // Filtered and sorted helpers
@@ -941,10 +990,8 @@ function HelpersPageContent() {
         </div>
 
         {/* Helpers Grid */}
-        {loading ? (
-          <div className="rounded-3xl border border-slate-800/80 bg-[#0b1120]/90 p-12 text-center text-sm text-slate-400 shadow-2xl">
-            Loading verified helpers...
-          </div>
+        {loading || isFiltering ? (
+          <HelperDirectoryCardShimmer count={6} />
         ) : filteredHelpers.length === 0 ? (
           <div className="rounded-3xl border border-slate-800/80 bg-[#0b1120]/90 p-12 text-center shadow-2xl">
             <p className="text-base font-bold text-white">

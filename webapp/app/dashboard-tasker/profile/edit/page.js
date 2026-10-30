@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getUserProfile, updateHelperProfile } from "@/app/components/services/user.service";
+import { getTaskCategories } from "@/app/components/services/task.service";
 import HelperDocumentVerificationModal from "@/app/components/ui/HelperDocumentVerificationModal";
 import {
   User,
@@ -19,19 +20,16 @@ import {
   Sparkles,
 } from "lucide-react";
 
-const AVAILABLE_SERVICES = [
-  "Shopping",
-  "Delivery",
-  "Doctor Visit",
-  "Home Help",
-  "Cleaning",
-  "Electrician",
+const DEFAULT_AVAILABLE_SERVICES = [
+  "Home Cleaning",
+  "Driver Services",
+  "Delivery & Pickup",
   "Plumbing",
-  "Carpentry",
-  "Driving",
-  "Pet Care",
-  "Moving & Lifting",
-  "Gardening",
+  "Electrical",
+  "Furniture Assembly",
+  "Cooking",
+  "Personal Care",
+  "Others",
 ];
 
 export default function EditTaskerProfilePage() {
@@ -41,6 +39,7 @@ export default function EditTaskerProfilePage() {
   const [error, setError] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [availableServices, setAvailableServices] = useState(DEFAULT_AVAILABLE_SERVICES);
 
   const [form, setForm] = useState({
     name: "",
@@ -80,6 +79,30 @@ export default function EditTaskerProfilePage() {
       .finally(() => {
         setFetching(false);
       });
+
+    const loadCategories = () => {
+      getTaskCategories()
+        .then((res) => {
+          const list = Array.isArray(res) ? res : res?.data || [];
+          const names = list
+            .map((c) => (typeof c === "string" ? c : c?.name))
+            .filter(Boolean);
+          if (names.length > 0) {
+            setAvailableServices(names);
+          }
+        })
+        .catch(() => {});
+    };
+
+    loadCategories();
+    if (typeof window !== "undefined") {
+      window.addEventListener("categoriesUpdated", loadCategories);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("categoriesUpdated", loadCategories);
+      }
+    };
   }, []);
 
   function populateForm(u) {
@@ -105,7 +128,7 @@ export default function EditTaskerProfilePage() {
       address: u.address || "",
       experience: u.experience !== null && u.experience !== undefined ? String(u.experience) : "",
       hourlyRate: u.hourlyRate ? String(u.hourlyRate / 100) : "",
-      services: skills.length > 0 ? skills : ["Shopping", "Delivery"],
+      services: skills.length > 0 ? skills : ["Home Cleaning", "Delivery & Pickup"],
     });
   }
 
@@ -331,7 +354,7 @@ export default function EditTaskerProfilePage() {
             </p>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {AVAILABLE_SERVICES.map((service) => {
+              {Array.from(new Set([...availableServices, ...(form.services || [])])).map((service) => {
                 const isSelected = form.services.includes(service);
                 return (
                   <button

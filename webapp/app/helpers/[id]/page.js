@@ -6,6 +6,7 @@ import Link from "next/link";
 import Header from "../../components/layout/Header";
 import Footer from "../../components/layout/Footer";
 import { getHelperByID } from "../../components/services/user.service";
+import { HelperProfilePageShimmer } from "../../components/ui/Shimmer";
 
 // Default preset for Priya Sharma (matching helper_view.png 100%)
 const PRIYA_SHARMA_PRESET = {
@@ -364,12 +365,7 @@ export default function PublicHelperProfilePage() {
         </nav>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-32 space-y-4">
-            <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
-              Loading helper profile...
-            </p>
-          </div>
+          <HelperProfilePageShimmer />
         ) : error || !helper ? (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center max-w-xl mx-auto shadow-sm">
             <div className="text-5xl mb-4">🔍</div>

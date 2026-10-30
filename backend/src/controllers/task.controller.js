@@ -65,6 +65,24 @@ export const getCategories = async (req, res) => {
   }
 };
 
+export const addCategory = async (req, res) => {
+  try {
+    const { name, description, icon, subServices } = req.body || {};
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ message: "Category name is required" });
+    }
+    const category = await categoryService.ensureCategoryInDb(name, {
+      description,
+      icon,
+      subServices,
+    });
+    res.status(201).json(category);
+  } catch (error) {
+    console.error("Add category error:", error);
+    res.status(500).json({ message: error.message || "Failed to add category" });
+  }
+};
+
 export const getTaskById = async (req, res) => {
   try {
     const task = await taskService.getTaskById(req.user.id, req.params.id, req.user);
@@ -133,11 +151,34 @@ export const getNearbyTasks = async (req, res) => {
  */
 export const searchTasks = async (req, res) => {
   try {
-    const { category, city, latitude, longitude, radiusKm = 5, status, limit = 50, offset = 0 } = req.query;
+    const {
+      category,
+      city,
+      location,
+      search,
+      minBudget,
+      maxBudget,
+      includeCatalog,
+      view,
+      sortBy,
+      latitude,
+      longitude,
+      radiusKm = 5,
+      status,
+      limit = 50,
+      offset = 0,
+    } = req.query;
 
     const result = await taskService.searchTasks({
       category,
       city,
+      location,
+      search,
+      minBudget,
+      maxBudget,
+      includeCatalog,
+      view,
+      sortBy,
       latitude: latitude ? parseFloat(latitude) : null,
       longitude: longitude ? parseFloat(longitude) : null,
       radiusKm: parseInt(radiusKm),

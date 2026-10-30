@@ -12,9 +12,14 @@ export default function CustomSelect({
   disabled = false,
   name,
   required = false,
+  allowCreate = false,
+  onCreateOption,
+  creatingOption = false,
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [showNewInput, setShowNewInput] = useState(false);
+  const [newOptionName, setNewOptionName] = useState("");
   const dropdownRef = useRef(null);
 
   // Normalize options to { label, value, icon, description }
@@ -35,10 +40,17 @@ export default function CustomSelect({
     opt.label.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Find currently selected option
-  const selectedOption = normalizedOptions.find(
-    (opt) => opt.value === value || opt.label === value
+  const trimmedSearch = search.trim();
+  const exactMatchExists = normalizedOptions.some(
+    (opt) => opt.label.toLowerCase() === trimmedSearch.toLowerCase()
   );
+
+  // Find currently selected option
+  const selectedOption =
+    normalizedOptions.find(
+      (opt) => opt.value === value || opt.label === value
+    ) ||
+    (value ? { label: value, value, icon: "✨" } : null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -49,6 +61,8 @@ export default function CustomSelect({
       ) {
         setOpen(false);
         setSearch("");
+        setShowNewInput(false);
+        setNewOptionName("");
       }
     };
 
@@ -56,6 +70,8 @@ export default function CustomSelect({
       if (e.key === "Escape") {
         setOpen(false);
         setSearch("");
+        setShowNewInput(false);
+        setNewOptionName("");
       }
     };
 
@@ -74,6 +90,22 @@ export default function CustomSelect({
     }
     setOpen(false);
     setSearch("");
+    setShowNewInput(false);
+    setNewOptionName("");
+  };
+
+  const handleCreate = async (rawName) => {
+    const clean = String(rawName || "").trim();
+    if (!clean) return;
+    if (onCreateOption) {
+      await onCreateOption(clean);
+    } else if (onChange) {
+      onChange(clean);
+    }
+    setOpen(false);
+    setSearch("");
+    setShowNewInput(false);
+    setNewOptionName("");
   };
 
   return (
@@ -174,7 +206,7 @@ export default function CustomSelect({
             top-full
             mt-1.5
             w-full
-            max-h-72
+            max-h-80
             rounded-xl
             border
             border-gray-200
@@ -189,15 +221,30 @@ export default function CustomSelect({
             flex-col
           "
         >
-          {/* Optional Search if more than 6 options */}
-          {normalizedOptions.length > 6 && (
+          {/* Search or Create Input */}
+          {(normalizedOptions.length > 4 || allowCreate) && (
             <div className="p-2 border-b border-gray-100 dark:border-slate-800">
               <input
                 type="text"
                 autoFocus
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search categories..."
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" &&
+                    allowCreate &&
+                    trimmedSearch &&
+                    !exactMatchExists
+                  ) {
+                    e.preventDefault();
+                    handleCreate(trimmedSearch);
+                  }
+                }}
+                placeholder={
+                  allowCreate
+                    ? "Search or type a new category..."
+                    : "Search categories..."
+                }
                 className="
                   w-full
                   px-3
@@ -220,8 +267,8 @@ export default function CustomSelect({
           )}
 
           {/* Options List */}
-          <div className="overflow-y-auto py-1 max-h-60 divide-y divide-gray-50 dark:divide-slate-800/40">
-            {filteredOptions.length === 0 ? (
+          <div className="overflow-y-auto py-1 max-h-56 divide-y divide-gray-50 dark:divide-slate-800/40">
+            {filteredOptions.length === 0 && !allowCreate ? (
               <div className="px-4 py-3 text-xs text-slate-400 text-center">
                 No matching options found
               </div>
@@ -287,7 +334,69 @@ export default function CustomSelect({
                 );
               })
             )}
+
+            {/* Quick Add from Search Query */}
+            {allowCreate && trimmedSearch && !exactMatchExists && (
+              <button
+                type="button"
+                disabled={creatingOption}
+                onClick={() => handleCreate(trimmedSearch)}
+                className="w-full flex items-center gap-2 px-3.5 py-2.5 text-left text-sm font-semibold text-blue-600 dark:text-blue-400 bg-blue-50/60 dark:bg-blue-950/40 hover:bg-blue-100/70 dark:hover:bg-blue-900/50 transition-colors"
+              >
+                <span className="text-base leading-none">➕</span>
+                <span className="truncate">
+                  {creatingOption
+                    ? `Adding "${trimmedSearch}"...`
+                    : `Add "${trimmedSearch}" as new category`}
+                </span>
+              </button>
+            )}
           </div>
+
+          {/* Dedicated "+ Add New Category" Footer */}
+          {allowCreate && (
+            <div className="border-t border-gray-100 dark:border-slate-800 p-2 bg-gray-50/70 dark:bg-slate-900/90">
+              {!showNewInput ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNewInput(true);
+                    if (trimmedSearch && !exactMatchExists) {
+                      setNewOptionName(trimmedSearch);
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-800 transition"
+                >
+                  <span>+ Add New Category</span>
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    autoFocus
+                    value={newOptionName}
+                    onChange={(e) => setNewOptionName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newOptionName.trim()) {
+                        e.preventDefault();
+                        handleCreate(newOptionName);
+                      }
+                    }}
+                    placeholder="Enter new category name..."
+                    className="flex-1 px-2.5 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    disabled={!newOptionName.trim() || creatingOption}
+                    onClick={() => handleCreate(newOptionName)}
+                    className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-500 disabled:opacity-50 transition"
+                  >
+                    {creatingOption ? "..." : "Add"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

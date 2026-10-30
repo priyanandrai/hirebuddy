@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getPendingIdSubmissions, verifyUserId } from "@/app/components/services/user.service";
+import { NotificationRowShimmer } from "@/app/components/ui/Shimmer";
 
 export default function VerifyIdsAdminPage() {
   const [adminToken, setAdminToken] = useState("");
@@ -52,7 +53,7 @@ export default function VerifyIdsAdminPage() {
       </div>
 
       {loading ? (
-        <p>Loading...</p>
+        <NotificationRowShimmer count={3} />
       ) : (
         <div className="space-y-4">
           {pending.length === 0 && <p>No pending submissions.</p>}

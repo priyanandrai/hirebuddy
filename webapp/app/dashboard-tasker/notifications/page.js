@@ -11,6 +11,7 @@ import {
   initializeSocket,
   onReceiveNotification,
 } from "@/app/components/config/socketClient";
+import { NotificationRowShimmer } from "@/app/components/ui/Shimmer";
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
@@ -93,7 +94,9 @@ export default function NotificationsPage() {
 
       <div className="overflow-hidden rounded-[2rem] border border-slate-800 bg-slate-900/80 shadow-2xl shadow-slate-950/30">
         {loading ? (
-          <div className="px-4 py-10 text-center text-sm text-slate-400">Loading notifications...</div>
+          <div className="p-5">
+            <NotificationRowShimmer count={4} />
+          </div>
         ) : notifications.length > 0 ? (
           notifications.map((n) => (
             <div

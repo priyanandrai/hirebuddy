@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import HelperCard from '../../components/ui/HelperCard';
 import { CATEGORIES, slugify } from '../../components/category/categories';
+import { HelperDirectoryCardShimmer } from '../../components/ui/Shimmer';
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/$/, '');
 
@@ -480,26 +481,7 @@ export default function CategoryListingsClient({ category }) {
 
         {/* Listings Grid */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div
-                key={i}
-                className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-5 h-64 animate-pulse space-y-4"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-slate-800" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-slate-800 rounded w-3/4" />
-                    <div className="h-3 bg-slate-800 rounded w-1/2" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="h-3 bg-slate-800 rounded w-full" />
-                  <div className="h-3 bg-slate-800 rounded w-5/6" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <HelperDirectoryCardShimmer count={6} />
         ) : error ? (
           <div className="bg-slate-900/80 border border-rose-900/40 rounded-2xl p-8 text-center">
             <p className="text-rose-400 text-sm mb-3">{error}</p>

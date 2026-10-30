@@ -1,24 +1,26 @@
 "use client";
 
-import { useEffect, useState, useMemo, Suspense } from "react";
+import { useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import HeaderAfterlogin from "../../components/layout/HeaderAfterlogin";
 import Footer from "../../components/layout/Footer";
 import { searchTasks, searchHelpers } from "../../components/services/search.service";
+import { getTaskCategories } from "../../components/services/task.service";
 import { getAuthToken } from "../../components/lib/getSessionToken";
 import { hireBuddy } from "../../components/services/hire.service";
+import { HelperSearchCardShimmer } from "../../components/ui/Shimmer";
 
 const TASK_TYPE_OPTIONS = [
-  "Delivery",
-  "Driver",
-  "Cleaning",
-  "Cooking",
+  "Home Cleaning",
+  "Driver Services",
+  "Delivery & Pickup",
   "Plumbing",
-  "Electrician",
-  "Shopping",
-  "Errands",
-  "Home Help",
+  "Electrical",
+  "Furniture Assembly",
+  "Cooking",
+  "Personal Care",
+  "Others",
 ];
 
 const LOCATION_OPTIONS = [
@@ -486,7 +488,36 @@ function SearchContent() {
 
   const [apiTasks, setApiTasks] = useState([]);
   const [apiHelpers, setApiHelpers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [dbCategories, setDbCategories] = useState(TASK_TYPE_OPTIONS);
+  const [loading, setLoading] = useState(Boolean(q || hasActiveFilters));
+  const shimmerTimerRef = useRef(null);
+
+  useEffect(() => {
+    const loadDbCats = () => {
+      getTaskCategories()
+        .then((res) => {
+          const list = Array.isArray(res) ? res : res?.data || [];
+          const names = list
+            .map((c) => (typeof c === "string" ? c : c?.name))
+            .filter(Boolean);
+          if (names.length > 0) {
+            setDbCategories(names);
+          }
+        })
+        .catch(() => {});
+    };
+    loadDbCats();
+    window.addEventListener("categoriesUpdated", loadDbCats);
+    return () => window.removeEventListener("categoriesUpdated", loadDbCats);
+  }, []);
+
+  const triggerFilterShimmer = () => {
+    setLoading(true);
+    if (shimmerTimerRef.current) clearTimeout(shimmerTimerRef.current);
+    shimmerTimerRef.current = setTimeout(() => {
+      setLoading(false);
+    }, 260);
+  };
 
   // Active Result Type Pill ("helpers" | "tasks" | "all")
   const [activeTab, setActiveTab] = useState("helpers");
@@ -638,6 +669,7 @@ function SearchContent() {
 
   const toggleCategoryItem = (cat) => {
     setIsCleared(false);
+    triggerFilterShimmer();
     setSelectedCategories((prev) => {
       const next = prev.includes(cat) ? prev.filter((i) => i !== cat) : [...prev, cat];
       setAppliedFilters((af) => ({ ...af, categories: next }));
@@ -648,12 +680,14 @@ function SearchContent() {
   const handleSelectSingleTaskType = (val) => {
     const next = val ? [val] : [];
     if (val) setIsCleared(false);
+    triggerFilterShimmer();
     setSelectedCategories(next);
     setAppliedFilters((af) => ({ ...af, categories: next }));
   };
 
   const handleLocationFilterChange = (val) => {
     if (val.trim()) setIsCleared(false);
+    triggerFilterShimmer();
     setLocationInput(val);
     setAppliedFilters((af) => ({ ...af, location: val }));
   };
@@ -665,6 +699,7 @@ function SearchContent() {
   };
 
   const handleClearAll = () => {
+    triggerFilterShimmer();
     setSelectedCategories([]);
     setLocationInput("");
     setSelectedAvailability([]);
@@ -683,6 +718,7 @@ function SearchContent() {
     if (selectedCategories.length > 0 || locationInput.trim()) {
       setIsCleared(false);
     }
+    triggerFilterShimmer();
     setAppliedFilters({
       categories: selectedCategories,
       location: locationInput,
@@ -874,7 +910,7 @@ function SearchContent() {
 
                 {openSections.category && (
                   <div className="mt-3 space-y-2.5">
-                    {TASK_TYPE_OPTIONS.map((cat) => {
+                    {dbCategories.map((cat) => {
                       const checked = selectedCategories.includes(cat);
                       return (
                         <label
@@ -1210,7 +1246,7 @@ function SearchContent() {
                       className="w-full rounded-xl border border-[#1d2d4e] bg-[#0b1528] px-3.5 py-2 text-xs font-semibold text-white focus:border-blue-500 focus:outline-none cursor-pointer"
                     >
                       <option value="">All Task Types</option>
-                      {TASK_TYPE_OPTIONS.map((cat) => (
+                      {dbCategories.map((cat) => (
                         <option key={cat} value={cat}>
                           {cat}
                         </option>
@@ -1311,14 +1347,7 @@ function SearchContent() {
                   </div>
                 </div>
               ) : loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {[1, 2, 3, 4, 5, 6].map((n) => (
-                    <div
-                      key={n}
-                      className="h-[340px] rounded-2xl border border-[#1b2b4b] bg-[#0b1426] animate-pulse"
-                    />
-                  ))}
-                </div>
+                <HelperSearchCardShimmer count={6} />
               ) : (
                 <>
                   {/* Helper Cards Grid */}
@@ -1674,7 +1703,15 @@ function SearchContent() {
 
 export default function SearchResultsPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#060c1b]" />}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#060c1b] px-6 py-10">
+          <div className="mx-auto max-w-[1360px]">
+            <HelperSearchCardShimmer count={6} />
+          </div>
+        </div>
+      }
+    >
       <SearchContent />
     </Suspense>
   );

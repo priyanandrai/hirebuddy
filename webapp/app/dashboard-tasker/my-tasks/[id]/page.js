@@ -1,6 +1,7 @@
 "use client";
 
 import { getTaskById, updateTaskStatus, acceptTask, declineTask } from "@/app/components/services/task.service";
+import { TaskDetailShimmer } from "@/app/components/ui/Shimmer";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -162,7 +163,13 @@ export default function TaskerTaskDetailPage() {
   }
 
   if (loading) {
-    return <main className="min-h-screen bg-slate-950 px-5 py-6 text-slate-100">Loading task details...</main>;
+    return (
+      <main className="min-h-screen bg-slate-950 px-5 py-6 text-slate-100">
+        <div className="mx-auto max-w-3xl">
+          <TaskDetailShimmer />
+        </div>
+      </main>
+    );
   }
 
   if (!task) {

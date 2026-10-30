@@ -13,6 +13,13 @@ export const getUserProfile = () => {
   return apiClient(USER_ENDPOINTS.GET_PROFILE, { method: "GET" });
 };
 
+export const updateUserProfile = (payload) => {
+  return apiClient(USER_ENDPOINTS.UPDATE_PROFILE, {
+    method: "PUT",
+    body: payload,
+  });
+};
+
 export const submitIdDocument = (payload) => {
   return apiClient(USER_ENDPOINTS.SUBMIT_ID, {
     method: "POST",

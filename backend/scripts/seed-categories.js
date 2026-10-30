@@ -1,135 +1,157 @@
+import "dotenv/config";
 import prisma from "../src/utils/prisma.js";
 
 export const CATEGORIES_DATA = [
   {
-    name: "Cleaning",
-    slug: "cleaning",
-    description: "Book verified and top-rated home, office, and deep cleaners in your neighborhood.",
-    icon: "✨",
+    name: "Home Cleaning",
+    slug: "home-cleaning",
+    description:
+      "Professional home cleaning services for a cleaner and healthier home.",
+    icon: "🧹",
     subServices: [
-      "Home Cleaning",
-      "Deep Cleaning",
-      "Office Cleaning",
-      "Kitchen Cleaning",
-      "Bathroom Cleaning",
-      "Sofa & Carpet",
-      "Sanitization",
+      "Full Home Deep Cleaning",
+      "Kitchen & Bathroom Sanitization",
+      "Sofa & Carpet Vacuuming",
+      "Floor Scrubbing & Polishing",
     ],
     isPopular: true,
   },
   {
-    name: "Repairs",
-    slug: "repairs",
-    description: "Certified electricians, plumbers, carpenters, and appliance repair technicians at your doorstep.",
-    icon: "🔧",
+    name: "Driver Services",
+    slug: "driver-services",
+    description:
+      "Safe and experienced drivers for local and outstation trips.",
+    icon: "🚗",
     subServices: [
-      "Electrician",
-      "Plumber",
-      "Carpentry",
-      "Appliance Repair",
-      "Wiring Repair",
-      "Pipe Leakage",
-      "Geyser Repair",
+      "Local City Chauffeur",
+      "Outstation Round Trips",
+      "Airport Pickup & Drop",
+      "Hourly Personal Driver",
+    ],
+    isPopular: true,
+  },
+  {
+    name: "Delivery & Pickup",
+    slug: "delivery-pickup",
+    description:
+      "Quick and reliable delivery and pickup services for your convenience.",
+    icon: "📦",
+    subServices: [
+      "Same-Day Parcel Delivery",
+      "Grocery & Medicine Pickup",
+      "Document Courier",
+      "Heavy Item Transport",
+    ],
+    isPopular: true,
+  },
+  {
+    name: "Plumbing",
+    slug: "plumbing",
+    description:
+      "Fixing leaks, pipe repair, and all plumbing needs.",
+    icon: "🚰",
+    subServices: [
+      "Tap & Pipe Leak Repair",
+      "Drain Blockage Clearing",
+      "Water Tank & Motor Fitting",
+      "Bathroom Fixture Installation",
+    ],
+    isPopular: true,
+  },
+  {
+    name: "Electrical",
+    slug: "electrical",
+    description:
+      "Electrical repairs, installation and maintenance services.",
+    icon: "⚡",
+    subServices: [
+      "Switchboard & Wiring Repair",
+      "Ceiling Fan & Light Installation",
+      "Inverter & UPS Setup",
+      "MCB & Fuse Troubleshooting",
     ],
     isPopular: true,
   },
   {
     name: "Furniture Assembly",
     slug: "furniture-assembly",
-    description: "Expert assembly and installation for IKEA, modular furniture, beds, tables, and wall mounts.",
+    description:
+      "Quick and professional furniture assembly and installation.",
     icon: "🪑",
     subServices: [
-      "IKEA Assembly",
-      "Bed Fitting",
-      "Wardrobe Setup",
-      "Office Desk Setup",
-      "Wall Shelves",
-      "TV Unit Assembly",
-      "Furniture Dismantling",
+      "Bed & Wardrobe Assembly",
+      "Modular Study Table Setup",
+      "TV Unit & Wall Mounting",
+      "Furniture Dismantling & Moving",
     ],
     isPopular: true,
   },
   {
-    name: "Grocery Shopping",
-    slug: "grocery-shopping",
-    description: "Personal helpers for fresh veggies, supermarket runs, medicines, and daily household essentials.",
-    icon: "🛒",
+    name: "Cooking",
+    slug: "cooking",
+    description:
+      "Hygienic and delicious home-cooked meals prepared by verified local cooks.",
+    icon: "🍳",
     subServices: [
-      "Fresh Vegetables",
-      "Supermarket Runs",
-      "Daily Essentials",
-      "Pharmacy Pickup",
-      "Local Mandi Shopping",
-      "Urgent Grocery",
+      "Daily Home Meal Prep",
+      "North & South Indian Cooking",
+      "Party & Event Catering Help",
+      "Tiffin Preparation",
     ],
     isPopular: true,
   },
   {
-    name: "Elder Care",
-    slug: "elder-care",
-    description: "Compassionate caregivers and companions for seniors, doctor visits, walks, and mobility assistance.",
-    icon: "❤️",
+    name: "Personal Care",
+    slug: "personal-care",
+    description:
+      "Compassionate personal care, elder assistance, and daily wellness support.",
+    icon: "🤝",
     subServices: [
-      "Doctor Escort",
-      "Medicine Scheduling",
-      "Mobility Assistance",
-      "Companionship",
-      "Vital Signs Checking",
-      "Physiotherapy Support",
+      "Elder Companionship",
+      "Doctor Visit Escort",
+      "Patient Home Care",
+      "Mobility Support",
     ],
     isPopular: true,
   },
   {
-    name: "Delivery",
-    slug: "delivery",
-    description: "Fast, reliable on-demand courier, parcels, documents, and local item pickup and delivery.",
-    icon: "📦",
+    name: "Others",
+    slug: "others",
+    description:
+      "Custom everyday tasks, gardening, errands, and general household assistance.",
+    icon: "✨",
     subServices: [
-      "Express Courier",
-      "Parcel Pickup",
-      "Document Drop",
-      "Bike Delivery",
-      "Tiffin Delivery",
-      "Fragile Delivery",
-    ],
-    isPopular: true,
-  },
-  {
-    name: "Driver",
-    slug: "driver",
-    description: "Licensed personal chauffeurs for city commutes, outstation travel, luxury cars, and airport drops.",
-    icon: "🚗",
-    subServices: [
-      "Personal Driver",
-      "City Chauffeur",
-      "Outstation Trips",
-      "Airport Drop",
-      "Daily Office Commute",
-      "Luxury Cars",
-    ],
-    isPopular: true,
-  },
-  {
-    name: "Home Support",
-    slug: "home-support",
-    description: "Reliable domestic help for home cooking, laundry, clothes ironing, child support, and gardening.",
-    icon: "🏡",
-    subServices: [
-      "Home Cooking",
-      "Clothes Ironing",
-      "Laundry Folding",
-      "Child Day Support",
-      "Dishwashing",
-      "Plant Care",
+      "Gardening & Plant Care",
+      "Event Help & Setup",
+      "Pet Walking & Sitting",
+      "Custom Local Errands",
     ],
     isPopular: true,
   },
 ];
 
-export async function seedCategories() {
-  console.log("Seeding categories into MariaDB database...");
+const LEGACY_SLUGS = [
+  "cleaning",
+  "repairs",
+  "grocery-shopping",
+  "elder-care",
+  "delivery",
+  "driver",
+  "home-support",
+];
+
+async function seedCategories() {
+  console.log("🌱 Syncing currently showing categories into database...");
+
+  // Remove old legacy seed categories so DB reflects the exact current categories
+  await prisma.category.deleteMany({
+    where: {
+      slug: { in: LEGACY_SLUGS },
+    },
+  });
+
   for (const cat of CATEGORIES_DATA) {
-    await prisma.category.upsert({
+    const upserted = await prisma.category.upsert({
       where: { slug: cat.slug },
       update: {
         name: cat.name,
@@ -138,24 +160,18 @@ export async function seedCategories() {
         subServices: cat.subServices,
         isPopular: cat.isPopular,
       },
-      create: {
-        name: cat.name,
-        slug: cat.slug,
-        description: cat.description,
-        icon: cat.icon,
-        subServices: cat.subServices,
-        isPopular: cat.isPopular,
-      },
+      create: cat,
     });
+    console.log(`✅ Upserted category: ${upserted.name} (${upserted.slug})`);
   }
-  const count = await prisma.category.count();
-  console.log(`Categories seeded successfully! Total in DB: ${count}`);
+
+  console.log("🎉 All 9 categories seeded successfully in DB!");
 }
 
-if (process.argv[1]?.endsWith("seed-categories.js")) {
+if (process.argv[1] && process.argv[1].endsWith("seed-categories.js")) {
   seedCategories()
     .catch((err) => {
-      console.error("Failed to seed categories:", err);
+      console.error("❌ Error seeding categories:", err);
       process.exit(1);
     })
     .finally(async () => {

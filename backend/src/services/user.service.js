@@ -9,6 +9,117 @@ export const setRoleService = (userId, role) => {
   });
 };
 
+export const updateMyProfileService = async (userId, rawData = {}) => {
+  const data = {};
+
+  if (rawData.name !== undefined) {
+    data.name = String(rawData.name).trim();
+  } else if (rawData.firstName || rawData.lastName) {
+    data.name = `${rawData.firstName || ""} ${rawData.lastName || ""}`.trim();
+  }
+
+  if (rawData.email !== undefined) {
+    const cleanEmail = String(rawData.email || "").trim().toLowerCase();
+    if (cleanEmail) {
+      const existingEmail = await prisma.user.findFirst({
+        where: {
+          email: cleanEmail,
+          NOT: { id: userId },
+        },
+      });
+      if (existingEmail) {
+        throw new Error("This email address is already linked to another account.");
+      }
+      data.email = cleanEmail;
+    }
+  }
+
+  if (rawData.phone !== undefined) {
+    const digitsOnly = String(rawData.phone || "").replace(/\D/g, "");
+    const cleanPhone = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
+    if (cleanPhone) {
+      if (cleanPhone.length !== 10) {
+        throw new Error("Please enter a valid 10-digit mobile number.");
+      }
+      const existingPhone = await prisma.user.findFirst({
+        where: {
+          phone: cleanPhone,
+          NOT: { id: userId },
+        },
+      });
+      if (existingPhone) {
+        throw new Error("This mobile number is already linked to another account.");
+      }
+      data.phone = cleanPhone;
+    }
+  }
+
+  if (rawData.city !== undefined) {
+    data.city = rawData.city ? String(rawData.city).trim() : null;
+  }
+  if (rawData.address !== undefined) {
+    data.address = rawData.address ? String(rawData.address).trim() : null;
+  }
+  if (rawData.image !== undefined) {
+    data.image = rawData.image || null;
+  }
+  if (rawData.latitude !== undefined && rawData.latitude !== null && rawData.latitude !== "") {
+    data.latitude = Number(rawData.latitude);
+  }
+  if (rawData.longitude !== undefined && rawData.longitude !== null && rawData.longitude !== "") {
+    data.longitude = Number(rawData.longitude);
+  }
+  if (rawData.skills !== undefined) {
+    data.skills = Array.isArray(rawData.skills) ? rawData.skills.join(", ") : rawData.skills;
+  }
+  if (rawData.experience !== undefined && rawData.experience !== "") {
+    data.experience = Number(rawData.experience) || 0;
+  }
+  if (rawData.hourlyRate !== undefined && rawData.hourlyRate !== "") {
+    data.hourlyRate = Number(rawData.hourlyRate) || 0;
+  }
+  if (rawData.isAvailable !== undefined) {
+    data.isAvailable = Boolean(rawData.isAvailable);
+  }
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      image: true,
+      role: true,
+      city: true,
+      address: true,
+      latitude: true,
+      longitude: true,
+      skills: true,
+      experience: true,
+      hourlyRate: true,
+      isAvailable: true,
+      averageRating: true,
+      totalReviews: true,
+      walletBalance: true,
+      idVerificationStatus: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  if (user.role === "HELPER") {
+    try {
+      await indexHelper(user);
+    } catch (e) {
+      console.error("Failed to index helper after profile update", e);
+    }
+  }
+
+  return user;
+};
+
 export const updateHelperProfileService = (userId, rawData) => {
   const data = {};
   if (rawData.name !== undefined) {
@@ -93,6 +204,8 @@ export const getMyProfileService = async (userId) => {
       role: true,
       city: true,
       address: true,
+      latitude: true,
+      longitude: true,
       skills: true,
       experience: true,
       hourlyRate: true,
