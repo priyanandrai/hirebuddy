@@ -3,50 +3,113 @@ import io from "socket.io-client";
 import { getAuthToken } from "../lib/getSessionToken";
 
 let socket = null;
+let initPromise = null;
+let globalEventsBound = false;
+
+const bindGlobalBridgeEvents = (sock) => {
+  if (!sock || globalEventsBound || typeof window === "undefined") return;
+  globalEventsBound = true;
+
+  sock.on("receive_notification", (notif) => {
+    window.dispatchEvent(
+      new CustomEvent("hirebuddy:notification-received", { detail: notif })
+    );
+  });
+
+  sock.on("new_task_available", (payload) => {
+    window.dispatchEvent(
+      new CustomEvent("hirebuddy:new-task-available", { detail: payload })
+    );
+  });
+
+  sock.on("task_status_changed", (payload) => {
+    window.dispatchEvent(
+      new CustomEvent("hirebuddy:task-status-changed", { detail: payload })
+    );
+  });
+
+  sock.on("task_updated", (payload) => {
+    window.dispatchEvent(
+      new CustomEvent("hirebuddy:task-status-changed", { detail: payload })
+    );
+  });
+
+  sock.on("message_notification", (payload) => {
+    window.dispatchEvent(
+      new CustomEvent("hirebuddy:message-notification", { detail: payload })
+    );
+  });
+
+  sock.on("payment_notification", (payload) => {
+    window.dispatchEvent(
+      new CustomEvent("hirebuddy:payment-notification", { detail: payload })
+    );
+  });
+};
 
 export const initializeSocket = async () => {
-  if (socket && socket.connected) {
+  if (socket && (socket.connected || socket.active)) {
+    bindGlobalBridgeEvents(socket);
     return socket;
   }
 
-  try {
-    const token = await getAuthToken();
-    if (!token) {
-      console.warn("No auth token available for WebSocket connection");
+  if (initPromise) {
+    return initPromise;
+  }
+
+  initPromise = (async () => {
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        return null;
+      }
+
+      const rawUrl =
+        process.env.NEXT_PUBLIC_SOCKET_URL ||
+        process.env.NEXT_PUBLIC_API_URL ||
+        "http://localhost:8080";
+      const SOCKET_URL = rawUrl.replace(/\/api\/?$/, "");
+
+      if (socket) {
+        socket.disconnect();
+        globalEventsBound = false;
+      }
+
+      socket = io(SOCKET_URL, {
+        auth: {
+          token: token.startsWith("Bearer ") ? token : `Bearer ${token}`,
+        },
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 10,
+        transports: ["websocket", "polling"],
+      });
+
+      bindGlobalBridgeEvents(socket);
+
+      socket.on("connect", () => {
+        console.log("WebSocket connected:", socket.id);
+      });
+
+      socket.on("disconnect", (reason) => {
+        console.log("WebSocket disconnected:", reason);
+      });
+
+      socket.on("error", (error) => {
+        console.error("WebSocket error:", error);
+      });
+
+      return socket;
+    } catch (error) {
+      console.error("Error initializing socket:", error);
       return null;
+    } finally {
+      initPromise = null;
     }
+  })();
 
-    const rawUrl = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-    const SOCKET_URL = rawUrl.replace(/\/api\/?$/, "");
-
-    socket = io(SOCKET_URL, {
-      auth: {
-        token: token.startsWith("Bearer ") ? token : `Bearer ${token}`,
-      },
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
-      transports: ["websocket", "polling"],
-    });
-
-    socket.on("connect", () => {
-      console.log("WebSocket connected:", socket.id);
-    });
-
-    socket.on("disconnect", (reason) => {
-      console.log("WebSocket disconnected:", reason);
-    });
-
-    socket.on("error", (error) => {
-      console.error("WebSocket error:", error);
-    });
-
-    return socket;
-  } catch (error) {
-    console.error("Error initializing socket:", error);
-    return null;
-  }
+  return initPromise;
 };
 
 export const getSocket = () => {
@@ -57,7 +120,17 @@ export const disconnectSocket = () => {
   if (socket) {
     socket.disconnect();
     socket = null;
+    globalEventsBound = false;
   }
+};
+
+export const onNewTaskAvailable = (callback) => {
+  const socket = getSocket();
+  if (socket) {
+    socket.on("new_task_available", callback);
+    return () => socket.off("new_task_available", callback);
+  }
+  return () => {};
 };
 
 // Event listeners for real-time features
@@ -170,6 +243,7 @@ export default {
   disconnectSocket,
   onNewMessage,
   onTaskUpdate,
+  onNewTaskAvailable,
   onReceiveNotification,
   onTypingIndicator,
   onPaymentUpdate,

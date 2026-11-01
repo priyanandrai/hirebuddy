@@ -1,7 +1,7 @@
 import prisma from "../utils/prisma.js";
 import { notificationEvents } from "./notification.service.js";
 import { indexTask, deleteTask } from "./es.client.js";
-import { emitToTaskRoom, emitToUser } from "../config/socket.config.js";
+import { emitToTaskRoom, emitToUser, emitBroadcast } from "../config/socket.config.js";
 import {
   getAllCategories,
   ensureCategoryInDb,
@@ -88,6 +88,36 @@ export const createTask = async (data, user) => {
       });
     } catch (notifErr) {
       console.warn('Failed to send task requested alert:', notifErr?.message);
+    }
+  } else {
+    try {
+      const formattedLiveTask = {
+        ...task,
+        image: getCategoryImageForTask(task.category, task.title),
+        isNew: true,
+        dateLabel: task.preferredAt
+          ? new Date(task.preferredAt).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : new Date().toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            }),
+        timeSlot: "Flexible / Today",
+      };
+      emitBroadcast('new_task_available', {
+        taskId: task.id,
+        task: formattedLiveTask,
+        category: task.category,
+        customerName: user.name || 'A customer',
+      });
+      // Notify available helpers in background
+      notificationEvents.newTaskPosted(task, user).catch(() => {});
+    } catch (broadcastErr) {
+      console.warn('Failed to broadcast new task:', broadcastErr?.message);
     }
   }
 
@@ -703,8 +733,9 @@ export const assignHelper = async (user, taskId) => {
   // Send notification to customer
   await notificationEvents.taskAccepted(taskId, user.id, task.createdById);
   try {
-    emitToTaskRoom(taskId, 'task_status_changed', { taskId, newStatus: 'ASSIGNED' });
-    emitToUser(task.createdById, 'task_status_changed', { taskId, newStatus: 'ASSIGNED' });
+    emitToTaskRoom(taskId, 'task_status_changed', { taskId, newStatus: 'ASSIGNED', task: updatedTask });
+    emitToUser(task.createdById, 'task_status_changed', { taskId, newStatus: 'ASSIGNED', task: updatedTask });
+    emitBroadcast('task_updated', { taskId, newStatus: 'ASSIGNED', assignedToId: user.id });
   } catch (e) {
     console.warn('Socket emit error:', e?.message);
   }
@@ -930,7 +961,11 @@ export const updateTaskStatus = async (taskId, userId, newStatus, user = null) =
     }
 
     try {
-      emitToTaskRoom(taskId, 'task_status_changed', { taskId, newStatus });
+      emitToTaskRoom(taskId, 'task_status_changed', { taskId, newStatus, task: updatedTask });
+      if (otherUserId) {
+        emitToUser(otherUserId, 'task_status_changed', { taskId, newStatus, task: updatedTask });
+      }
+      emitBroadcast('task_updated', { taskId, newStatus });
     } catch (e) {
       console.warn('Socket emitToTaskRoom error:', e?.message);
     }

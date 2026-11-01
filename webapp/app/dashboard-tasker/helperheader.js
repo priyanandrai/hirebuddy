@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Search, Bell, ChevronDown, Moon, X } from "lucide-react";
 import { getUnreadNotificationCount } from "@/app/components/services/notification.service";
 import { getUserProfile } from "@/app/components/services/user.service";
+import { initializeSocket } from "@/app/components/config/socketClient";
 
 export default function HelperHeader() {
   const router = useRouter();
@@ -77,6 +78,7 @@ export default function HelperHeader() {
     };
 
     loadData();
+    initializeSocket().catch(() => {});
 
     const handleProfileUpdate = () => {
       try {
@@ -87,13 +89,32 @@ export default function HelperHeader() {
       } catch (e) {}
     };
 
+    const handleLiveNotif = () => {
+      setUnreadCount((c) => c + 1);
+    };
+
+    const handleNotifsSynced = () => {
+      getUnreadNotificationCount()
+        .then((res) => {
+          const count = Number(
+            res?.unreadCount ?? res?.data?.unreadCount ?? res?.count ?? 0
+          );
+          if (active) setUnreadCount(count);
+        })
+        .catch(() => {});
+    };
+
     window.addEventListener("storage", handleProfileUpdate);
     window.addEventListener("userProfileUpdated", handleProfileUpdate);
+    window.addEventListener("hirebuddy:notification-received", handleLiveNotif);
+    window.addEventListener("hirebuddy:notifications-updated", handleNotifsSynced);
 
     return () => {
       active = false;
       window.removeEventListener("storage", handleProfileUpdate);
       window.removeEventListener("userProfileUpdated", handleProfileUpdate);
+      window.removeEventListener("hirebuddy:notification-received", handleLiveNotif);
+      window.removeEventListener("hirebuddy:notifications-updated", handleNotifsSynced);
     };
   }, []);
 
@@ -134,7 +155,7 @@ export default function HelperHeader() {
     }
   };
 
-  const badgeCount = unreadCount > 0 ? unreadCount : 3;
+  const badgeCount = unreadCount;
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#111e38] bg-[#040915]/95 backdrop-blur-xl">
@@ -193,9 +214,11 @@ export default function HelperHeader() {
             aria-label="Notifications"
           >
             <Bell className="h-5 w-5 text-slate-200" />
-            <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ef4444] px-1 text-[10px] font-bold text-white shadow">
-              {badgeCount}
-            </span>
+            {badgeCount > 0 && (
+              <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ef4444] px-1 text-[10px] font-bold text-white shadow animate-pulse">
+                {badgeCount > 9 ? "9+" : badgeCount}
+              </span>
+            )}
           </Link>
 
           {/* User Profile Trigger */}

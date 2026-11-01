@@ -1,4 +1,5 @@
-import  prisma  from '../utils/prisma.js';
+import prisma from '../utils/prisma.js';
+import { notificationEvents } from './notification.service.js';
 
 /**
  * Create a review for a completed task
@@ -62,6 +63,19 @@ export const createReview = async (taskId, givenById, givenToId, rating, comment
         totalReviews: allReviews.length,
       },
     });
+
+    // Send real-time review notification to the recipient
+    try {
+      await notificationEvents.reviewReceived(
+        taskId,
+        givenById,
+        review.givenBy?.name || 'A user',
+        rating,
+        givenToId
+      );
+    } catch (notifErr) {
+      console.warn('Review notification failed:', notifErr?.message);
+    }
 
     return review;
   } catch (error) {

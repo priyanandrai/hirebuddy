@@ -19,26 +19,20 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     loadNotifications();
+    initializeSocket().catch(() => {});
 
-    let unsubscribe = () => {};
-    const setup = async () => {
-      try {
-        await initializeSocket();
-        unsubscribe = onReceiveNotification((newNotif) => {
-          if (!newNotif || !newNotif.id) return;
-          setNotifications((prev) => {
-            if (prev.some((n) => n.id === newNotif.id)) return prev;
-            return [newNotif, ...prev];
-          });
-        });
-      } catch (err) {
-        console.warn("Tasker socket notif listener failed", err);
-      }
+    const handleLiveNotif = (e) => {
+      const newNotif = e.detail;
+      if (!newNotif || !newNotif.id) return;
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === newNotif.id)) return prev;
+        return [newNotif, ...prev];
+      });
     };
-    setup();
 
+    window.addEventListener("hirebuddy:notification-received", handleLiveNotif);
     return () => {
-      unsubscribe();
+      window.removeEventListener("hirebuddy:notification-received", handleLiveNotif);
     };
   }, []);
 
@@ -58,6 +52,7 @@ export default function NotificationsPage() {
     try {
       await markAllNotificationsAsRead();
       setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true })));
+      window.dispatchEvent(new CustomEvent("hirebuddy:notifications-updated"));
     } catch (error) {
       console.error("Failed to mark notifications as read", error);
     }
@@ -71,6 +66,7 @@ export default function NotificationsPage() {
           item.id === notificationId ? { ...item, isRead: true } : item
         )
       );
+      window.dispatchEvent(new CustomEvent("hirebuddy:notifications-updated"));
     } catch (error) {
       console.error("Failed to mark notification as read", error);
     }

@@ -164,6 +164,7 @@ export default function NotificationsPage() {
       setNotifications((prev) =>
         prev.map((n) => ({ ...n, isRead: true, readAt: new Date().toISOString() }))
       );
+      window.dispatchEvent(new CustomEvent("hirebuddy:notifications-updated"));
     } catch (error) {
       console.error("Failed to mark all as read:", error);
     }
@@ -177,6 +178,7 @@ export default function NotificationsPage() {
           n.id === id ? { ...n, isRead: true, readAt: new Date().toISOString() } : n
         )
       );
+      window.dispatchEvent(new CustomEvent("hirebuddy:notifications-updated"));
     } catch (error) {
       console.error("Failed to mark notification as read:", error);
     }
@@ -187,6 +189,7 @@ export default function NotificationsPage() {
     try {
       await deleteNotification(id);
       setNotifications((prev) => prev.filter((n) => n.id !== id));
+      window.dispatchEvent(new CustomEvent("hirebuddy:notifications-updated"));
     } catch (error) {
       console.error("Failed to delete notification:", error);
     }

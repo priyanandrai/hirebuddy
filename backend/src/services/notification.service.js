@@ -248,16 +248,57 @@ export const notificationEvents = {
   /**
    * Review received
    */
-  reviewReceived: async (taskId, reviewerId, revieweeName, rating) => {
+  reviewReceived: async (taskId, reviewerId, revieweeName, rating, explicitRevieweeId = null) => {
     const task = await prisma.task.findUnique({ where: { id: taskId } });
+    const targetReceiverId = explicitRevieweeId || task?.assignedToId || task?.createdById;
+    if (!targetReceiverId) return null;
     return sendNotification(
       taskId,
       reviewerId,
-      task.assignedToId,
+      targetReceiverId,
       'review_received',
       `${rating}⭐ Review from ${revieweeName}`,
-      `You received a ${rating}-star review for: "${task.title}"`
+      `You received a ${rating}-star review for: "${task?.title || 'Task'}"`
     );
+  },
+
+  /**
+   * New marketplace task posted - notify available helpers in real time
+   */
+  newTaskPosted: async (task, posterUser) => {
+    try {
+      if (!task?.id || !posterUser?.id) return [];
+      const helpers = await prisma.user.findMany({
+        where: {
+          role: 'HELPER',
+          id: { not: posterUser.id },
+          isAvailable: true,
+        },
+        select: { id: true, skills: true, city: true },
+        take: 20,
+      });
+
+      const budgetRupees = Number(task.budget || 0) >= 1000
+        ? (Number(task.budget) / 100).toFixed(0)
+        : Number(task.budget || 0);
+
+      const results = await Promise.allSettled(
+        helpers.map((helper) =>
+          sendNotification(
+            task.id,
+            posterUser.id,
+            helper.id,
+            'new_task_posted',
+            `New ${task.category || 'Service'} Task Available!`,
+            `"${task.title}" posted in ${task.location || 'your area'} • Budget ₹${budgetRupees}`
+          )
+        )
+      );
+      return results;
+    } catch (err) {
+      console.warn('Failed to notify helpers of new task:', err?.message);
+      return [];
+    }
   },
 
   /**

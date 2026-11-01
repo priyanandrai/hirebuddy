@@ -245,11 +245,44 @@ export default function TaskerDashboardPage() {
         viewAll: showAllTasks,
       });
     };
+    const handleNewTaskAvailable = (e) => {
+      const incoming = e.detail?.task;
+      if (incoming?.id) {
+        setTasks((prev) => {
+          if (prev.some((t) => t.id === incoming.id)) return prev;
+          return [
+            {
+              ...incoming,
+              hasBakedOverlay: String(incoming.image || "").includes("helper_task_"),
+            },
+            ...prev,
+          ];
+        });
+      }
+      fetchTasksFromBackend({
+        category: selectedCategory,
+        search: searchQuery,
+        location: selectedLocation,
+        viewAll: showAllTasks,
+      });
+    };
+    const handleTaskStatusChanged = () => {
+      fetchTasksFromBackend({
+        category: selectedCategory,
+        search: searchQuery,
+        location: selectedLocation,
+        viewAll: showAllTasks,
+      });
+    };
     window.addEventListener("hirebuddy:helper-search", handleHeaderSearch);
     window.addEventListener("categoriesUpdated", handleCategoriesUpdated);
+    window.addEventListener("hirebuddy:new-task-available", handleNewTaskAvailable);
+    window.addEventListener("hirebuddy:task-status-changed", handleTaskStatusChanged);
     return () => {
       window.removeEventListener("hirebuddy:helper-search", handleHeaderSearch);
       window.removeEventListener("categoriesUpdated", handleCategoriesUpdated);
+      window.removeEventListener("hirebuddy:new-task-available", handleNewTaskAvailable);
+      window.removeEventListener("hirebuddy:task-status-changed", handleTaskStatusChanged);
     };
   }, [fetchTasksFromBackend, selectedCategory, searchQuery, selectedLocation, showAllTasks]);
 

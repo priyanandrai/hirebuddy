@@ -257,25 +257,29 @@ export default function MyTasksPage() {
 
   // Listen to real-time socket updates for tasks
   useEffect(() => {
-    let unsubscribe = () => {};
-    const setupSocket = async () => {
-      try {
-        await initializeSocket();
-        unsubscribe = onTaskUpdate((data) => {
-          if (data?.taskId && data?.newStatus) {
-            setTasks((prev) =>
-              prev.map((t) =>
-                t.id === data.taskId ? { ...t, status: data.newStatus } : t
-              )
-            );
-          }
-        });
-      } catch (e) {
-        // Ignore socket error
+    initializeSocket().catch(() => {});
+
+    const handleStatusChanged = (e) => {
+      const data = e.detail;
+      if (data?.taskId && data?.newStatus) {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === data.taskId
+              ? {
+                  ...t,
+                  ...(data.task || {}),
+                  status: data.newStatus,
+                }
+              : t
+          )
+        );
       }
     };
-    setupSocket();
-    return () => unsubscribe();
+
+    window.addEventListener("hirebuddy:task-status-changed", handleStatusChanged);
+    return () => {
+      window.removeEventListener("hirebuddy:task-status-changed", handleStatusChanged);
+    };
   }, []);
 
   const getMyTask = async (token) => {

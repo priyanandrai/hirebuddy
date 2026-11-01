@@ -10,12 +10,11 @@ import Image from "next/image";
 import {
   getNotifications,
   getUnreadNotificationCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
 } from "../services/notification.service";
 import { getUserProfile } from "../services/user.service";
-import {
-  initializeSocket,
-  onReceiveNotification,
-} from "../config/socketClient";
+import { initializeSocket } from "../config/socketClient";
 
 export default function AuthenticatedHeader({
   initialQuery = "",
@@ -127,22 +126,27 @@ export default function AuthenticatedHeader({
 
   // Fetch real notifications and listen to socket events
   useEffect(() => {
-    let unsubscribe = () => {};
-
     const loadData = async () => {
       try {
         const [countRes, notifRes] = await Promise.allSettled([
           getUnreadNotificationCount(),
-          getNotifications(5, 0),
+          getNotifications(6, 0),
         ]);
 
         if (countRes.status === "fulfilled") {
-          const count = countRes.value?.unreadCount ?? countRes.value?.count ?? 0;
+          const count =
+            countRes.value?.unreadCount ??
+            countRes.value?.data?.unreadCount ??
+            countRes.value?.count ??
+            0;
           setUnreadCount(typeof count === "number" ? count : 0);
         }
 
         if (notifRes.status === "fulfilled") {
-          const list = notifRes.value?.notifications || notifRes.value?.data?.notifications || [];
+          const list =
+            notifRes.value?.notifications ||
+            notifRes.value?.data?.notifications ||
+            [];
           setRecentNotifications(list);
         }
       } catch (e) {
@@ -150,24 +154,29 @@ export default function AuthenticatedHeader({
       }
     };
 
-    const setupSocket = async () => {
-      try {
-        await initializeSocket();
-        unsubscribe = onReceiveNotification((newNotif) => {
-          if (!newNotif) return;
-          setUnreadCount((c) => c + 1);
-          setRecentNotifications((prev) => [newNotif, ...prev.slice(0, 4)]);
-        });
-      } catch (err) {
-        // Socket setup failed silently
-      }
+    const handleLiveNotif = (e) => {
+      const newNotif = e.detail;
+      if (!newNotif) return;
+      setUnreadCount((c) => c + 1);
+      setRecentNotifications((prev) => {
+        if (newNotif.id && prev.some((n) => n.id === newNotif.id)) return prev;
+        return [newNotif, ...prev.slice(0, 5)];
+      });
+    };
+
+    const handleNotifsSynced = () => {
+      loadData();
     };
 
     loadData();
-    setupSocket();
+    initializeSocket().catch(() => {});
+
+    window.addEventListener("hirebuddy:notification-received", handleLiveNotif);
+    window.addEventListener("hirebuddy:notifications-updated", handleNotifsSynced);
 
     return () => {
-      unsubscribe();
+      window.removeEventListener("hirebuddy:notification-received", handleLiveNotif);
+      window.removeEventListener("hirebuddy:notifications-updated", handleNotifsSynced);
     };
   }, [session]);
 
@@ -282,17 +291,45 @@ export default function AuthenticatedHeader({
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
-              <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#ef4444] px-1 text-[10px] font-bold text-white">
-                {unreadCount > 9 ? "9+" : unreadCount > 0 ? unreadCount : 2}
-              </span>
+              {unreadCount > 0 && (
+                <span className="absolute right-0.5 top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#ef4444] px-1 text-[10px] font-bold text-white shadow animate-pulse">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </button>
 
             {notifOpen && (
               <div className="absolute right-0 top-12 w-80 animate-scaleIn">
                 <div className="absolute -top-2 right-4 h-4 w-4 rotate-45 border-l border-t border-slate-700 bg-slate-900"></div>
                 <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-slate-950/40">
-                  <div className="border-b border-slate-700 px-4 py-3 text-sm font-semibold text-white">
-                    Notifications
+                  <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3 text-sm font-semibold text-white">
+                    <div className="flex items-center gap-2">
+                      <span>Notifications</span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        LIVE
+                      </span>
+                    </div>
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await markAllNotificationsAsRead();
+                            setUnreadCount(0);
+                            setRecentNotifications((prev) =>
+                              prev.map((n) => ({ ...n, isRead: true }))
+                            );
+                            window.dispatchEvent(
+                              new CustomEvent("hirebuddy:notifications-updated")
+                            );
+                          } catch {}
+                        }}
+                        className="text-[11px] font-medium text-blue-400 hover:text-blue-300 transition"
+                      >
+                        Mark all read
+                      </button>
+                    )}
                   </div>
                   <div className="max-h-72 overflow-y-auto divide-y divide-slate-800">
                     {recentNotifications.length > 0 ? (
@@ -304,7 +341,21 @@ export default function AuthenticatedHeader({
                           time={new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           unread={!n.isRead}
                           taskId={n.taskId}
-                          onClick={() => setNotifOpen(false)}
+                          onClick={() => {
+                            if (!n.isRead && n.id) {
+                              markNotificationAsRead(n.id)
+                                .then(() => {
+                                  setUnreadCount((c) => Math.max(0, c - 1));
+                                  setRecentNotifications((prev) =>
+                                    prev.map((item) =>
+                                      item.id === n.id ? { ...item, isRead: true } : item
+                                    )
+                                  );
+                                })
+                                .catch(() => {});
+                            }
+                            setNotifOpen(false);
+                          }}
                         />
                       ))
                     ) : (

@@ -2,13 +2,13 @@
 
 import Footer from "../components/layout/Footer";
 import Header from "../components/layout/HeaderAfterlogin";
-
-
+import RealtimeNotificationCenter from "../components/ui/RealtimeNotificationCenter";
 
 export default function DashboardLayout({ children }) {
   return (
     <div className="flex min-h-screen flex-col bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <Header />
+      <RealtimeNotificationCenter role="USER" />
 
       <main className="flex-1 pt-16 bg-white dark:bg-slate-950">
         {children}

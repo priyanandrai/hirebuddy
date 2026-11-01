@@ -28,6 +28,14 @@ export const emitToTaskRoom = (taskId, event, data) => {
 };
 
 /**
+ * Broadcast an event to all connected clients
+ */
+export const emitBroadcast = (event, data) => {
+  if (!ioInstance) return;
+  ioInstance.emit(event, data);
+};
+
+/**
  * Initialize Socket.IO events
  */
 export const initializeSocket = (server) => {
