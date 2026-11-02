@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { getPaymentHistory } from "@/app/components/services/payment.service";
+import {
+  getPaymentHistory,
+  getSubscriptionStatus,
+  activateSubscription,
+} from "@/app/components/services/payment.service";
 import { getUserProfile } from "@/app/components/services/user.service";
 import HelperDocumentVerificationModal from "@/app/components/ui/HelperDocumentVerificationModal";
 import { PaymentRowShimmer } from "@/app/components/ui/Shimmer";
@@ -23,18 +27,25 @@ export default function TaskerEarningsPage() {
   const [userLoading, setUserLoading] = useState(true);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [subStatus, setSubStatus] = useState(null);
+  const [activatingPlan, setActivatingPlan] = useState(null);
 
   const loadData = async () => {
     try {
-      const [paymentsRes, profileRes] = await Promise.allSettled([
+      const [paymentsRes, profileRes, subRes] = await Promise.allSettled([
         getPaymentHistory(),
         getUserProfile(),
+        getSubscriptionStatus(),
       ]);
 
       if (paymentsRes.status === "fulfilled") {
         const response = paymentsRes.value;
         const data = response?.payments || response?.data?.payments || response?.data || [];
         setPayments(data);
+      }
+
+      if (subRes.status === "fulfilled" && subRes.value) {
+        setSubStatus(subRes.value);
       }
 
       if (profileRes.status === "fulfilled" && profileRes.value?.user) {
@@ -93,17 +104,40 @@ export default function TaskerEarningsPage() {
   const isRejected = currentUser?.idVerificationStatus === "REJECTED";
 
   const summary = useMemo(() => {
-    const total = payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-    const completed = payments.filter((payment) => payment.status === "COMPLETED").length;
+    const total = payments.reduce((sum, payment) => {
+      const amt = Number(payment.amount || 0);
+      return sum + (amt > 10000 ? Math.round(amt / 100) : amt);
+    }, 0);
+    const heldEscrow = payments
+      .filter((p) => p.status === "HELD_IN_ESCROW")
+      .reduce((sum, p) => {
+        const amt = Number(p.amount || 0);
+        return sum + (amt > 10000 ? Math.round(amt / 100) : amt);
+      }, 0);
+    const completed = payments.filter(
+      (payment) => payment.status === "COMPLETED" || payment.status === "RELEASED"
+    ).length;
     const latest = payments[0];
 
-    return { total, completed, latest };
+    return { total, heldEscrow, completed, latest };
   }, [payments]);
+
+  const handleActivatePlan = async (planType) => {
+    setActivatingPlan(planType);
+    try {
+      await activateSubscription(planType, "ONLINE");
+      await loadData();
+    } catch (err) {
+      alert(err?.message || "Failed to activate Buddy Pass");
+    } finally {
+      setActivatingPlan(null);
+    }
+  };
 
   return (
     <main className="relative min-h-screen bg-slate-950 px-5 py-6 text-slate-100 overflow-hidden">
       {/* ========================================================
-          BACKGROUND CONTENT (BLURRED WHEN HELPER IS NOT VERIFIED)
+          BACKGROUND CONTENT (BLURRED WHEN BUDDY IS NOT VERIFIED)
          ======================================================== */}
       <div
         className={`transition-all duration-300 ${
@@ -113,13 +147,60 @@ export default function TaskerEarningsPage() {
         }`}
       >
         <section className="mb-6 mx-auto max-w-4xl">
-          <h1 className="text-2xl font-bold text-white">My Earnings</h1>
-          <p className="text-sm text-slate-300">Money you earned by completing tasks</p>
+          <h1 className="text-2xl font-bold text-white">My Buddy Earnings & Active Pass</h1>
+          <p className="text-sm text-slate-300">
+            100% of customer task payments go directly to you (0% task commission). Keep your Buddy account active with a ₹5/day or ₹99/month pass.
+          </p>
         </section>
 
-        <section className="mx-auto mb-8 grid max-w-4xl grid-cols-2 gap-4">
-          <EarningCard label="Total" value={summary.total} />
-          <EarningCard label="Completed" value={summary.completed} />
+        <section className="mx-auto mb-6 grid max-w-4xl grid-cols-1 sm:grid-cols-3 gap-4">
+          <EarningCard
+            label="Buddy Wallet (100% Payout)"
+            value={subStatus?.walletBalanceRupees ?? Math.round((currentUser?.walletBalance || 0) / 100)}
+          />
+          <EarningCard label="Held in Escrow" value={summary.heldEscrow} />
+          <EarningCard label="Released Tasks" value={summary.completed} isCount />
+        </section>
+
+        {/* Buddy Active Pass Card */}
+        <section className="mx-auto mb-8 max-w-4xl rounded-[2rem] border border-emerald-500/30 bg-slate-900/90 p-5 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-white">Buddy Active Account Pass</h2>
+                {subStatus?.isActive ? (
+                  <span className="rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-0.5 text-xs font-bold text-emerald-300">
+                    Active ({subStatus.planType}) until {new Date(subStatus.activeUntil).toLocaleDateString()}
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2.5 py-0.5 text-xs font-bold text-amber-300">
+                    Inactive
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-slate-400">
+                HireBuddy charges 0% commission on tasks. Activate a ₹5 Daily Pass or ₹99 Monthly Pass to accept tasks and receive 100% escrow payouts.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                disabled={activatingPlan !== null}
+                onClick={() => handleActivatePlan("DAILY")}
+                className="rounded-xl border border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 px-4 py-2 text-xs font-bold text-emerald-300 transition"
+              >
+                {activatingPlan === "DAILY" ? "Activating..." : "Activate ₹5 / Day"}
+              </button>
+              <button
+                type="button"
+                disabled={activatingPlan !== null}
+                onClick={() => handleActivatePlan("MONTHLY")}
+                className="rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2 text-xs font-bold text-white transition"
+              >
+                {activatingPlan === "MONTHLY" ? "Activating..." : "Activate ₹99 / Month"}
+              </button>
+            </div>
+          </div>
         </section>
 
         <section className="mx-auto max-w-4xl rounded-[2rem] border border-slate-800 bg-slate-900/80 p-5 shadow-2xl shadow-slate-950/30">
@@ -314,11 +395,11 @@ export default function TaskerEarningsPage() {
   );
 }
 
-function EarningCard({ label, value }) {
+function EarningCard({ label, value, isCount = false }) {
   return (
     <div className="rounded-[1.5rem] border border-slate-800 bg-slate-900/80 p-4 text-center shadow-lg shadow-slate-950/20">
       <p className="text-sm text-slate-400">{label}</p>
-      <p className="mt-1 text-xl font-bold text-white">₹{value}</p>
+      <p className="mt-1 text-xl font-bold text-white">{isCount ? value : `₹${value}`}</p>
     </div>
   );
 }

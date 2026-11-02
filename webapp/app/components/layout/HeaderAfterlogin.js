@@ -271,6 +271,13 @@ export default function AuthenticatedHeader({
           </button>
 
           <Link
+            href="/marketplace"
+            className="hidden md:inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
+          >
+            <span>🛍️ Meerut Market</span>
+          </Link>
+
+          <Link
             href="/dashboard/create-task"
             className="hidden sm:inline-flex items-center justify-center gap-1.5 rounded-full bg-[#1361f5] px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-600"
           >
@@ -403,7 +410,11 @@ export default function AuthenticatedHeader({
                   {displayUser.name}
                 </span>
                 <span className="text-[10.5px] text-slate-400">
-                  {displayUser.role === "USER" ? "User" : "Helper"}
+                  {displayUser.role === "USER"
+                    ? "User"
+                    : displayUser.role === "SELLER"
+                    ? "Meerut Seller"
+                    : "Buddy"}
                 </span>
               </div>
               <svg
@@ -444,6 +455,9 @@ export default function AuthenticatedHeader({
 
                   <DropdownItem href="/dashboard" setOpen={setProfileOpen}>📊 Dashboard</DropdownItem>
                   <DropdownItem href="/dashboard/my-tasks" setOpen={setProfileOpen}>📝 My Tasks</DropdownItem>
+                  <DropdownItem href="/dashboard/helpers" setOpen={setProfileOpen}>🤝 Browse Buddies</DropdownItem>
+                  <DropdownItem href="/marketplace" setOpen={setProfileOpen}>🛍️ Meerut Marketplace</DropdownItem>
+                  <DropdownItem href="/become-a-seller" setOpen={setProfileOpen}>🏭 Seller Hub (Manufacturers)</DropdownItem>
                   <DropdownItem href="/dashboard/services" setOpen={setProfileOpen}>🧰 Services</DropdownItem>
                   <DropdownItem href="/dashboard/settings" setOpen={setProfileOpen}>⚙️ Settings</DropdownItem>
                   <DropdownItem href="/dashboard/support" setOpen={setProfileOpen}>💬 Support</DropdownItem>
@@ -493,7 +507,7 @@ function DropdownItem({ href, children, setOpen }) {
 function NotificationItem({ title, desc, time, unread, taskId, onClick }) {
   return (
     <Link
-      href={taskId ? `/dashboard/tasks/${taskId}` : "/dashboard/notifications"}
+      href={taskId ? `/dashboard/my-tasks/${taskId}` : "/dashboard/notifications"}
       onClick={onClick}
       className={`block px-4 py-3 text-sm hover:bg-slate-800 transition ${
         unread ? "bg-blue-500/10" : ""

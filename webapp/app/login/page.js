@@ -19,6 +19,7 @@ export default function OtpLoginPage() {
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState("");
+  const [devOtpHint, setDevOtpHint] = useState("");
   const [showGooglePopup, setShowGooglePopup] = useState(false);
 
   const handleGoogleLogin = () => {
@@ -64,6 +65,8 @@ export default function OtpLoginPage() {
   const redirectByRole = (role) => {
     if (role === "HELPER") {
       router.push("/dashboard-tasker");
+    } else if (role === "SELLER") {
+      router.push("/become-a-seller");
     } else {
       router.push("/dashboard");
     }
@@ -106,13 +109,19 @@ export default function OtpLoginPage() {
   /* Send OTP */
   const sendOtp = async () => {
     setError("");
+    setDevOtpHint("");
     setLoading(true);
     try {
-      await sendOtpApi(phone);
+      const res = await sendOtpApi(phone);
       setStep("otp");
       setTimer(30);
       setIsResendEnabled(false);
-      setOtp(["", "", "", "", "", ""]);
+      if (res?.devOtp && String(res.devOtp).length === 6) {
+        setDevOtpHint(String(res.devOtp));
+        setOtp(String(res.devOtp).split(""));
+      } else {
+        setOtp(["", "", "", "", "", ""]);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -132,7 +141,10 @@ export default function OtpLoginPage() {
     try {
       const data = await verifyOtpApi(phone, otpCode);
       localStorage.setItem("token", data.token);
-      redirectByRole(data.user.role);
+      if (data.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+      redirectByRole(data.user?.role);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -388,6 +400,11 @@ export default function OtpLoginPage() {
           {/* OTP LOGIN - OTP STEP */}
           {loginMode === "otp" && step === "otp" && (
             <div className="space-y-5">
+              {devOtpHint && (
+                <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-2 text-xs text-emerald-300 text-center">
+                  ✨ Instant OTP Ready: <strong className="tracking-widest font-mono text-sm">{devOtpHint}</strong> (auto-filled for quick login)
+                </div>
+              )}
               <div className="flex justify-center gap-3">
                 {otp.map((digit, index) => (
                   <input

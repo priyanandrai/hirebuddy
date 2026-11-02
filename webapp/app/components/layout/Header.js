@@ -31,6 +31,12 @@ export default function Header() {
           <Link href="/hire-buddy" className="rounded-full bg-emerald-500 px-3 py-1 text-sm font-medium text-white hover:bg-emerald-600 transition">
             Hire Buddy
           </Link>
+          <Link href="/marketplace" className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-sm font-semibold text-amber-300 hover:bg-amber-500/20 transition">
+            🛍️ Meerut Market
+          </Link>
+          <Link href="/become-a-seller" className={`${linkHoverClass} transition`}>
+            Sell Products
+          </Link>
           <Link href="/how-it-works" className={`${linkHoverClass} transition`}>
             How it Works
           </Link>
@@ -50,7 +56,7 @@ export default function Header() {
             href="/become-a-helper"
             className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 hover:bg-emerald-700 transition"
           >
-            Become a Helper
+            Become a Buddy
           </Link>
         </nav>
 

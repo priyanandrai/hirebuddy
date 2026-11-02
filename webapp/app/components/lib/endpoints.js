@@ -50,9 +50,27 @@ export const MESSAGE_ENDPOINTS = {
 export const PAYMENT_ENDPOINTS = {
   CREATE_ORDER: "/payments/create-order",
   VERIFY_PAYMENT: "/payments/verify",
+  RELEASE_ESCROW: "/payments/release-escrow",
+  SUBSCRIPTION_STATUS: "/payments/subscription/status",
+  SUBSCRIPTION_ACTIVATE: "/payments/subscription/activate",
   GET_PAYMENT_HISTORY: "/payments/history",
   GET_PAYMENT_DETAILS: "/payments",
   REFUND_PAYMENT: "/payments",
+};
+
+export const MARKETPLACE_ENDPOINTS = {
+  GET_PRODUCTS: "/marketplace/products",
+  SELLER_ONBOARD: "/marketplace/seller/onboard",
+  SELLER_DASHBOARD: "/marketplace/seller/dashboard",
+  SELLER_PRODUCTS: "/marketplace/seller/products",
+  PLACE_ORDER: "/marketplace/orders",
+  MY_ORDERS: "/marketplace/orders/my",
+  ORDER_STATUS: "/marketplace/orders",
+};
+
+export const SUPPORT_ENDPOINTS = {
+  CREATE_TICKET: "/support/tickets",
+  MY_TICKETS: "/support/my-tickets",
 };
 
 export const HIRE_ENDPOINTS = {

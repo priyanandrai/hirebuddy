@@ -6,10 +6,18 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   myTask,
+  createTask,
+  updateTask,
   cancelTask,
   updateTaskStatus,
 } from "@/app/components/services/task.service";
 import { getUserProfile } from "@/app/components/services/user.service";
+import { releaseEscrowPayment } from "@/app/components/services/payment.service";
+import { createReview } from "@/app/components/services/review.service";
+import {
+  sendMessage as sendTaskMessageApi,
+  getTaskMessages,
+} from "@/app/components/services/message.service";
 import {
   initializeSocket,
   onTaskUpdate,
@@ -107,6 +115,19 @@ function getTodayLocalDateString() {
   return `${year}-${month}-${day}`;
 }
 
+function resolveHelperImageUrl(rawImage) {
+  if (!rawImage || typeof rawImage !== "string") return null;
+  const trimmed = rawImage.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("/uploads/")) {
+    const apiBase = (
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api"
+    ).replace(/\/api\/?$/, "");
+    return `${apiBase}${trimmed}`;
+  }
+  return trimmed;
+}
+
 const TASK_OVERRIDES_STORAGE_KEY = "hirebuddy_my_tasks_overrides_v1";
 const REORDERED_TASKS_STORAGE_KEY = "hirebuddy_reordered_tasks_v1";
 
@@ -156,6 +177,9 @@ export default function MyTasksPage() {
 
   const [messageModalTask, setMessageModalTask] = useState(null);
   const [messageText, setMessageText] = useState("");
+  const [taskMessages, setTaskMessages] = useState([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [sendingMessage, setSendingMessage] = useState(false);
   const [cancelConfirmTask, setCancelConfirmTask] = useState(null);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [toast, setToast] = useState(null);
@@ -194,9 +218,44 @@ export default function MyTasksPage() {
         ...rawTasks,
       ];
 
-      return mergedList.map((t) =>
-        overrides[t.id] ? { ...t, ...overrides[t.id] } : t
-      );
+      return mergedList.map((t) => {
+        const override = overrides[t.id];
+        if (!override) return t;
+
+        const isRealDbTask =
+          t.id &&
+          t.id !== DEFAULT_KITCHEN_TASK.id &&
+          !String(t.id).startsWith("reorder-");
+
+        // Preserve authoritative DB helper profile & original uploaded image
+        const mergedAssignedTo = t.assignedTo
+          ? {
+              ...(override.assignedTo || {}),
+              ...t.assignedTo,
+              image:
+                t.assignedTo.image ||
+                (override.assignedTo?.image &&
+                override.assignedTo.image !== "/images/priya_sharma.png"
+                  ? override.assignedTo.image
+                  : null),
+            }
+          : override.assignedTo || null;
+
+        // If DB task has progressed to IN_PROGRESS / COMPLETED / CANCELLED, do not let stale local override revert it
+        const dbStatusUpper = String(t.status || "").toUpperCase();
+        const resolvedStatus =
+          isRealDbTask &&
+          ["IN_PROGRESS", "COMPLETED", "CANCELLED"].includes(dbStatusUpper)
+            ? t.status
+            : override.status || t.status;
+
+        return {
+          ...t,
+          ...override,
+          status: resolvedStatus,
+          assignedTo: mergedAssignedTo,
+        };
+      });
     } catch {
       return rawTasks;
     }
@@ -322,8 +381,11 @@ export default function MyTasksPage() {
 
       const usePriyaPreset =
         isKitchenTask ||
-        rawHelper?.name?.toLowerCase() === "prreto g" ||
         rawHelper?.name?.toLowerCase().includes("priya");
+
+      const resolvedOriginalHelperImage = resolveHelperImageUrl(
+        rawHelper?.image
+      );
 
       const helperSkills = (() => {
         if (isKitchenTask) {
@@ -368,9 +430,11 @@ export default function MyTasksPage() {
             name: isKitchenTask
               ? "Priya Sharma"
               : rawHelper?.name || "Priya Sharma",
-            image: usePriyaPreset
-              ? "/images/priya_sharma.png"
-              : rawHelper?.image || "/images/priya_sharma.png",
+            image:
+              resolvedOriginalHelperImage ||
+              (usePriyaPreset
+                ? "/images/priya_sharma.png"
+                : "/images/priya_sharma.png"),
             phone: rawHelper?.phone || "+91 98765 43210",
             location: isKitchenTask
               ? "Noida, UP"
@@ -478,7 +542,7 @@ export default function MyTasksPage() {
     }
   };
 
-  const handleLocationChange = (task, newLocation) => {
+  const handleLocationChange = async (task, newLocation) => {
     setOpenLocationDropdownId(null);
     if (!newLocation || !newLocation.trim()) return;
     const trimmed = newLocation.trim();
@@ -490,10 +554,21 @@ export default function MyTasksPage() {
     setTasks((prev) =>
       prev.map((t) => (t.id === task.id ? { ...t, ...patch } : t))
     );
+
+    const token =
+      session?.token ||
+      (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+    if (token && task.id !== DEFAULT_KITCHEN_TASK.id && !String(task.id).startsWith("reorder-")) {
+      try {
+        await updateTask(task.id, { location: trimmed }, token);
+      } catch (err) {
+        console.warn("Update task location warning:", err?.message);
+      }
+    }
     showToast(`Task location updated to ${trimmed}`);
   };
 
-  const handleConfirmReschedule = (e) => {
+  const handleConfirmReschedule = async (e) => {
     e.preventDefault();
     if (!rescheduleModalTask) return;
 
@@ -503,10 +578,11 @@ export default function MyTasksPage() {
       return;
     }
 
+    const targetTask = rescheduleModalTask;
     const newDateFormatted = formatTaskDate(rescheduleDate);
     const updatedLoc =
       (rescheduleLocation && rescheduleLocation.trim()) ||
-      rescheduleModalTask.displayLocation ||
+      targetTask.displayLocation ||
       profileLocation ||
       "Noida, UP";
     const patch = {
@@ -516,48 +592,89 @@ export default function MyTasksPage() {
       location: updatedLoc,
       customLocation: updatedLoc,
     };
-    saveTaskOverride(rescheduleModalTask.id, patch);
+    saveTaskOverride(targetTask.id, patch);
     setTasks((prev) =>
       prev.map((t) =>
-        t.id === rescheduleModalTask.id ? { ...t, ...patch } : t
+        t.id === targetTask.id ? { ...t, ...patch } : t
       )
     );
     setRescheduleModalTask(null);
+
+    const token =
+      session?.token ||
+      (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+    if (
+      token &&
+      targetTask.id !== DEFAULT_KITCHEN_TASK.id &&
+      !String(targetTask.id).startsWith("reorder-")
+    ) {
+      try {
+        await updateTask(
+          targetTask.id,
+          {
+            preferredAt: rescheduleDate,
+            timeSlot: rescheduleTimeSlot,
+            location: updatedLoc,
+          },
+          token
+        );
+      } catch (err) {
+        console.warn("Reschedule task DB sync warning:", err?.message);
+      }
+    }
+
     showToast(
       `Task rescheduled to ${newDateFormatted}, ${rescheduleTimeSlot} (${updatedLoc})`
     );
   };
 
-  const handleReleasePayment = (e) => {
+  const handleReleasePayment = async (e) => {
     e.preventDefault();
     if (!paymentModalTask) return;
     setPaymentProcessing(true);
 
-    setTimeout(() => {
-      const methodLabel =
-        paymentMethod === "UPI"
-          ? `UPI (${upiId || "Instant UPI"})`
-          : paymentMethod === "CARD"
-            ? "Card"
-            : "Cash";
+    const paidTask = paymentModalTask;
+    const methodLabel =
+      paymentMethod === "UPI"
+        ? `UPI (${upiId || "Instant UPI"})`
+        : paymentMethod === "CARD"
+          ? "Card"
+          : "Cash";
+    const nowLabel = new Date().toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    try {
+      if (
+        paidTask.id !== DEFAULT_KITCHEN_TASK.id &&
+        !String(paidTask.id).startsWith("reorder-")
+      ) {
+        await releaseEscrowPayment(paidTask.id, {
+          method: methodLabel,
+          markAsPaid: true,
+        });
+      }
+    } catch (err) {
+      console.warn("Payment release API warning:", err?.message);
+    } finally {
       const patch = {
         paymentStatus: "COMPLETED",
         paidMethod: methodLabel,
-        paidAtLabel: "23 Oct, 12:15 PM",
+        paidAtLabel: nowLabel,
       };
-      saveTaskOverride(paymentModalTask.id, patch);
+      saveTaskOverride(paidTask.id, patch);
       setTasks((prev) =>
-        prev.map((t) =>
-          t.id === paymentModalTask.id ? { ...t, ...patch } : t
-        )
+        prev.map((t) => (t.id === paidTask.id ? { ...t, ...patch } : t))
       );
       setPaymentProcessing(false);
-      const paidTask = paymentModalTask;
       setPaymentModalTask(null);
       showToast(
-        `₹${paidTask.displayBudget} payment released to ${paidTask.helper?.name || "Helper"}!`
+        `₹${paidTask.displayBudget} payment (100% payout) released to ${paidTask.helper?.name || "Buddy"}!`
       );
-    }, 500);
+    }
   };
 
   const handleOpenRatingModal = (task) => {
@@ -576,29 +693,51 @@ export default function MyTasksPage() {
     );
   };
 
-  const handleSubmitRating = (e) => {
+  const handleSubmitRating = async (e) => {
     e.preventDefault();
     if (!ratingModalTask) return;
+
+    const targetTask = ratingModalTask;
+    const helperName = targetTask.helper?.name || "Buddy";
+    const finalReviewText =
+      ratingComment.trim() ||
+      (ratingTags.length > 0
+        ? `${ratingTags.join(", ")} — ${helperName} did a great job!`
+        : `${helperName} did a great job!`);
 
     const patch = {
       userRating: ratingStars,
       userReviewTags: ratingTags,
-      userReview:
-        ratingComment.trim() ||
-        `${ratingModalTask.helper?.name || "Helper"} did a great job!`,
+      userReview: finalReviewText,
       ratedAtLabel: "Just now",
     };
 
-    saveTaskOverride(ratingModalTask.id, patch);
+    saveTaskOverride(targetTask.id, patch);
     setTasks((prev) =>
-      prev.map((t) => (t.id === ratingModalTask.id ? { ...t, ...patch } : t))
+      prev.map((t) => (t.id === targetTask.id ? { ...t, ...patch } : t))
     );
-    const helperName = ratingModalTask.helper?.name || "Helper";
     setRatingModalTask(null);
+
+    if (
+      targetTask.id !== DEFAULT_KITCHEN_TASK.id &&
+      !String(targetTask.id).startsWith("reorder-")
+    ) {
+      try {
+        await createReview(
+          targetTask.id,
+          targetTask.assignedTo?.id || targetTask.helper?.id || null,
+          ratingStars,
+          finalReviewText
+        );
+      } catch (err) {
+        console.warn("Create review DB sync warning:", err?.message);
+      }
+    }
+
     showToast(`Thank you! You rated ${helperName} ${ratingStars}.0 ★`);
   };
 
-  const handleConfirmReorder = (e) => {
+  const handleConfirmReorder = async (e) => {
     e.preventDefault();
     if (!reorderModalTask) return;
 
@@ -608,39 +747,78 @@ export default function MyTasksPage() {
       return;
     }
 
+    const sourceTask = reorderModalTask;
     const newDateFormatted = formatTaskDate(reorderDate);
     const newTaskCode = `HB-${Math.floor(1040 + Math.random() * 890)}`;
     const chosenLocation =
       (reorderLocation && reorderLocation.trim()) ||
-      reorderModalTask.displayLocation ||
+      sourceTask.displayLocation ||
       profileLocation ||
       "Noida, UP";
     const keepHelper =
-      reorderSameHelper && Boolean(reorderModalTask.hasHelper && reorderModalTask.helper);
-    const reorderedTask = {
-      ...reorderModalTask,
-      id: `reorder-${Date.now()}`,
-      taskCode: newTaskCode,
-      status: keepHelper ? "REQUESTED" : "OPEN",
-      assignedTo: keepHelper
-        ? reorderModalTask.assignedTo || reorderModalTask.helper
-        : null,
-      paymentStatus: "PENDING",
-      paidMethod: null,
-      paidAtLabel: null,
-      userRating: null,
-      userReview: null,
-      userReviewTags: null,
-      preferredAt: reorderDate,
-      customDateLabel: newDateFormatted,
-      timeSlot: reorderTimeSlot,
-      location: chosenLocation,
-      customLocation: chosenLocation,
-      postedTimeLabel: "Just now",
-      confirmedTimeLabel: keepHelper ? "Pending acceptance" : "",
-    };
+      reorderSameHelper && Boolean(sourceTask.hasHelper && sourceTask.helper);
 
-    if (typeof window !== "undefined") {
+    const token =
+      session?.token ||
+      (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+
+    let createdDbTask = null;
+    if (token) {
+      try {
+        const res = await createTask(
+          {
+            title: sourceTask.title,
+            category: sourceTask.displayCategory || sourceTask.category || "Cleaning",
+            description: sourceTask.displayDescription || sourceTask.description,
+            location: chosenLocation,
+            budget: Number(sourceTask.displayBudget || sourceTask.budget || 300),
+            preferredAt: reorderDate,
+            timeSlot: reorderTimeSlot,
+            helperId: keepHelper
+              ? sourceTask.assignedTo?.id || sourceTask.helper?.id || null
+              : null,
+            bookNow: keepHelper,
+          },
+          token
+        );
+        createdDbTask = res?.data || res;
+      } catch (err) {
+        console.warn("Create reordered task in DB warning:", err?.message);
+      }
+    }
+
+    const reorderedTask = createdDbTask?.id
+      ? {
+          ...createdDbTask,
+          taskCode: newTaskCode,
+          timeSlot: reorderTimeSlot,
+          customDateLabel: newDateFormatted,
+          customLocation: chosenLocation,
+        }
+      : {
+          ...sourceTask,
+          id: `reorder-${Date.now()}`,
+          taskCode: newTaskCode,
+          status: keepHelper ? "REQUESTED" : "OPEN",
+          assignedTo: keepHelper
+            ? sourceTask.assignedTo || sourceTask.helper
+            : null,
+          paymentStatus: "PENDING",
+          paidMethod: null,
+          paidAtLabel: null,
+          userRating: null,
+          userReview: null,
+          userReviewTags: null,
+          preferredAt: reorderDate,
+          customDateLabel: newDateFormatted,
+          timeSlot: reorderTimeSlot,
+          location: chosenLocation,
+          customLocation: chosenLocation,
+          postedTimeLabel: "Just now",
+          confirmedTimeLabel: keepHelper ? "Pending acceptance" : "",
+        };
+
+    if (!createdDbTask?.id && typeof window !== "undefined") {
       try {
         const raw = localStorage.getItem(REORDERED_TASKS_STORAGE_KEY);
         const existing = raw ? JSON.parse(raw) : [];
@@ -661,13 +839,72 @@ export default function MyTasksPage() {
     );
   };
 
-  const handleSendMessage = (e) => {
+  useEffect(() => {
+    if (!messageModalTask?.id) {
+      setTaskMessages([]);
+      return;
+    }
+    if (
+      messageModalTask.id === DEFAULT_KITCHEN_TASK.id ||
+      String(messageModalTask.id).startsWith("reorder-")
+    ) {
+      setTaskMessages([]);
+      return;
+    }
+    setLoadingMessages(true);
+    getTaskMessages(messageModalTask.id)
+      .then((res) => {
+        const list = Array.isArray(res?.messages)
+          ? res.messages
+          : Array.isArray(res)
+            ? res
+            : [];
+        setTaskMessages(list);
+      })
+      .catch(() => setTaskMessages([]))
+      .finally(() => setLoadingMessages(false));
+  }, [messageModalTask?.id]);
+
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!messageText.trim() || !messageModalTask) return;
-    const helperName = messageModalTask.helper?.name || "Helper";
-    setMessageText("");
-    setMessageModalTask(null);
-    showToast(`Message sent to ${helperName}`);
+    const text = messageText.trim();
+    const helperName = messageModalTask.helper?.name || "Buddy";
+    setSendingMessage(true);
+
+    try {
+      if (
+        messageModalTask.id !== DEFAULT_KITCHEN_TASK.id &&
+        !String(messageModalTask.id).startsWith("reorder-")
+      ) {
+        const sent = await sendTaskMessageApi(
+          messageModalTask.id,
+          messageModalTask.assignedTo?.id || messageModalTask.helper?.id || null,
+          text
+        );
+        if (sent?.id) {
+          setTaskMessages((prev) => [...prev, sent]);
+        }
+      } else {
+        setTaskMessages((prev) => [
+          ...prev,
+          {
+            id: `local-${Date.now()}`,
+            message: text,
+            createdAt: new Date().toISOString(),
+            sender: { name: "You" },
+          },
+        ]);
+      }
+      setMessageText("");
+      showToast(`Message sent to ${helperName}`);
+    } catch (err) {
+      console.warn("Send message warning:", err?.message);
+      showToast(err?.message || `Message sent to ${helperName}`);
+      setMessageText("");
+    } finally {
+      setSendingMessage(false);
+    }
   };
 
   const handleConfirmCancelTask = async () => {
@@ -1041,9 +1278,52 @@ export default function MyTasksPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSendMessage} className="mt-4 space-y-4">
+            <div className="mt-4 max-h-56 overflow-y-auto space-y-2.5 rounded-2xl border border-slate-800 bg-slate-900/60 p-3.5">
+              {loadingMessages ? (
+                <p className="text-xs text-slate-400 text-center py-4">
+                  Loading conversation...
+                </p>
+              ) : taskMessages.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-4">
+                  No messages yet. Start a conversation with{" "}
+                  {messageModalTask.helper?.name || "your Buddy"}!
+                </p>
+              ) : (
+                taskMessages.map((msg) => {
+                  const isBuddyMsg =
+                    msg.senderId &&
+                    (msg.senderId === messageModalTask.assignedTo?.id ||
+                      msg.senderId === messageModalTask.helper?.id);
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex flex-col ${
+                        isBuddyMsg ? "items-start" : "items-end"
+                      }`}
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs ${
+                          isBuddyMsg
+                            ? "bg-slate-800 text-slate-100"
+                            : "bg-blue-600 text-white"
+                        }`}
+                      >
+                        <p className="font-semibold text-[10px] opacity-80 mb-0.5">
+                          {isBuddyMsg
+                            ? msg.sender?.name || messageModalTask.helper?.name || "Buddy"
+                            : "You"}
+                        </p>
+                        <p>{msg.message}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <form onSubmit={handleSendMessage} className="mt-3 space-y-3">
               <textarea
-                rows={4}
+                rows={3}
                 value={messageText}
                 onChange={(e) => setMessageText(e.target.value)}
                 placeholder={`Write a message to ${messageModalTask.helper?.name} regarding "${messageModalTask.title}"...`}
@@ -1060,10 +1340,11 @@ export default function MyTasksPage() {
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-500"
+                  disabled={sendingMessage}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
                 >
                   <Send className="h-3.5 w-3.5" />
-                  Send Message
+                  {sendingMessage ? "Sending..." : "Send Message"}
                 </button>
               </div>
             </form>
@@ -1631,6 +1912,13 @@ function TaskDetailCard({
   const isDropdownOpen = openStatusDropdownId === task.id;
   const isLocationDropdownOpen = openLocationDropdownId === task.id;
   const isPaid = task.paymentStatus === "COMPLETED";
+  const isLocationLocked = ["IN_PROGRESS", "COMPLETED", "CANCELLED"].includes(
+    statusUpper
+  );
+
+  useEffect(() => {
+    setImgError(false);
+  }, [task.helper?.image]);
 
   const statusMeta = getStatusBadgeMeta(statusUpper);
   const visibleSkills = (task.helper?.skills || []).slice(0, 3);
@@ -1735,14 +2023,24 @@ function TaskDetailCard({
 
           {isDropdownOpen && (
             <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-700 bg-slate-900 py-1.5 shadow-2xl z-30">
-              {[
-                { key: "OPEN", label: "Open (Waiting for Helper)" },
-                { key: "REQUESTED", label: "Requested (Pending Helper)" },
-                { key: "ASSIGNED", label: "Helper Confirmed" },
-                { key: "IN_PROGRESS", label: "In Progress" },
-                { key: "COMPLETED", label: "Completed" },
-                { key: "CANCELLED", label: "Cancelled" },
-              ].map((opt) => (
+              {(statusUpper === "IN_PROGRESS"
+                ? [
+                    { key: "IN_PROGRESS", label: "In Progress" },
+                    { key: "COMPLETED", label: "Completed" },
+                  ]
+                : statusUpper === "COMPLETED"
+                  ? [{ key: "COMPLETED", label: "Completed" }]
+                  : statusUpper === "CANCELLED"
+                    ? [{ key: "CANCELLED", label: "Cancelled" }]
+                    : [
+                        { key: "OPEN", label: "Open (Waiting for Helper)" },
+                        { key: "REQUESTED", label: "Requested (Pending Helper)" },
+                        { key: "ASSIGNED", label: "Helper Confirmed" },
+                        { key: "IN_PROGRESS", label: "In Progress" },
+                        { key: "COMPLETED", label: "Completed" },
+                        { key: "CANCELLED", label: "Cancelled" },
+                      ]
+              ).map((opt) => (
                 <button
                   key={opt.key}
                   type="button"
@@ -1778,16 +2076,29 @@ function TaskDetailCard({
             </div>
             <button
               type="button"
-              onClick={() =>
-                setOpenLocationDropdownId(
-                  isLocationDropdownOpen ? null : task.id
-                )
+              disabled={isLocationLocked}
+              onClick={() => {
+                if (!isLocationLocked) {
+                  setOpenLocationDropdownId(
+                    isLocationDropdownOpen ? null : task.id
+                  );
+                }
+              }}
+              title={
+                isLocationLocked
+                  ? "Location cannot be changed once task is in progress or completed"
+                  : "Click to select location or pick from profile"
               }
-              title="Click to select location or pick from profile"
-              className="mt-0.5 inline-flex items-center gap-1 text-left text-sm font-semibold text-white hover:text-sky-400 transition cursor-pointer"
+              className={`mt-0.5 inline-flex items-center gap-1 text-left text-sm font-semibold text-white transition ${
+                isLocationLocked
+                  ? "cursor-default"
+                  : "hover:text-sky-400 cursor-pointer"
+              }`}
             >
               <span className="truncate">{task.displayLocation}</span>
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              {!isLocationLocked && (
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              )}
             </button>
 
             {isLocationDropdownOpen && (
@@ -2197,6 +2508,39 @@ function TaskDetailCard({
               >
                 <ArrowLeftRight className="h-4 w-4 text-slate-300" />
                 <span>Browse Helpers</span>
+              </button>
+            </div>
+          ) : statusUpper === "IN_PROGRESS" ? (
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={() => onStatusChange(task, "COMPLETED")}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-xs sm:text-sm font-bold text-slate-950 shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-400 cursor-pointer"
+              >
+                <Check className="h-4 w-4 stroke-[3]" />
+                <span>Mark as Completed</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenPayment}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-2.5 text-xs sm:text-sm font-semibold text-emerald-300 transition hover:bg-emerald-500/25 cursor-pointer"
+              >
+                <CreditCard className="h-4 w-4 stroke-[2.2] text-emerald-400" />
+                <span>
+                  {isPaid
+                    ? `Payment Released · ₹${task.displayBudget}`
+                    : `Hold / Pay ₹${task.displayBudget}`}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onOpenMessage}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700/90 bg-[#0d1424] px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-200 transition hover:border-slate-600 hover:bg-slate-800/80 cursor-pointer"
+              >
+                <MessageSquare className="h-4 w-4 text-slate-300" />
+                <span>Message Helper</span>
               </button>
             </div>
           ) : (

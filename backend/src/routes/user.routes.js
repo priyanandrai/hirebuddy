@@ -27,13 +27,16 @@ router.get("/all", authMiddleware, getAllUsers);
 router.post("/set-role", authMiddleware, setRole);
 router.post("/helper-profile", authMiddleware, updateHelperProfile);
 router.post("/helper/create", authMiddleware, createHelperByAdmin);
+router.post("/helpers", authMiddleware, createHelperByAdmin);
 router.post("/id/submit", authMiddleware, submitIdDocument);
 router.get("/helper/:id", getHelperById); //
 router.get("/helpers", authMiddleware, getHelpersList);
 // 👇 helpers assigned to my tasks
 router.get("/assigned-helpers", authMiddleware, getAssignedHelpersFromMyTasks);
 router.get('/pending-ids', authMiddleware, getPendingIdSubmissions);
+router.post('/id/:id/verify', authMiddleware, verifyUserId);
 router.patch('/id/:id/verify', authMiddleware, verifyUserId);
+router.put('/:id/role', authMiddleware, updateUserRole);
 router.patch('/:id/role', authMiddleware, updateUserRole);
 router.delete('/:id', authMiddleware, deleteUser);
 

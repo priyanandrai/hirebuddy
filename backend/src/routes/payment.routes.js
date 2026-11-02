@@ -18,6 +18,21 @@ router.post('/create-order', paymentController.createPaymentOrder);
 router.post('/verify', paymentController.verifyPayment);
 
 /**
+ * POST /api/payments/release-escrow - Release held escrow payment to Buddy
+ */
+router.post('/release-escrow', paymentController.releaseEscrowPayment);
+
+/**
+ * GET /api/payments/subscription/status - Get Buddy subscription status (₹5/day or ₹99/month)
+ */
+router.get('/subscription/status', paymentController.getSubscriptionStatus);
+
+/**
+ * POST /api/payments/subscription/activate - Activate Buddy Daily (₹5) or Monthly (₹99) pass
+ */
+router.post('/subscription/activate', paymentController.activateSubscription);
+
+/**
  * GET /api/payments/history - Get payment history
  */
 router.get('/history', paymentController.getPaymentHistory);

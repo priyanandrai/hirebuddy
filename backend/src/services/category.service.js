@@ -316,12 +316,61 @@ export const getFilteredServices = async (filters = {}) => {
     search,
   } = filters;
 
-  // 1. Always fetch categories from DB
-  const dbCategories = await getAllCategories();
+  // 1. Always fetch categories from DB and verified Helpers for direct booking
+  const [dbCategories, dbHelpers] = await Promise.all([
+    getAllCategories(),
+    prisma.user.findMany({
+      where: { role: "HELPER" },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        image: true,
+        skills: true,
+        city: true,
+        averageRating: true,
+        totalReviews: true,
+        idVerificationStatus: true,
+      },
+      orderBy: [{ idVerificationStatus: "desc" }, { createdAt: "desc" }],
+    }),
+  ]);
+
+  const verifiedHelpers = dbHelpers.filter(
+    (h) => h.idVerificationStatus === "VERIFIED"
+  );
+  const helperPool = verifiedHelpers.length > 0 ? verifiedHelpers : dbHelpers;
+
+  const findBestBuddyForCategory = (catName, slug, idx) => {
+    if (!helperPool.length) return null;
+    const text = `${catName || ""} ${slug || ""}`.toLowerCase();
+    const keywords = [];
+    if (text.includes("clean")) keywords.push("clean", "maid", "kitchen");
+    if (text.includes("driver")) keywords.push("driver", "driving", "chauffeur");
+    if (text.includes("deliver") || text.includes("pickup"))
+      keywords.push("deliver", "courier", "parcel", "medicine", "grocery");
+    if (text.includes("plumb")) keywords.push("plumb", "pipe", "water", "repair");
+    if (text.includes("electr")) keywords.push("electr", "appliance", "wiring", "geyser");
+    if (text.includes("furniture")) keywords.push("furniture", "assembly", "ikea", "sofa");
+    if (text.includes("cook")) keywords.push("cook", "meal", "roti", "kitchen");
+    if (text.includes("care") || text.includes("elder"))
+      keywords.push("care", "physiotherapy", "elder", "support", "companion");
+    if (keywords.length === 0) {
+      keywords.push(String(catName || "").toLowerCase());
+    }
+
+    const matched = helperPool.find((h) => {
+      const skillStr = String(h.skills || "").toLowerCase();
+      return keywords.some((kw) => kw && skillStr.includes(kw));
+    });
+
+    return matched || helperPool[idx % helperPool.length];
+  };
 
   // 2. Build services catalog directly from DB categories
   const fullCatalog = dbCategories.map((dbCat, index) => {
     const template = HOME_SERVICES_TEMPLATES[dbCat.slug] || null;
+    const matchedBuddy = findBestBuddyForCategory(dbCat.name, dbCat.slug, index);
     const subServices = Array.isArray(dbCat.subServices)
       ? dbCat.subServices
       : [
@@ -340,9 +389,9 @@ export const getFilteredServices = async (filters = {}) => {
       icon: dbCat.icon || inferEmojiIcon(dbCat.name),
       iconType: template?.iconType || inferIconType(dbCat.slug || dbCat.name),
       verified: true,
-      rating: template?.rating || 4.6,
-      reviewsCount: template?.reviewsCount || 24,
-      location: template?.location || "Modipuram, Meerut",
+      rating: template?.rating || matchedBuddy?.averageRating || 4.6,
+      reviewsCount: template?.reviewsCount || matchedBuddy?.totalReviews || 24,
+      location: template?.location || matchedBuddy?.city || "Modipuram, Meerut",
       description:
         dbCat.description ||
         `Verified local helpers and professionals for ${dbCat.name} services.`,
@@ -352,6 +401,10 @@ export const getFilteredServices = async (filters = {}) => {
       availableHelpers: template?.availableHelpers || 4,
       isExtended: template ? Boolean(template.isExtended) : index >= 6,
       subServices,
+      helperId: matchedBuddy?.id || null,
+      helperName: matchedBuddy?.name || "Verified Buddy",
+      helperPhone: matchedBuddy?.phone || null,
+      helperImage: matchedBuddy?.image || null,
     };
   });
 

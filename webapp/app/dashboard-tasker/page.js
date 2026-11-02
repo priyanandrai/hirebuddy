@@ -20,21 +20,14 @@ import {
 } from "lucide-react";
 import {
   getFilteredHelperTasks,
+  getTaskCategories,
   acceptTask,
 } from "@/app/components/services/task.service";
+import {
+  getSubscriptionStatus,
+  activateSubscription,
+} from "@/app/components/services/payment.service";
 import { HelperTaskCardShimmer } from "@/app/components/ui/Shimmer";
-
-const DEFAULT_CATEGORIES = [
-  { name: "Home Cleaning", slug: "home-cleaning", tasksCount: 1, iconType: "cleaning" },
-  { name: "Driver Services", slug: "driver-services", tasksCount: 1, iconType: "driver" },
-  { name: "Delivery & Pickup", slug: "delivery-pickup", tasksCount: 1, iconType: "delivery" },
-  { name: "Plumbing", slug: "plumbing", tasksCount: 1, iconType: "plumbing" },
-  { name: "Electrical", slug: "electrical", tasksCount: 1, iconType: "electrical" },
-  { name: "Furniture Assembly", slug: "furniture-assembly", tasksCount: 1, iconType: "furniture" },
-  { name: "Cooking", slug: "cooking", tasksCount: 1, iconType: "cooking" },
-  { name: "Personal Care", slug: "personal-care", tasksCount: 1, iconType: "personal-care" },
-  { name: "Others", slug: "others", tasksCount: 1, iconType: "others" },
-];
 
 const INITIAL_TASKS = [
   {
@@ -146,9 +139,13 @@ function CategoryIcon({ iconType, icon }) {
 
 export default function TaskerDashboardPage() {
   const [userName, setUserName] = useState("prreto G");
-  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+  const [categories, setCategories] = useState([]);
   const [tasks, setTasks] = useState(INITIAL_TASKS);
   const [loading, setLoading] = useState(true);
+
+  // Buddy Active Account Pass (₹5/day or ₹99/month) state
+  const [subStatus, setSubStatus] = useState(null);
+  const [activatingPlan, setActivatingPlan] = useState(null);
 
   // Filter states connected to backend API
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -162,6 +159,30 @@ export default function TaskerDashboardPage() {
   const [acceptedIds, setAcceptedIds] = useState({});
   const [selectedTaskModal, setSelectedTaskModal] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
+
+  const loadSubscriptionInfo = useCallback(async () => {
+    try {
+      const res = await getSubscriptionStatus();
+      if (res) {
+        setSubStatus(res);
+      }
+    } catch (e) {}
+  }, []);
+
+  const handleActivatePlan = async (planType) => {
+    setActivatingPlan(planType);
+    try {
+      const res = await activateSubscription(planType, "ONLINE");
+      if (res) {
+        await loadSubscriptionInfo();
+        showToast(res.message || `Buddy ${planType} Active Pass activated!`);
+      }
+    } catch (err) {
+      showToast(err?.message || "Failed to activate Buddy Pass");
+    } finally {
+      setActivatingPlan(null);
+    }
+  };
 
   useEffect(() => {
     try {
@@ -177,7 +198,26 @@ export default function TaskerDashboardPage() {
         }
       }
     } catch (e) {}
-  }, []);
+
+    loadSubscriptionInfo();
+    getTaskCategories()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : res?.data || [];
+        if (list.length > 0) {
+          setCategories((prev) =>
+            prev.length > 0
+              ? prev
+              : list.map((c) => ({
+                  name: c.name,
+                  slug: c.slug || c.name.toLowerCase().replace(/\s+/g, "-"),
+                  tasksCount: 1,
+                  icon: c.icon,
+                }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, [loadSubscriptionInfo]);
 
   const fetchTasksFromBackend = useCallback(
     async ({ category, search, location, viewAll }) => {
@@ -202,10 +242,16 @@ export default function TaskerDashboardPage() {
         }
 
         if (Array.isArray(res?.tasks)) {
-          const normalized = res.tasks.map((t) => ({
-            ...t,
-            hasBakedOverlay: String(t.image || "").includes("helper_task_"),
-          }));
+          const normalized = res.tasks
+            .filter(
+              (t) =>
+                !t.assignedToId &&
+                (!t.status || String(t.status).toUpperCase() === "OPEN")
+            )
+            .map((t) => ({
+              ...t,
+              hasBakedOverlay: String(t.image || "").includes("helper_task_"),
+            }));
           setTasks(normalized);
         }
       } catch (err) {
@@ -247,7 +293,12 @@ export default function TaskerDashboardPage() {
     };
     const handleNewTaskAvailable = (e) => {
       const incoming = e.detail?.task;
-      if (incoming?.id) {
+      if (
+        incoming?.id &&
+        !incoming.assignedToId &&
+        (!incoming.status || String(incoming.status).toUpperCase() === "OPEN")
+      ) {
+        showToast(`🔔 New Task Available: "${incoming.title}" (₹${incoming.budget})`);
         setTasks((prev) => {
           if (prev.some((t) => t.id === incoming.id)) return prev;
           return [
@@ -384,6 +435,59 @@ export default function TaskerDashboardPage() {
               />
               <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#08162f] to-transparent" />
             </div>
+          </div>
+        </div>
+
+        {/* Buddy Active Account Pass Banner (100% Payout to Buddy • ₹5/Day or ₹99/Month Active Fee) */}
+        <div className="mt-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-[#162a4f] bg-[#071226]/95 px-5 py-3.5 shadow-lg">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-bold text-sm">
+              100%
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs sm:text-sm font-bold text-white">
+                  0% Task Commission — You Keep 100% of Every Task Payment
+                </p>
+                {subStatus?.isActive ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-0.5 text-[11px] font-bold text-emerald-300">
+                    ● Active Pass ({subStatus.planType || "DAILY"}) until{" "}
+                    {new Date(subStatus.activeUntil).toLocaleDateString()}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 border border-amber-500/40 px-2.5 py-0.5 text-[11px] font-bold text-amber-300">
+                    ⚡ Activate Buddy Pass (₹5/day) to accept tasks
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Task payments are held safely in Escrow & released 100% to your Buddy Wallet upon completion.
+                {subStatus?.walletBalanceRupees !== undefined && (
+                  <span className="ml-2 font-semibold text-emerald-400">
+                    • Wallet Balance: ₹{subStatus.walletBalanceRupees}
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              disabled={activatingPlan !== null}
+              onClick={() => handleActivatePlan("DAILY")}
+              className="rounded-xl border border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 px-3.5 py-2 text-xs font-bold text-emerald-300 transition"
+            >
+              {activatingPlan === "DAILY" ? "Activating..." : "₹5 / Day Pass"}
+            </button>
+            <button
+              type="button"
+              disabled={activatingPlan !== null}
+              onClick={() => handleActivatePlan("MONTHLY")}
+              className="rounded-xl bg-[#0d6efd] hover:bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow transition"
+            >
+              {activatingPlan === "MONTHLY" ? "Activating..." : "₹99 / Month Pass"}
+            </button>
           </div>
         </div>
 

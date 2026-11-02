@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { getHelpers, getUserProfile } from "@/app/components/services/user.service";
-import { getTaskCategories } from "@/app/components/services/task.service";
+import { getTaskCategories, updateTask } from "@/app/components/services/task.service";
 import { HelperDirectoryCardShimmer } from "@/app/components/ui/Shimmer";
 import {
   Search,
@@ -430,10 +430,15 @@ function HelpersPageContent() {
         profileLocation ||
         "Modipuram, Meerut";
 
+      const rawImg = typeof h?.image === "string" ? h.image.trim() : "";
+      const resolvedImage = rawImg.startsWith("/uploads/")
+        ? `${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api").replace(/\/api\/?$/, "")}${rawImg}`
+        : rawImg || null;
+
       return {
         id: h?.id || `api-helper-${idx}`,
         name: h?.name || "Verified Helper",
-        image: h?.image || null,
+        image: resolvedImage,
         category: inferredCategory,
         taskTypes: Array.from(new Set([inferredCategory, ...rawSkills])),
         skills:
@@ -611,7 +616,7 @@ function HelpersPageContent() {
   };
 
   // Invite & Assign helper directly to the task from `/dashboard/my-tasks`
-  const handleInviteForTask = (helper) => {
+  const handleInviteForTask = async (helper) => {
     if (taskIdParam && typeof window !== "undefined") {
       try {
         const raw = localStorage.getItem(TASK_OVERRIDES_STORAGE_KEY);
@@ -623,7 +628,7 @@ function HelpersPageContent() {
           assignedTo: {
             id: helper.id,
             name: helper.name,
-            image: helper.image || "/images/priya_sharma.png",
+            image: helper.image || null,
             phone: helper.phone || "+91 98765 43210",
             city: helper.location,
             location: helper.location,
@@ -639,8 +644,27 @@ function HelpersPageContent() {
         // Ignore storage error
       }
 
+      // Persist Buddy invitation / reassignment to PostgreSQL
+      const token =
+        session?.token ||
+        (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+      if (token && !String(taskIdParam).startsWith("demo-")) {
+        try {
+          await updateTask(
+            taskIdParam,
+            {
+              helperId: helper.id,
+              bookNow: true,
+            },
+            token
+          );
+        } catch (err) {
+          console.warn("Backend updateTask for Buddy invite warning:", err?.message);
+        }
+      }
+
       setToast(
-        `Invited ${helper.name} for "${taskTitleParam || "your task"}"! Redirecting to My Tasks...`
+        `Assigned ${helper.name} to "${taskTitleParam || "your task"}"! Redirecting to My Tasks...`
       );
       setTimeout(() => {
         router.push("/dashboard/my-tasks");
@@ -651,6 +675,7 @@ function HelpersPageContent() {
     // If not coming from a specific task, go to create-task with this helper preselected
     const params = new URLSearchParams();
     params.set("helper", String(helper.id));
+    params.set("bookNow", "1");
     if (selectedTaskType !== "ALL") {
       params.set("category", selectedTaskType);
     } else if (helper.category) {
@@ -709,201 +734,143 @@ function HelpersPageContent() {
           </div>
         )}
 
-        {/* Header Card */}
-        <div className="mb-6 rounded-3xl border border-slate-800/90 bg-[#0b1120]/95 p-6 sm:p-7 shadow-2xl">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                Find & Invite Helpers
-              </h1>
-              <p className="mt-1 text-sm text-slate-400">
-                Filter verified local helpers by location and type of task before hiring
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <Link
-                href="/dashboard/my-tasks"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700/90 bg-slate-900 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-800 transition"
-              >
-                My Tasks
-              </Link>
-              <Link
-                href="/dashboard/create-task"
-                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-blue-600/25 hover:bg-blue-500 transition"
-              >
-                + Post New Task
-              </Link>
-            </div>
+        {/* Minimal Header Row with Compact Search in Top-Right Corner */}
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+              Verified Buddies Directory
+            </h1>
+            <p className="text-xs text-slate-400">
+              Browse verified Service Partners by location and skill
+            </p>
           </div>
 
-          {/* Search + Location Filter + Type of Task Filter Row */}
-          <div className="mt-6 grid grid-cols-1 gap-3.5 md:grid-cols-12">
-            {/* 1. Search by Name / Skill */}
-            <div className="relative md:col-span-5">
-              <label className="mb-1.5 block text-xs font-semibold text-slate-300">
-                Search Helper or Skill
-              </label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by name, skill, or service (e.g. medicine, cleaning)..."
-                  className="w-full rounded-xl border border-slate-700/90 bg-slate-900/90 py-2.5 pl-10 pr-9 text-sm text-white placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
-                />
-                {query && (
-                  <button
-                    type="button"
-                    onClick={() => setQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* 2. Location Filter */}
-            <div className="md:col-span-4">
-              <div className="mb-1.5 flex items-center justify-between">
-                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
-                  <MapPin className="h-3.5 w-3.5 text-emerald-400" />
-                  <span>Location Filter</span>
-                </label>
-                {profileLocation && selectedLocation !== profileLocation && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedLocation(profileLocation)}
-                    className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 cursor-pointer"
-                  >
-                    Use Profile ({profileLocation})
-                  </button>
-                )}
-              </div>
-              <select
-                value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
-                className="w-full rounded-xl border border-slate-700/90 bg-slate-900/90 px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none cursor-pointer"
-              >
-                <option value="ALL">All Locations</option>
-                {locationOptions.map((loc) => (
-                  <option key={loc} value={loc}>
-                    {profileLocation && loc === profileLocation
-                      ? `📍 ${loc} (Your Profile)`
-                      : loc}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* 3. Type of Task / Category Filter */}
-            <div className="md:col-span-3">
-              <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-300">
-                <Tag className="h-3.5 w-3.5 text-sky-400" />
-                <span>Type of Task</span>
-              </label>
-              <select
-                value={selectedTaskType}
-                onChange={(e) => setSelectedTaskType(e.target.value)}
-                className="w-full rounded-xl border border-slate-700/90 bg-slate-900/90 px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none cursor-pointer"
-              >
-                <option value="ALL">All Task Types</option>
-                {taskTypeOptions.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
+          {/* Minimal Search at Top-Right Corner */}
+          <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto">
+            <div className="relative w-full sm:w-64">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search Buddy or skill..."
+                className="w-full rounded-xl border border-slate-700/90 bg-[#0b1120] py-2 pl-8 pr-7 text-xs text-white placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           </div>
+        </div>
 
+        {/* Compact Filter Pills Bar */}
+        <div className="mb-5 rounded-2xl border border-slate-800/80 bg-[#0b1120]/80 p-3.5">
           {/* Quick Task Type Filter Pills */}
-          <div className="mt-5 pt-4 border-t border-slate-800/80">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-1 text-xs font-semibold text-slate-400 flex items-center gap-1">
-                <SlidersHorizontal className="h-3.5 w-3.5 text-blue-400" />
-                Task Type:
-              </span>
-              <button
-                type="button"
-                onClick={() => setSelectedTaskType("ALL")}
-                className={`rounded-full px-3.5 py-1 text-xs font-semibold transition cursor-pointer ${
-                  selectedTaskType === "ALL"
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-600/25"
-                    : "border border-slate-800 bg-slate-900/80 text-slate-300 hover:border-slate-700 hover:text-white"
-                }`}
-              >
-                All Types
-              </button>
-              {taskTypeOptions.map((cat) => {
-                const active =
-                  selectedTaskType.toLowerCase() === cat.toLowerCase();
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() =>
-                      setSelectedTaskType(active ? "ALL" : cat)
-                    }
-                    className={`rounded-full px-3.5 py-1 text-xs font-semibold transition cursor-pointer ${
-                      active
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-600/25"
-                        : "border border-slate-800 bg-slate-900/80 text-slate-300 hover:border-slate-700 hover:text-white"
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-xs font-semibold text-slate-400 flex items-center gap-1">
+              <SlidersHorizontal className="h-3.5 w-3.5 text-blue-400" />
+              Category:
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedTaskType("ALL")}
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition cursor-pointer ${
+                selectedTaskType === "ALL"
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/25"
+                  : "border border-slate-800 bg-slate-900/80 text-slate-300 hover:border-slate-700 hover:text-white"
+              }`}
+            >
+              All Types
+            </button>
+            {taskTypeOptions.map((cat) => {
+              const active =
+                selectedTaskType.toLowerCase() === cat.toLowerCase();
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() =>
+                    setSelectedTaskType(active ? "ALL" : cat)
+                  }
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition cursor-pointer ${
+                    active
+                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/25"
+                      : "border border-slate-800 bg-slate-900/80 text-slate-300 hover:border-slate-700 hover:text-white"
+                  }`}
+                >
+                  {cat}
+                </button>
+              );
+            })}
+          </div>
 
-            {/* Quick Location Pills */}
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="mr-1 text-xs font-semibold text-slate-400 flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5 text-emerald-400" />
-                Locations:
-              </span>
+          {/* Quick Location Pills */}
+          <div className="mt-2.5 pt-2.5 border-t border-slate-800/70 flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-xs font-semibold text-slate-400 flex items-center gap-1">
+              <MapPin className="h-3.5 w-3.5 text-emerald-400" />
+              Location:
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedLocation("ALL")}
+              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition cursor-pointer ${
+                selectedLocation === "ALL"
+                  ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
+                  : "border border-slate-800 bg-slate-900/80 text-slate-300 hover:border-slate-700 hover:text-white"
+              }`}
+            >
+              All Locations
+            </button>
+            {profileLocation && (
               <button
                 type="button"
-                onClick={() => setSelectedLocation("ALL")}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition cursor-pointer ${
-                  selectedLocation === "ALL"
-                    ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
-                    : "border border-slate-800 bg-slate-900/80 text-slate-300 hover:border-slate-700 hover:text-white"
+                onClick={() =>
+                  setSelectedLocation(
+                    selectedLocation === profileLocation ? "ALL" : profileLocation
+                  )
+                }
+                className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition cursor-pointer ${
+                  selectedLocation === profileLocation
+                    ? "bg-emerald-500 text-slate-950"
+                    : "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
                 }`}
               >
-                All Locations
+                📍 My Profile ({profileLocation})
               </button>
-              {[
-                "Modipuram, Meerut",
-                "Shastri Nagar, Meerut",
-                "Meerut, UP",
-                "Noida, UP",
-                "Ghaziabad, UP",
-                "Delhi NCR",
-              ].map((loc) => {
-                const active =
-                  selectedLocation.toLowerCase() === loc.toLowerCase();
-                return (
-                  <button
-                    key={loc}
-                    type="button"
-                    onClick={() =>
-                      setSelectedLocation(active ? "ALL" : loc)
-                    }
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition cursor-pointer ${
-                      active
-                        ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
-                        : "border border-slate-800 bg-slate-900/80 text-slate-300 hover:border-slate-700 hover:text-white"
-                    }`}
-                  >
-                    📍 {loc}
-                  </button>
-                );
-              })}
-            </div>
+            )}
+            {[
+              "Modipuram, Meerut",
+              "Shastri Nagar, Meerut",
+              "Meerut, UP",
+              "Noida, UP",
+              "Ghaziabad, UP",
+              "Delhi NCR",
+            ].map((loc) => {
+              const active =
+                selectedLocation.toLowerCase() === loc.toLowerCase();
+              return (
+                <button
+                  key={loc}
+                  type="button"
+                  onClick={() =>
+                    setSelectedLocation(active ? "ALL" : loc)
+                  }
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition cursor-pointer ${
+                    active
+                      ? "bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20"
+                      : "border border-slate-800 bg-slate-900/80 text-slate-300 hover:border-slate-700 hover:text-white"
+                  }`}
+                >
+                  📍 {loc}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -912,7 +879,7 @@ function HelpersPageContent() {
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-bold text-white">
               Showing {filteredHelpers.length}{" "}
-              {filteredHelpers.length === 1 ? "Helper" : "Helpers"}
+              {filteredHelpers.length === 1 ? "Buddy" : "Buddies"}
             </p>
 
             {selectedLocation !== "ALL" && (
@@ -1136,7 +1103,7 @@ function HelpersPageContent() {
                   >
                     <UserPlus className="h-3.5 w-3.5" />
                     <span>
-                      {taskIdParam ? "Invite to Task" : "Invite Helper"}
+                      {taskIdParam ? "Invite to Task" : "Invite Buddy"}
                     </span>
                   </button>
                 </div>

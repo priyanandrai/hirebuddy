@@ -36,6 +36,8 @@ const FALLBACK_SERVICES = [
     priceUnit: "day",
     relevanceOrder: 1,
     availableHelpers: 12,
+    helperId: "042e3ad6-3a36-4386-8016-ffa35f030b79",
+    helperName: "prreto G",
     subServices: [
       "Full Home Deep Cleaning",
       "Kitchen & Bathroom Sanitization",
@@ -60,6 +62,8 @@ const FALLBACK_SERVICES = [
     priceUnit: "day",
     relevanceOrder: 2,
     availableHelpers: 8,
+    helperId: "d88cade8-a950-44f8-8aa2-2eac273500f2",
+    helperName: "Ravinder Gurjar",
     subServices: [
       "Local City Chauffeur",
       "Outstation Round Trips",
@@ -84,6 +88,8 @@ const FALLBACK_SERVICES = [
     priceUnit: "day",
     relevanceOrder: 3,
     availableHelpers: 6,
+    helperId: "f2cbe879-532f-4f3c-b383-bbbc98b05cb1",
+    helperName: "Aman Sharma",
     subServices: [
       "Same-Day Parcel Delivery",
       "Grocery & Medicine Pickup",
@@ -108,6 +114,8 @@ const FALLBACK_SERVICES = [
     priceUnit: "day",
     relevanceOrder: 4,
     availableHelpers: 5,
+    helperId: "1c7cdd17-ef8d-4e2d-b3f5-edefa13ccc00",
+    helperName: "Sanjay Prajapati",
     subServices: [
       "Tap & Pipe Leak Repair",
       "Drain Blockage Clearing",
@@ -132,6 +140,8 @@ const FALLBACK_SERVICES = [
     priceUnit: "day",
     relevanceOrder: 5,
     availableHelpers: 4,
+    helperId: "1c7cdd17-ef8d-4e2d-b3f5-edefa13ccc00",
+    helperName: "Sanjay Prajapati",
     subServices: [
       "Switchboard & Wiring Repair",
       "Ceiling Fan & Light Installation",
@@ -156,6 +166,8 @@ const FALLBACK_SERVICES = [
     priceUnit: "day",
     relevanceOrder: 6,
     availableHelpers: 3,
+    helperId: "2071c799-df78-4236-a92c-f8241b4e5681",
+    helperName: "Vikram Chauhan",
     subServices: [
       "Bed & Wardrobe Assembly",
       "Modular Study Table Setup",
@@ -181,6 +193,8 @@ const FALLBACK_SERVICES = [
     relevanceOrder: 7,
     availableHelpers: 3,
     isExtended: true,
+    helperId: "eb01ff8a-efb2-45f4-97cf-3d0fe1f6c583",
+    helperName: "Shanti Devi",
     subServices: [
       "Daily Home Meal Prep",
       "North & South Indian Cooking",
@@ -206,6 +220,8 @@ const FALLBACK_SERVICES = [
     relevanceOrder: 8,
     availableHelpers: 2,
     isExtended: true,
+    helperId: "03221d71-cc13-4a71-886e-fbe8fa01b1cd",
+    helperName: "Kamal Kishor",
     subServices: [
       "Elder Companionship",
       "Doctor Visit Escort",
@@ -231,6 +247,8 @@ const FALLBACK_SERVICES = [
     relevanceOrder: 9,
     availableHelpers: 4,
     isExtended: true,
+    helperId: "159e903f-783d-4bc4-b02b-11377444e546",
+    helperName: "Babita Rani",
     subServices: [
       "Gardening & Plant Care",
       "Event Help & Setup",
@@ -945,7 +963,7 @@ export default function UserHomePage() {
                 </span>
               </div>
 
-              <div className="mt-2 flex items-center gap-3 text-xs text-slate-300">
+              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-300">
                 <span className="flex items-center gap-1">
                   <span className="text-amber-400">★</span>
                   <strong className="text-white">{detailService.rating}</strong> (
@@ -953,6 +971,14 @@ export default function UserHomePage() {
                 </span>
                 <span>•</span>
                 <span>📍 {detailService.location}</span>
+                {detailService.helperName && (
+                  <>
+                    <span>•</span>
+                    <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
+                      👤 Buddy: {detailService.helperName}
+                    </span>
+                  </>
+                )}
               </div>
 
               <p className="mt-3 text-xs leading-relaxed text-slate-300">
@@ -988,7 +1014,15 @@ export default function UserHomePage() {
                 <Link
                   href={`/dashboard/create-task?category=${encodeURIComponent(
                     detailService.taskCategory || detailService.title
-                  )}&service=${encodeURIComponent(detailService.title)}`}
+                  )}&service=${encodeURIComponent(
+                    detailService.title
+                  )}&price=${encodeURIComponent(
+                    detailService.price || ""
+                  )}&helper=${encodeURIComponent(
+                    detailService.helperId || ""
+                  )}&helperName=${encodeURIComponent(
+                    detailService.helperName || ""
+                  )}&bookNow=1`}
                   className="flex-1 rounded-lg bg-[#2fa97c] py-2.5 text-center text-xs font-semibold text-white hover:bg-[#27946b]"
                 >
                   Book Now
@@ -1075,11 +1109,16 @@ function ServiceCard({ service, isFavorite, onToggleFavorite, onViewDetails }) {
           )}
         </div>
 
-        {/* Rating */}
-        <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+        {/* Rating & Matched Buddy */}
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
           <span className="text-amber-400 text-sm leading-none">★</span>
           <span className="font-bold text-white">{service.rating}</span>
           <span className="text-slate-400">({service.reviewsCount} reviews)</span>
+          {service.helperName && (
+            <span className="ml-auto rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+              👤 {service.helperName}
+            </span>
+          )}
         </div>
 
         {/* Location */}
@@ -1123,7 +1162,15 @@ function ServiceCard({ service, isFavorite, onToggleFavorite, onViewDetails }) {
           <Link
             href={`/dashboard/create-task?category=${encodeURIComponent(
               service.taskCategory || service.title
-            )}&service=${encodeURIComponent(service.title)}`}
+            )}&service=${encodeURIComponent(
+              service.title
+            )}&price=${encodeURIComponent(
+              service.price || ""
+            )}&helper=${encodeURIComponent(
+              service.helperId || ""
+            )}&helperName=${encodeURIComponent(
+              service.helperName || ""
+            )}&bookNow=1`}
             className="rounded-lg bg-[#34b27b] py-2 text-center text-xs font-bold text-white shadow-md shadow-emerald-950/30 transition hover:bg-[#2ca16d]"
           >
             Book Now

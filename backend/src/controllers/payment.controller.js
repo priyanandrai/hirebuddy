@@ -26,7 +26,13 @@ export const createPaymentOrder = async (req, res) => {
  */
 export const verifyPayment = async (req, res) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, task_id } = req.body;
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      task_id,
+      holdInEscrow,
+    } = req.body;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return res.status(400).json({ error: 'Missing payment verification details' });
@@ -36,12 +42,69 @@ export const verifyPayment = async (req, res) => {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-      task_id
+      task_id,
+      { holdInEscrow }
     );
 
-    res.json({ success: true, payment: result.payment });
+    res.json({
+      success: true,
+      payment: result.payment,
+      heldInEscrow: result.heldInEscrow,
+    });
   } catch (error) {
     console.error('Payment verification error:', error);
+    res.status(400).json({ error: error.message });
+  }
+};
+
+/**
+ * Release held escrow payment for a task (100% to Buddy)
+ */
+export const releaseEscrowPayment = async (req, res) => {
+  try {
+    const { taskId, method, markAsPaid } = req.body;
+    if (!taskId) {
+      return res.status(400).json({ error: 'taskId is required' });
+    }
+    const result = await paymentService.releaseEscrowForTask(taskId, req.user?.id, {
+      method,
+      markAsPaid,
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Escrow release error:', error);
+    res.status(400).json({ error: error.message });
+  }
+};
+
+/**
+ * Get Partner Subscription Status (₹5/day or ₹99/month)
+ */
+export const getSubscriptionStatus = async (req, res) => {
+  try {
+    const result = await paymentService.getPartnerSubscriptionStatus(req.user.id);
+    res.json(result);
+  } catch (error) {
+    console.error('Subscription status error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Activate Partner Subscription (₹5/day or ₹99/month)
+ */
+export const activateSubscription = async (req, res) => {
+  try {
+    const { planType = 'DAILY', paymentMethod = 'ONLINE', razorpayPaymentId } = req.body;
+    const result = await paymentService.activatePartnerSubscription(
+      req.user.id,
+      planType,
+      paymentMethod,
+      razorpayPaymentId
+    );
+    res.json(result);
+  } catch (error) {
+    console.error('Subscription activation error:', error);
     res.status(400).json({ error: error.message });
   }
 };

@@ -1,5 +1,6 @@
 import prisma from "../utils/prisma.js";
 import { notificationEvents } from "./notification.service.js";
+import { releaseEscrowForTask } from "./payment.service.js";
 import { indexTask, deleteTask } from "./es.client.js";
 import { emitToTaskRoom, emitToUser, emitBroadcast } from "../config/socket.config.js";
 import {
@@ -24,9 +25,99 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 };
 
 /**
+ * Resolve a helperId or preset slug to a real verified HELPER user in DB
+ */
+const resolveHelperIdForTask = async (helperId, categoryName = "", title = "", excludeUserId = null) => {
+  if (helperId) {
+    const existingHelper = await prisma.user.findUnique({
+      where: { id: String(helperId) },
+      select: { id: true },
+    });
+    if (existingHelper) {
+      return existingHelper.id;
+    }
+  }
+
+  const helpers = await prisma.user.findMany({
+    where: {
+      role: "HELPER",
+      ...(excludeUserId ? { NOT: { id: excludeUserId } } : {}),
+    },
+    select: {
+      id: true,
+      name: true,
+      skills: true,
+      idVerificationStatus: true,
+    },
+    orderBy: [{ idVerificationStatus: "desc" }, { createdAt: "desc" }],
+  });
+
+  const verifiedPool = helpers.filter((h) => h.idVerificationStatus === "VERIFIED");
+  const pool = verifiedPool.length > 0 ? verifiedPool : helpers;
+  const searchHint = `${helperId || ""} ${categoryName || ""} ${title || ""}`.toLowerCase();
+
+  const matched = pool.find((h) => {
+    const skillStr = String(h.skills || "").toLowerCase();
+    const nameStr = String(h.name || "").toLowerCase();
+    if (searchHint.includes("clean") || searchHint.includes("priya"))
+      return skillStr.includes("clean") || nameStr.includes("prreto");
+    if (searchHint.includes("driver") || searchHint.includes("ravinder"))
+      return skillStr.includes("driver") || nameStr.includes("ravinder");
+    if (searchHint.includes("deliver") || searchHint.includes("pickup") || searchHint.includes("rahul"))
+      return skillStr.includes("courier") || skillStr.includes("deliver") || nameStr.includes("aman");
+    if (searchHint.includes("plumb")) return skillStr.includes("plumb") || skillStr.includes("repair");
+    if (searchHint.includes("electr")) return skillStr.includes("electr") || skillStr.includes("appliance");
+    if (searchHint.includes("furniture")) return skillStr.includes("furniture") || skillStr.includes("assembly");
+    if (searchHint.includes("cook")) return skillStr.includes("cook") || nameStr.includes("shanti");
+    if (searchHint.includes("care") || searchHint.includes("elder"))
+      return skillStr.includes("care") || skillStr.includes("physiotherapy") || skillStr.includes("elder");
+    return skillStr.includes(String(categoryName || "").toLowerCase());
+  });
+
+  if (matched) return matched.id;
+  return pool[0]?.id || null;
+};
+
+/**
+ * Enrich a DB task with flattened review & payment fields for frontend consumption
+ */
+const enrichTaskWithRelations = (task) => {
+  if (!task) return task;
+  const latestReview = Array.isArray(task.reviews) && task.reviews.length > 0 ? task.reviews[0] : null;
+  const latestPayment = Array.isArray(task.payments) && task.payments.length > 0 ? task.payments[0] : null;
+
+  let paidAtLabel = null;
+  if (latestPayment?.completedAt || latestPayment?.createdAt) {
+    paidAtLabel = new Date(latestPayment.completedAt || latestPayment.createdAt).toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  const effectivePaymentStatus =
+    task.paymentStatus && task.paymentStatus !== "PENDING"
+      ? task.paymentStatus
+      : latestPayment?.status === "RELEASED" || latestPayment?.status === "COMPLETED"
+        ? "COMPLETED"
+        : latestPayment?.status || task.paymentStatus || "PENDING";
+
+  return {
+    ...task,
+    paymentStatus: effectivePaymentStatus,
+    paidMethod: latestPayment?.method || null,
+    paidAtLabel,
+    userRating: latestReview?.rating || null,
+    userReview: latestReview?.comment || null,
+  };
+};
+
+/**
  * Create a new task
  */
-export const createTask = async (data, user) => {
+export const createTask = async (data, userParam) => {
+  const user = userParam || (data?.createdById ? { id: data.createdById } : {});
   const {
     title,
     description,
@@ -36,10 +127,15 @@ export const createTask = async (data, user) => {
     longitude,
     budget,
     preferredAt,
-    helperId,
+    timeSlot,
+    image,
+    attachments,
+    helperId: rawHelperId,
+    preferredHelperId,
+    assignedToId,
+    bookNow,
   } = data;
-
-  const isDirectRequest = Boolean(helperId);
+  const helperId = rawHelperId || preferredHelperId || assignedToId;
 
   // Ensure the category exists in the Category DB table whenever a task is posted
   let resolvedCategoryName = String(category || "Others").trim() || "Others";
@@ -56,44 +152,83 @@ export const createTask = async (data, user) => {
     console.warn("Could not ensure category in DB:", catErr?.message);
   }
 
+  // Resolve specific Buddy if helperId or bookNow is provided
+  let resolvedHelperId = null;
+  if (helperId || bookNow) {
+    resolvedHelperId = await resolveHelperIdForTask(
+      helperId,
+      resolvedCategoryName,
+      title,
+      user.id
+    );
+  }
+
+  const isDirectAssignment = Boolean(resolvedHelperId);
+  const normalizedAttachments = Array.isArray(attachments) && attachments.length > 0 ? attachments : null;
+  const primaryImage =
+    image ||
+    (normalizedAttachments && normalizedAttachments[0]?.url ? normalizedAttachments[0].url : null);
+
   const task = await prisma.task.create({
     data: {
       title,
       description,
       category: resolvedCategoryName,
       location: location || "To be coordinated",
-      latitude: latitude ? parseFloat(latitude) : null,
-      longitude: longitude ? parseFloat(longitude) : null,
+      latitude: latitude !== undefined && latitude !== null && latitude !== "" ? parseFloat(latitude) : null,
+      longitude: longitude !== undefined && longitude !== null && longitude !== "" ? parseFloat(longitude) : null,
       budget: Number(budget || 0),
       preferredAt: preferredAt ? new Date(preferredAt) : null,
+      timeSlot: timeSlot || "10:00 AM - 12:00 PM",
+      image: primaryImage,
+      attachments: normalizedAttachments,
       createdById: user.id,
-      assignedToId: helperId || null,
-      status: isDirectRequest ? "REQUESTED" : "OPEN",
+      assignedToId: resolvedHelperId || null,
+      status: isDirectAssignment ? "ASSIGNED" : "OPEN",
       paymentStatus: "PENDING",
     },
     include: {
       createdBy: { select: { id: true, name: true, image: true, phone: true } },
-      assignedTo: { select: { id: true, name: true, image: true, phone: true } },
+      assignedTo: {
+        select: {
+          id: true,
+          name: true,
+          image: true,
+          phone: true,
+          city: true,
+          skills: true,
+          averageRating: true,
+          totalReviews: true,
+          idVerificationStatus: true,
+        },
+      },
+      reviews: { orderBy: { createdAt: "desc" } },
+      payments: { orderBy: { createdAt: "desc" } },
     },
   });
 
-  if (isDirectRequest && helperId) {
+  if (isDirectAssignment && resolvedHelperId) {
     try {
-      await notificationEvents.taskRequested(task.id, user.id, helperId);
-      emitToUser(helperId, 'task_requested', {
+      await notificationEvents.taskRequested(task.id, user.id, resolvedHelperId);
+      emitToUser(resolvedHelperId, 'task_requested', {
         taskId: task.id,
         task,
         customerName: user.name || 'A customer',
-        message: `${user.name || 'A customer'} requested you for "${task.title}"`,
+        message: `${user.name || 'A customer'} booked and assigned you for "${task.title}"`,
+      });
+      emitToUser(resolvedHelperId, 'task_status_changed', {
+        taskId: task.id,
+        newStatus: 'ASSIGNED',
+        task,
       });
     } catch (notifErr) {
-      console.warn('Failed to send task requested alert:', notifErr?.message);
+      console.warn('Failed to send direct assignment alert:', notifErr?.message);
     }
   } else {
     try {
       const formattedLiveTask = {
         ...task,
-        image: getCategoryImageForTask(task.category, task.title),
+        image: task.image || getCategoryImageForTask(task.category, task.title),
         isNew: true,
         dateLabel: task.preferredAt
           ? new Date(task.preferredAt).toLocaleDateString("en-GB", {
@@ -106,7 +241,7 @@ export const createTask = async (data, user) => {
               month: "short",
               year: "numeric",
             }),
-        timeSlot: "Flexible / Today",
+        timeSlot: task.timeSlot || "10:00 AM - 12:00 PM",
       };
       emitBroadcast('new_task_available', {
         taskId: task.id,
@@ -121,7 +256,7 @@ export const createTask = async (data, user) => {
     }
   }
 
-  return task;
+  return enrichTaskWithRelations(task);
 };
 
 // Hook: index after create
@@ -139,8 +274,8 @@ export const createTaskAndIndex = async (data, user) => {
 /**
  * Get tasks created by user
  */
-export const getUserTasks = (userId) => {
-  return prisma.task.findMany({
+export const getUserTasks = async (userId) => {
+  const tasks = await prisma.task.findMany({
     where: { createdById: userId },
     include: {
       assignedTo: {
@@ -161,9 +296,12 @@ export const getUserTasks = (userId) => {
         },
       },
       createdBy: { select: { id: true, name: true, image: true, phone: true } },
+      reviews: { orderBy: { createdAt: "desc" } },
+      payments: { orderBy: { createdAt: "desc" } },
     },
     orderBy: { createdAt: "desc" },
   });
+  return tasks.map(enrichTaskWithRelations);
 };
 
 /**
@@ -490,20 +628,37 @@ export const searchTasks = async (filters = {}) => {
       offset = 0,
     } = filters;
 
-    const where = {};
-    if (status && status !== "ALL") where.status = status;
+    const isAdminOrAllStatuses =
+      view === "admin" ||
+      status === "ALL" ||
+      (status && status !== "OPEN");
+
+    const where = isAdminOrAllStatuses
+      ? status && status !== "ALL"
+        ? { status }
+        : {}
+      : {
+          assignedToId: null,
+          status: "OPEN",
+        };
 
     let dbTasks = await prisma.task.findMany({
       where,
       include: {
-        createdBy: { select: { id: true, name: true, image: true } },
-        assignedTo: { select: { id: true, name: true, image: true } },
+        createdBy: { select: { id: true, name: true, image: true, phone: true } },
+        assignedTo: { select: { id: true, name: true, image: true, phone: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 1000,
     });
 
+    // Strictly exclude any task that is directly assigned to a particular Buddy for helper discovery feeds
+    if (!isAdminOrAllStatuses) {
+      dbTasks = dbTasks.filter((t) => !t.assignedToId && t.status === "OPEN");
+    }
+
     // Normalize DB tasks with presentation fields if not present
+    // Give real DB tasks negative relevanceOrder so newly created tasks always appear FIRST at the top of the Buddy feed
     const formattedDbTasks = dbTasks.map((t, index) => ({
       ...t,
       image: t.image || getCategoryImageForTask(t.category, t.title),
@@ -514,9 +669,13 @@ export const searchTasks = async (filters = {}) => {
             month: "short",
             year: "numeric",
           })
-        : "29 Oct 2026",
+        : new Date(t.createdAt || Date.now()).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          }),
       timeSlot: t.timeSlot || "10:00 AM - 01:00 PM",
-      relevanceOrder: 100 + index,
+      relevanceOrder: -1000 + index,
     }));
 
     // Fetch categories from DB (`prisma.category`)
@@ -551,7 +710,7 @@ export const searchTasks = async (filters = {}) => {
           timeSlot: "10:00 AM - 01:00 PM",
           description:
             dbCat.description ||
-            `Need a verified helper for ${dbCat.name} services.`,
+            `Need a verified Buddy for ${dbCat.name} services.`,
           image: getCategoryImageForTask(dbCat.name, dbCat.name),
           isNew: true,
           status: "OPEN",
@@ -561,21 +720,24 @@ export const searchTasks = async (filters = {}) => {
       }
     }
 
-    let combinedTasks = useHelperCatalog
-      ? [
-          ...dynamicCatalogTasks,
-          ...formattedDbTasks.filter(
-            (dbTask) =>
-              !dynamicCatalogTasks.some(
-                (catTask) =>
-                  catTask.title.toLowerCase() === String(dbTask.title || "").toLowerCase() &&
-                  Number(catTask.budget) === Number(dbTask.budget)
-              )
-          ),
-        ]
-      : formattedDbTasks.length > 0
+    let combinedTasks =
+      view === "admin"
         ? formattedDbTasks
-        : [...dynamicCatalogTasks];
+        : useHelperCatalog
+          ? [
+              ...formattedDbTasks,
+              ...dynamicCatalogTasks.filter(
+                (catTask) =>
+                  !formattedDbTasks.some(
+                    (dbTask) =>
+                      String(dbTask.title || "").toLowerCase() === catTask.title.toLowerCase() &&
+                      Number(dbTask.budget) === Number(catTask.budget)
+                  )
+              ),
+            ]
+          : formattedDbTasks.length > 0
+            ? formattedDbTasks
+            : [...dynamicCatalogTasks];
 
     const normalizedCategory = String(category || "").trim().toLowerCase();
     const normalizedSearch = String(search || "").trim().toLowerCase();
@@ -674,12 +836,55 @@ export const assignHelper = async (user, taskId) => {
   // Ensure helper is verified before accepting tasks
   const helperUser = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { idVerificationStatus: true },
+    select: {
+      idVerificationStatus: true,
+      subscriptionActiveUntil: true,
+      walletBalance: true,
+    },
   });
   if (helperUser?.idVerificationStatus !== "VERIFIED") {
     throw new Error(
       "Your account is not verified yet. Please complete document verification and wait for admin approval to accept tasks."
     );
+  }
+
+  // Check active Buddy Pass (₹5/day or ₹99/month). If expired/inactive and wallet has >= ₹5 (500 paise), auto-activate Daily Pass
+  const now = new Date();
+  const hasActivePass =
+    helperUser?.subscriptionActiveUntil &&
+    new Date(helperUser.subscriptionActiveUntil) > now;
+
+  if (!hasActivePass) {
+    if ((helperUser?.walletBalance || 0) >= 500) {
+      const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      await prisma.$transaction([
+        prisma.partnerSubscription.create({
+          data: {
+            userId: user.id,
+            planType: "DAILY",
+            amountPaise: 500,
+            daysGranted: 1,
+            startsAt: now,
+            expiresAt,
+            paymentMethod: "WALLET",
+            status: "ACTIVE",
+          },
+        }),
+        prisma.user.update({
+          where: { id: user.id },
+          data: {
+            partnerPlanType: "DAILY",
+            subscriptionActiveUntil: expiresAt,
+            walletBalance: { decrement: 500 },
+          },
+        }),
+      ]);
+    } else if (helperUser?.subscriptionActiveUntil !== null) {
+      // Previously had a pass that expired and insufficient wallet balance
+      throw new Error(
+        "Your Buddy Active Pass (₹5/day or ₹99/month) has expired. Please activate your pass from the Buddy Dashboard to accept tasks."
+      );
+    }
   }
 
   const task = await prisma.task.findUnique({
@@ -712,7 +917,9 @@ export const assignHelper = async (user, taskId) => {
   // 1. OPEN task on public marketplace with no assigned helper
   // 2. REQUESTED direct booking where this user is the designated helper (assignedToId === user.id)
   const isMarketplaceOpen = task.status === "OPEN" && !task.assignedToId;
-  const isDirectRequestForUser = task.status === "REQUESTED" && task.assignedToId === user.id;
+  const isDirectRequestForUser =
+    (task.status === "REQUESTED" || task.status === "ASSIGNED") &&
+    task.assignedToId === user.id;
 
   if (!isMarketplaceOpen && !isDirectRequestForUser) {
     throw new Error("Task is not available for acceptance");
@@ -744,9 +951,9 @@ export const assignHelper = async (user, taskId) => {
 };
 
 /**
- * Decline a direct booking request as helper
+ * Decline a direct booking request as helper (re-opens the task so customer can pick another Buddy)
  */
-export const declineHelperRequest = async (user, taskId, reason = "Helper is unavailable") => {
+export const declineHelperRequest = async (user, taskId, reason = "Helper is unavailable", cancelCompletely = false) => {
   if (user.role !== "HELPER") {
     throw new Error("Only helpers can decline tasks");
   }
@@ -756,6 +963,7 @@ export const declineHelperRequest = async (user, taskId, reason = "Helper is una
     select: {
       id: true,
       title: true,
+      category: true,
       status: true,
       createdById: true,
       assignedToId: true,
@@ -774,26 +982,186 @@ export const declineHelperRequest = async (user, taskId, reason = "Helper is una
     throw new Error("Task cannot be declined at this stage");
   }
 
+  const nextStatus = cancelCompletely ? "CANCELLED" : "OPEN";
+
   const updatedTask = await prisma.task.update({
     where: { id: taskId },
     data: {
-      status: "CANCELLED",
+      status: nextStatus,
+      assignedToId: cancelCompletely ? task.assignedToId : null,
     },
     include: {
       createdBy: { select: { id: true, name: true, image: true, phone: true } },
       assignedTo: { select: { id: true, name: true, image: true, phone: true } },
+      reviews: { orderBy: { createdAt: "desc" } },
+      payments: { orderBy: { createdAt: "desc" } },
     },
   });
 
   try {
     await notificationEvents.taskDeclined(taskId, user.id, task.createdById, reason);
-    emitToTaskRoom(taskId, 'task_status_changed', { taskId, newStatus: 'CANCELLED' });
-    emitToUser(task.createdById, 'task_status_changed', { taskId, newStatus: 'CANCELLED' });
+    emitToTaskRoom(taskId, 'task_status_changed', {
+      taskId,
+      newStatus: nextStatus,
+      task: enrichTaskWithRelations(updatedTask),
+    });
+    emitToUser(task.createdById, 'task_status_changed', {
+      taskId,
+      newStatus: nextStatus,
+      task: enrichTaskWithRelations(updatedTask),
+    });
+    if (nextStatus === "OPEN") {
+      emitBroadcast('new_task_available', {
+        taskId: updatedTask.id,
+        task: enrichTaskWithRelations(updatedTask),
+        category: updatedTask.category,
+      });
+    }
   } catch (e) {
     console.warn('Decline notification error:', e?.message);
   }
 
-  return updatedTask;
+  return enrichTaskWithRelations(updatedTask);
+};
+
+/**
+ * Update task details (Reschedule, Edit Location/TimeSlot, or Invite/Change Assigned Buddy)
+ */
+export const updateTaskDetails = async (taskId, userId, payload = {}, user = null) => {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: {
+      createdBy: { select: { id: true, name: true } },
+      assignedTo: { select: { id: true, name: true } },
+    },
+  });
+
+  if (!task) {
+    throw new Error("Task not found");
+  }
+
+  const isAdmin = user?.role === "ADMIN" || user?.isAdmin || userId === "admin";
+  const isOwner = task.createdById === userId;
+  const isAssignee = task.assignedToId === userId;
+
+  if (!isOwner && !isAssignee && !isAdmin) {
+    throw new Error("You are not authorized to update this task");
+  }
+
+  const updateData = {};
+
+  if (payload.title !== undefined) updateData.title = String(payload.title).trim();
+  if (payload.description !== undefined) updateData.description = payload.description;
+  if (payload.location !== undefined) updateData.location = String(payload.location).trim();
+  if (payload.latitude !== undefined) {
+    updateData.latitude = payload.latitude !== null && payload.latitude !== "" ? parseFloat(payload.latitude) : null;
+  }
+  if (payload.longitude !== undefined) {
+    updateData.longitude = payload.longitude !== null && payload.longitude !== "" ? parseFloat(payload.longitude) : null;
+  }
+  if (payload.preferredAt !== undefined) {
+    updateData.preferredAt = payload.preferredAt ? new Date(payload.preferredAt) : null;
+  }
+  if (payload.timeSlot !== undefined) {
+    updateData.timeSlot = String(payload.timeSlot).trim();
+  }
+  if (payload.budget !== undefined && !Number.isNaN(Number(payload.budget))) {
+    updateData.budget = Number(payload.budget);
+  }
+  if (payload.image !== undefined) {
+    updateData.image = payload.image;
+  }
+  if (payload.attachments !== undefined) {
+    updateData.attachments = payload.attachments;
+  }
+
+  // Handle inviting / assigning / changing a Buddy on an existing task
+  let newlyAssignedHelperId = null;
+  if (payload.helperId !== undefined || payload.assignedToId !== undefined) {
+    const rawTargetHelper = payload.helperId ?? payload.assignedToId;
+    if (!rawTargetHelper) {
+      updateData.assignedToId = null;
+      if (["ASSIGNED", "REQUESTED"].includes(task.status)) {
+        updateData.status = "OPEN";
+      }
+    } else {
+      const resolvedId = await resolveHelperIdForTask(
+        rawTargetHelper,
+        task.category,
+        task.title,
+        task.createdById
+      );
+      if (resolvedId) {
+        updateData.assignedToId = resolvedId;
+        newlyAssignedHelperId = resolvedId;
+        updateData.status = payload.bookNow === false ? "REQUESTED" : "ASSIGNED";
+      }
+    }
+  } else if (payload.status && ["OPEN", "REQUESTED", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"].includes(payload.status)) {
+    updateData.status = payload.status;
+  }
+
+  const updatedTask = await prisma.task.update({
+    where: { id: taskId },
+    data: updateData,
+    include: {
+      createdBy: { select: { id: true, name: true, image: true, phone: true } },
+      assignedTo: {
+        select: {
+          id: true,
+          name: true,
+          image: true,
+          phone: true,
+          city: true,
+          address: true,
+          skills: true,
+          experience: true,
+          hourlyRate: true,
+          isAvailable: true,
+          averageRating: true,
+          totalReviews: true,
+          idVerificationStatus: true,
+        },
+      },
+      reviews: { orderBy: { createdAt: "desc" } },
+      payments: { orderBy: { createdAt: "desc" } },
+    },
+  });
+
+  const enriched = enrichTaskWithRelations(updatedTask);
+
+  try {
+    if (newlyAssignedHelperId) {
+      await notificationEvents.taskRequested(taskId, task.createdById, newlyAssignedHelperId);
+      emitToUser(newlyAssignedHelperId, 'task_requested', {
+        taskId,
+        task: enriched,
+        customerName: updatedTask.createdBy?.name || 'Customer',
+        message: `${updatedTask.createdBy?.name || 'Customer'} assigned you to "${updatedTask.title}"`,
+      });
+    }
+    if (updatedTask.assignedToId) {
+      emitToUser(updatedTask.assignedToId, 'task_status_changed', {
+        taskId,
+        newStatus: updatedTask.status,
+        task: enriched,
+      });
+    }
+    emitToUser(updatedTask.createdById, 'task_status_changed', {
+      taskId,
+      newStatus: updatedTask.status,
+      task: enriched,
+    });
+    emitToTaskRoom(taskId, 'task_status_changed', {
+      taskId,
+      newStatus: updatedTask.status,
+      task: enriched,
+    });
+  } catch (e) {
+    console.warn("Socket emit warning in updateTaskDetails:", e?.message);
+  }
+
+  return enriched;
 };
 
 /**
@@ -809,6 +1177,8 @@ export const getTaskById = async (userId, taskId, user = null) => {
           name: true,
           phone: true,
           image: true,
+          city: true,
+          skills: true,
           averageRating: true,
           totalReviews: true,
         },
@@ -821,9 +1191,15 @@ export const getTaskById = async (userId, taskId, user = null) => {
           image: true,
         },
       },
-      messages: { select: { id: true } },
-      reviews: { select: { id: true } },
-      payments: { select: { id: true, status: true } },
+      messages: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          sender: { select: { id: true, name: true, image: true } },
+          receiver: { select: { id: true, name: true, image: true } },
+        },
+      },
+      reviews: { orderBy: { createdAt: "desc" } },
+      payments: { orderBy: { createdAt: "desc" } },
     },
   });
 
@@ -839,14 +1215,14 @@ export const getTaskById = async (userId, taskId, user = null) => {
     return null;
   }
 
-  return task;
+  return enrichTaskWithRelations(task);
 };
 
 /**
  * Get tasks assigned to a helper
  */
-export const getTasksAssignedToHelper = (helperId) => {
-  return prisma.task.findMany({
+export const getTasksAssignedToHelper = async (helperId) => {
+  const tasks = await prisma.task.findMany({
     where: {
       assignedToId: helperId,
     },
@@ -862,18 +1238,32 @@ export const getTasksAssignedToHelper = (helperId) => {
           totalReviews: true,
         },
       },
+      assignedTo: {
+        select: {
+          id: true,
+          name: true,
+          image: true,
+          phone: true,
+          city: true,
+          averageRating: true,
+          totalReviews: true,
+        },
+      },
+      reviews: { orderBy: { createdAt: "desc" } },
+      payments: { orderBy: { createdAt: "desc" } },
     },
     orderBy: {
       createdAt: "desc",
     },
   });
+  return tasks.map(enrichTaskWithRelations);
 };
 
 /**
  * Get tasks created by user
  */
-export const getTasksCreatedByUser = (userId) => {
-  return prisma.task.findMany({
+export const getTasksCreatedByUser = async (userId) => {
+  const tasks = await prisma.task.findMany({
     where: {
       createdById: userId,
     },
@@ -895,11 +1285,14 @@ export const getTasksCreatedByUser = (userId) => {
           idVerificationStatus: true,
         },
       },
+      reviews: { orderBy: { createdAt: "desc" } },
+      payments: { orderBy: { createdAt: "desc" } },
     },
     orderBy: {
       createdAt: "desc",
     },
   });
+  return tasks.map(enrichTaskWithRelations);
 };
 
 /**
@@ -928,7 +1321,7 @@ export const updateTaskStatus = async (taskId, userId, newStatus, user = null) =
     const validTransitions = {
       OPEN: ["ASSIGNED", "CANCELLED"],
       REQUESTED: ["ASSIGNED", "CANCELLED"],
-      ASSIGNED: ["IN_PROGRESS", "CANCELLED"],
+      ASSIGNED: ["IN_PROGRESS", "COMPLETED", "CANCELLED"],
       IN_PROGRESS: ["COMPLETED", "CANCELLED"],
       COMPLETED: [],
       CANCELLED: [],
@@ -952,12 +1345,42 @@ export const updateTaskStatus = async (taskId, userId, newStatus, user = null) =
 
     // Send notifications based on status change
     const otherUserId = userId === task.createdById ? task.assignedToId : task.createdById;
-    if (newStatus === "IN_PROGRESS" && otherUserId) {
-      await notificationEvents.taskStarted(taskId, userId, otherUserId);
-    } else if (newStatus === "COMPLETED" && otherUserId) {
-      await notificationEvents.taskCompleted(taskId, userId, otherUserId);
-    } else if (newStatus === "CANCELLED" && otherUserId) {
-      await notificationEvents.taskCancelled(taskId, userId, otherUserId);
+    const notifSenderId = userId === "admin" ? task.createdById : userId;
+
+    try {
+      if (newStatus === "IN_PROGRESS" && otherUserId && notifSenderId) {
+        await notificationEvents.taskStarted(taskId, notifSenderId, otherUserId);
+      } else if (newStatus === "COMPLETED" && otherUserId && notifSenderId) {
+        await notificationEvents.taskCompleted(taskId, notifSenderId, otherUserId);
+      } else if (newStatus === "CANCELLED" && otherUserId && notifSenderId) {
+        await notificationEvents.taskCancelled(taskId, notifSenderId, otherUserId);
+      }
+    } catch (notifErr) {
+      console.warn("Task status notification warning:", notifErr?.message);
+    }
+
+    if (newStatus === "IN_PROGRESS") {
+      // Sync MarketplaceOrder status if this is a platform delivery task
+      await prisma.marketplaceOrder
+        .updateMany({
+          where: { deliveryTaskId: taskId },
+          data: { orderStatus: "OUT_FOR_DELIVERY" },
+        })
+        .catch(() => {});
+    } else if (newStatus === "COMPLETED") {
+      // Automatically release held escrow payment (100% to Buddy) when task is completed
+      try {
+        await releaseEscrowForTask(taskId, userId === "admin" ? task.createdById : userId);
+      } catch (escrowErr) {
+        console.warn("Auto escrow release check warning:", escrowErr?.message);
+      }
+      // Sync MarketplaceOrder status if this is a platform delivery task
+      await prisma.marketplaceOrder
+        .updateMany({
+          where: { deliveryTaskId: taskId },
+          data: { orderStatus: "DELIVERED" },
+        })
+        .catch(() => {});
     }
 
     try {
@@ -1001,7 +1424,7 @@ export const cancelTask = async (taskId, userId, reason = "Task cancelled by use
       throw new Error("Task not found");
     }
 
-    if (task.createdById !== userId) {
+    if (task.createdById !== userId && userId !== "admin") {
       throw new Error("Only task creator can cancel");
     }
 
@@ -1017,8 +1440,7 @@ export const cancelTask = async (taskId, userId, reason = "Task cancelled by use
 };
 
 export const deleteTaskAndRemoveIndex = async (taskId) => {
-  // delete from DB
-  const deleted = await prisma.task.delete({ where: { id: taskId } });
+  const deleted = await deleteTaskService(taskId);
   try {
     await deleteTask(taskId);
   } catch (e) {
@@ -1032,6 +1454,22 @@ export const deleteTaskAndRemoveIndex = async (taskId) => {
  */
 export const getTaskStats = async (userId) => {
   try {
+    if (userId === "admin") {
+      const [tasksCreated, tasksAssigned, tasksCompleted, tasksInProgress] = await Promise.all([
+        prisma.task.count(),
+        prisma.task.count({ where: { assignedToId: { not: null } } }),
+        prisma.task.count({ where: { status: "COMPLETED" } }),
+        prisma.task.count({ where: { status: "IN_PROGRESS" } }),
+      ]);
+      return {
+        tasksCreated,
+        tasksAssigned,
+        tasksCompleted,
+        tasksInProgress,
+        completionRate: tasksAssigned > 0 ? ((tasksCompleted / tasksAssigned) * 100).toFixed(2) : 0,
+      };
+    }
+
     const tasksCreated = await prisma.task.count({
       where: { createdById: userId },
     });
@@ -1063,6 +1501,10 @@ export const getTaskStats = async (userId) => {
 
 export const deleteTaskService = async (taskId) => {
   return prisma.$transaction(async (tx) => {
+    await tx.marketplaceOrder.updateMany({
+      where: { deliveryTaskId: taskId },
+      data: { deliveryTaskId: null },
+    });
     await tx.notification.deleteMany({ where: { taskId } });
     await tx.message.deleteMany({ where: { taskId } });
     await tx.review.deleteMany({ where: { taskId } });
@@ -1077,6 +1519,8 @@ export default {
   findNearbyTasks,
   searchTasks,
   assignHelper,
+  declineHelperRequest,
+  updateTaskDetails,
   getTaskById,
   getTasksAssignedToHelper,
   getTasksCreatedByUser,

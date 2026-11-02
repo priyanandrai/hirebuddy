@@ -10,6 +10,7 @@ import TasksPage from './pages/TasksPage';
 import CategoriesPage from './pages/CategoriesPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SettingsPage from './pages/SettingsPage';
+import MarketplacePage from './pages/MarketplacePage';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
       {/* Protected Admin Routes */}
       <Route path="/" element={<AdminLayout />}>
         <Route index element={<DashboardPage />} />
+        <Route path="marketplace" element={<MarketplacePage />} />
         <Route path="verifications" element={<VerificationsPage />} />
         <Route path="helpers" element={<HelpersPage />} />
         <Route path="users" element={<UsersPage />} />

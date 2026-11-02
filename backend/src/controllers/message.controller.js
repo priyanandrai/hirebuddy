@@ -8,8 +8,8 @@ export const sendMessage = async (req, res) => {
     const { taskId, receiverId, message, messageType = 'TEXT', mediaUrl } = req.body;
     const senderId = req.user.id;
 
-    if (!taskId || !receiverId || !message) {
-      return res.status(400).json({ error: 'taskId, receiverId, and message are required' });
+    if (!taskId || !message) {
+      return res.status(400).json({ error: 'taskId and message are required' });
     }
 
     const newMessage = await messageService.sendMessage(

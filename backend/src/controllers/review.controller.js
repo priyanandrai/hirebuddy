@@ -8,8 +8,8 @@ export const createReview = async (req, res) => {
     const { taskId, givenToId, rating, comment } = req.body;
     const givenById = req.user.id;
 
-    if (!taskId || !givenToId || !rating) {
-      return res.status(400).json({ error: 'taskId, givenToId, and rating are required' });
+    if (!taskId || !rating) {
+      return res.status(400).json({ error: 'taskId and rating are required' });
     }
 
     const review = await reviewService.createReview(taskId, givenById, givenToId, rating, comment);

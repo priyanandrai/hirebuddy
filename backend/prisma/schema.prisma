@@ -34,6 +34,10 @@ model User {
   // Wallet
   walletBalance Int      @default(0) // in paise
 
+  // Partner Active Account Subscription (₹4-5/day or monthly pass)
+  partnerPlanType         String?   // "DAILY" | "MONTHLY" | "TRIAL"
+  subscriptionActiveUntil DateTime?
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -56,6 +60,10 @@ model User {
   paymentsTo Payment[] @relation("PayeePayments")
   notificationsSent Notification[] @relation("SentNotifications")
   notificationsReceived Notification[] @relation("ReceivedNotifications")
+  partnerSubscriptions PartnerSubscription[]
+  supportTickets SupportTicket[]
+  sellerProfile SellerProfile?
+  marketplaceOrders MarketplaceOrder[] @relation("CustomerMarketplaceOrders")
 }
 
 model Otp {
@@ -69,14 +77,17 @@ model Otp {
 
 model Task {
   id          String     @id @default(uuid())
-  title       String
-  description String?
+  title       String     @db.VarChar(255)
+  description String?    @db.Text
   category    String
-  location    String
+  location    String     @db.VarChar(500)
   latitude    Float?
   longitude   Float?
   budget      Int      // in paise
   preferredAt DateTime?
+  timeSlot    String?
+  image       String?  @db.VarChar(1000)
+  attachments Json?
   status      TaskStatus @default(OPEN)
   
   // Payment tracking
@@ -102,6 +113,8 @@ model Task {
 enum Role {
   USER
   HELPER
+  SELLER
+  ADMIN
 }
 
 enum IDVerificationStatus {
@@ -123,6 +136,8 @@ enum TaskStatus {
 enum PaymentStatus {
   PENDING
   INITIATED
+  HELD_IN_ESCROW
+  RELEASED
   COMPLETED
   FAILED
   REFUNDED
@@ -142,9 +157,9 @@ model Message {
   senderId  String
   receiverId String
   
-  message   String?
+  message   String?     @db.Text
   type      MessageType @default(TEXT)
-  mediaUrl  String?
+  mediaUrl  String?     @db.VarChar(1000)
   
   isRead    Boolean  @default(false)
   readAt    DateTime?
@@ -169,7 +184,7 @@ model Review {
   givenToId String
   
   rating    Int      // 1-5 stars
-  comment   String?
+  comment   String?  @db.Text
   
   task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   givenBy   User     @relation("ReviewsGiven", fields: [givenById], references: [id], onDelete: Cascade)
@@ -215,19 +230,20 @@ model Payment {
 // ===== NOTIFICATION MODEL =====
 model Notification {
   id        String   @id @default(uuid())
-  taskId    String
+  taskId    String?
+  orderId   String?
   
   senderId  String
   receiverId String
   
-  type      String   // "task_accepted", "task_completed", "payment_received", etc.
+  type      String   // "task_accepted", "task_completed", "payment_received", "marketplace_order", etc.
   title     String
-  message   String?
+  message   String?  @db.Text
   
   isRead    Boolean  @default(false)
   readAt    DateTime?
 
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
   sender    User     @relation("SentNotifications", fields: [senderId], references: [id], onDelete: Cascade)
   receiver  User     @relation("ReceivedNotifications", fields: [receiverId], references: [id], onDelete: Cascade)
 
@@ -248,4 +264,222 @@ model Category {
   isPopular   Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ===== PARTNER SUBSCRIPTION MODEL (₹4-5/day or Monthly Pass) =====
+model PartnerSubscription {
+  id                String   @id @default(uuid())
+  userId            String
+  planType          String   // "DAILY" | "MONTHLY"
+  amountPaise       Int      // e.g. 500 (₹5) or 9900 (₹99)
+  daysGranted       Int      @default(1)
+  startsAt          DateTime @default(now())
+  expiresAt         DateTime
+  paymentMethod     String   @default("WALLET") // "WALLET" | "RAZORPAY"
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  status            String   @default("ACTIVE") // "ACTIVE" | "EXPIRED"
+  createdAt         DateTime @default(now())
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ===== CUSTOMER SUPPORT TICKET MODEL =====
+model SupportTicket {
+  id          String   @id @default(uuid())
+  userId      String?
+  name        String
+  email       String
+  phone       String?
+  subject     String
+  category    String   @default("General")
+  message     String   @db.Text
+  status      String   @default("OPEN") // "OPEN" | "IN_PROGRESS" | "RESOLVED"
+  adminReply  String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ===== MEERUT MANUFACTURERS MARKETPLACE MODELS =====
+
+model SellerProfile {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  businessName        String
+  businessCategory    String   // Sports Goods, Scissors/Cutlery, Food/Gajak, Brassware, Textiles, Handloom, etc.
+  contactPersonName   String
+  contactPersonPhone  String
+  contactEmail        String?
+
+  // Pickup Point Address
+  pickupAddress       String   @db.Text
+  pickupCity          String   @default("Meerut")
+  pickupPincode       String
+  pickupLatitude      Float?
+  pickupLongitude     Float?
+
+  // KYC & Regulatory Documents (FSSAI, GSTIN, PAN, MSME/Udyam)
+  gstNumber           String?
+  gstDocUrl           String?  @db.VarChar(1000)
+  fssaiNumber         String?  // Required for Food / Sweets / Consumables
+  fssaiDocUrl         String?  @db.VarChar(1000)
+  panNumber           String
+  panDocUrl           String?  @db.VarChar(1000)
+  msmeNumber          String?
+  msmeDocUrl          String?  @db.VarChar(1000)
+  otherLicenseName    String?
+  otherLicenseUrl     String?  @db.VarChar(1000)
+
+  // Bank Account & Daily NEFT / Direct Split Details
+  bankAccountHolder   String
+  bankAccountNumber   String
+  bankIfscCode        String
+  bankName            String?
+  bankBranch          String?
+  cancelledChequeUrl  String?  @db.VarChar(1000)
+  razorpayAccountId   String?  // For Razorpay Route direct portion split
+  bankVerified        Boolean  @default(false)
+
+  verificationStatus  String   @default("PENDING") // "PENDING" | "VERIFIED" | "REJECTED"
+  verificationNotes   String?  @db.Text
+  verifiedAt          DateTime?
+
+  products            Product[]
+  orders              MarketplaceOrder[]
+  settlements         SettlementBatch[]
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Product {
+  id                  String   @id @default(uuid())
+  sellerId            String
+  seller              SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  name                String
+  slug                String   @unique
+  description         String   @db.Text
+  category            String
+  images              Json?    // Array of image URLs
+  pricePaise          Int      // Selling price in paise
+  mrpPaise            Int?
+  stock               Int      @default(50)
+  unit                String   @default("piece")
+  minOrderQty         Int      @default(1)
+
+  // Admin-configurable commission (10% - 20%) & verification
+  commissionRate      Float    @default(15.0)
+  status              String   @default("PENDING_APPROVAL") // "DRAFT" | "PENDING_APPROVAL" | "PUBLISHED" | "REJECTED" | "ARCHIVED"
+  rejectionReason     String?  @db.Text
+  approvedAt          DateTime?
+  approvedByAdmin     String?
+
+  // Delivery mode ("SELLER_SELF" | "PLATFORM_HELPER")
+  defaultDeliveryMode String   @default("SELLER_SELF")
+
+  orderItems          MarketplaceOrderItem[]
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([sellerId])
+  @@index([status])
+  @@index([category])
+}
+
+model MarketplaceOrder {
+  id                      String   @id @default(uuid())
+  orderNumber             String   @unique
+  customerId              String
+  sellerId                String
+
+  customer                User          @relation("CustomerMarketplaceOrders", fields: [customerId], references: [id], onDelete: Cascade)
+  seller                  SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  items                   MarketplaceOrderItem[]
+
+  // Customer Delivery Address
+  shippingName            String
+  shippingPhone           String
+  shippingAddress         String   @db.Text
+  shippingCity            String
+  shippingPincode         String
+  shippingLatitude        Float?
+  shippingLongitude       Float?
+
+  // Delivery Mode & 2% Platform Auto-Task
+  deliveryMode            String   @default("SELLER_SELF") // "SELLER_SELF" | "PLATFORM_HELPER"
+  deliveryFeePaise        Int      @default(0)             // 2% extra charge when PLATFORM_HELPER
+  deliveryTaskId          String?  @unique                 // Auto-created Task ID on behalf of Admin
+
+  // Financial Breakdown (Portion-wise split in paise)
+  productSubtotalPaise    Int
+  platformCommissionRate  Float    @default(15.0)          // e.g. 15%
+  platformCommissionPaise Int                              // e.g. 15% of productSubtotalPaise -> Platform Account
+  sellerPayablePaise      Int                              // e.g. 85% of productSubtotalPaise -> Seller Account
+  totalPaidPaise          Int                              // productSubtotalPaise + deliveryFeePaise
+
+  // Payment & Daily NEFT Settlement Tracking
+  paymentStatus           String   @default("PENDING")     // "PENDING" | "PAID" | "FAILED" | "REFUNDED"
+  paymentMethod           String   @default("ONLINE")      // "ONLINE" | "RAZORPAY_SPLIT" | "NEFT_ESCROW"
+  razorpayOrderId         String?
+  razorpayPaymentId       String?
+  settlementStatus        String   @default("UNSETTLED")   // "UNSETTLED" | "QUEUED_FOR_NEFT" | "SETTLED_DIRECT_SPLIT" | "SETTLED_NEFT"
+  settlementUtr           String?
+  settledAt               DateTime?
+  settlementBatchId       String?
+
+  orderStatus             String   @default("PLACED")      // "PLACED" | "CONFIRMED" | "PACKED" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELLED"
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([sellerId])
+  @@index([settlementStatus])
+}
+
+model MarketplaceOrderItem {
+  id                  String           @id @default(uuid())
+  orderId             String
+  productId           String
+  productName         String
+  quantity            Int
+  unitPricePaise      Int
+  commissionRate      Float
+  platformSharePaise  Int
+  sellerSharePaise    Int
+
+  order               MarketplaceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product             Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model SettlementBatch {
+  id                      String        @id @default(uuid())
+  sellerId                String
+  seller                  SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  settlementDate          DateTime      @default(now())
+  totalOrdersCount        Int
+  grossAmountPaise        Int
+  commissionDeductedPaise Int
+  netPayablePaise         Int
+  neftUtrNumber           String?
+  status                  String        @default("PENDING") // "PENDING" | "PROCESSING" | "PAID" | "FAILED"
+  processedByAdmin        String?
+  processedAt             DateTime?
+  createdAt               DateTime      @default(now())
+
+  @@index([sellerId])
+  @@index([status])
 }

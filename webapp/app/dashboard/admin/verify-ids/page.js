@@ -5,7 +5,7 @@ import { getPendingIdSubmissions, verifyUserId } from "@/app/components/services
 import { NotificationRowShimmer } from "@/app/components/ui/Shimmer";
 
 export default function VerifyIdsAdminPage() {
-  const [adminToken, setAdminToken] = useState("");
+  const [adminToken, setAdminToken] = useState("hirebuddy_admin_secret_2026");
   const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(false);
 

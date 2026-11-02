@@ -11,18 +11,6 @@ import { getAuthToken } from "../../components/lib/getSessionToken";
 import { hireBuddy } from "../../components/services/hire.service";
 import { HelperSearchCardShimmer } from "../../components/ui/Shimmer";
 
-const TASK_TYPE_OPTIONS = [
-  "Home Cleaning",
-  "Driver Services",
-  "Delivery & Pickup",
-  "Plumbing",
-  "Electrical",
-  "Furniture Assembly",
-  "Cooking",
-  "Personal Care",
-  "Others",
-];
-
 const LOCATION_OPTIONS = [
   "Modipuram, Meerut",
   "Shastri Nagar, Meerut",
@@ -488,7 +476,7 @@ function SearchContent() {
 
   const [apiTasks, setApiTasks] = useState([]);
   const [apiHelpers, setApiHelpers] = useState([]);
-  const [dbCategories, setDbCategories] = useState(TASK_TYPE_OPTIONS);
+  const [dbCategories, setDbCategories] = useState([]);
   const [loading, setLoading] = useState(Boolean(q || hasActiveFilters));
   const shimmerTimerRef = useRef(null);
 
@@ -790,10 +778,10 @@ function SearchContent() {
                 </nav>
 
                 <h1 className="mt-2.5 text-2xl sm:text-[32px] font-extrabold tracking-tight text-white leading-tight">
-                  {q ? `Search results for “${q}”` : "Search services & helpers"}
+                  {q ? `Search results for “${q}”` : "Search services & Buddies"}
                 </h1>
                 <p className="mt-1.5 text-sm text-slate-400">
-                  Find trusted local helpers for your task.
+                  Find trusted local Buddies for your task.
                 </p>
 
                 {/* Result Type Tabs */}
@@ -807,7 +795,7 @@ function SearchContent() {
                         : "border border-[#1d2d4e] bg-[#0a1326] text-slate-300 hover:border-slate-600 hover:text-white"
                     }`}
                   >
-                    Helpers ({filteredHelpers.length})
+                    Buddies ({filteredHelpers.length})
                   </button>
                   <button
                     type="button"

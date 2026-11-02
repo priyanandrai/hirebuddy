@@ -11,7 +11,8 @@ import {
   Settings,
   Sparkles,
   LogOut,
-  ExternalLink
+  ExternalLink,
+  Store
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -20,8 +21,9 @@ export default function Sidebar({ pendingCount = 0 }) {
 
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/marketplace', label: 'Meerut Marketplace', icon: Store },
     { to: '/verifications', label: 'ID Verifications', icon: ShieldCheck, badge: pendingCount > 0 ? pendingCount : null },
-    { to: '/helpers', label: 'Helpers', icon: Wrench },
+    { to: '/helpers', label: 'Buddies (Partners)', icon: Wrench },
     { to: '/users', label: 'Users & Customers', icon: Users },
     { to: '/tasks', label: 'All Tasks', icon: CheckSquare },
     { to: '/categories', label: 'Categories', icon: Grid },

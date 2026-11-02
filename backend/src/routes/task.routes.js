@@ -11,6 +11,7 @@ import {
   getCreatedTasks,
   getNearbyTasks,
   searchTasks,
+  updateTask,
   updateTaskStatus,
   cancelTask,
   deleteTask,
@@ -43,6 +44,7 @@ router.post("/:id/accept", authMiddleware, allowRoles("HELPER"), acceptTask);
 router.post("/:id/decline", authMiddleware, allowRoles("HELPER"), declineTask);
 router.put("/:id/status", authMiddleware, updateTaskStatus);
 router.put("/:id/cancel", authMiddleware, cancelTask);
+router.put("/:id", authMiddleware, updateTask);
 router.delete("/:id", authMiddleware, deleteTask);
 
 // Get task details (must be last)

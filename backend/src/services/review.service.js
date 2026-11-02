@@ -2,16 +2,15 @@ import prisma from '../utils/prisma.js';
 import { notificationEvents } from './notification.service.js';
 
 /**
- * Create a review for a completed task
+ * Create or update a review for a task
  */
 export const createReview = async (taskId, givenById, givenToId, rating, comment = null) => {
   try {
-    // Validate rating
-    if (rating < 1 || rating > 5) {
+    const numericRating = Number(rating);
+    if (!numericRating || numericRating < 1 || numericRating > 5) {
       throw new Error('Rating must be between 1 and 5');
     }
 
-    // Verify task is completed
     const task = await prisma.task.findUnique({
       where: { id: taskId },
     });
@@ -20,61 +19,89 @@ export const createReview = async (taskId, givenById, givenToId, rating, comment
       throw new Error('Task not found');
     }
 
-    if (task.status !== 'COMPLETED') {
-      throw new Error('Can only review completed tasks');
+    // Resolve recipient user ID (handle preset helper slugs or missing givenToId)
+    let resolvedGivenToId = givenToId;
+    if (resolvedGivenToId) {
+      const recipientExists = await prisma.user.findUnique({
+        where: { id: String(resolvedGivenToId) },
+        select: { id: true },
+      });
+      if (!recipientExists) {
+        resolvedGivenToId = null;
+      }
+    }
+    if (!resolvedGivenToId) {
+      resolvedGivenToId =
+        givenById === task.createdById
+          ? task.assignedToId || task.createdById
+          : task.createdById;
     }
 
-    // Check if review already exists
+    // Check if review already exists for (taskId, givenById) and upsert
     const existingReview = await prisma.review.findUnique({
       where: {
         taskId_givenById: { taskId, givenById },
       },
     });
 
-    if (existingReview) {
-      throw new Error('You have already reviewed this task');
-    }
+    const review = existingReview
+      ? await prisma.review.update({
+          where: { id: existingReview.id },
+          data: {
+            givenToId: resolvedGivenToId,
+            rating: numericRating,
+            comment,
+          },
+          include: {
+            givenBy: { select: { id: true, name: true, image: true } },
+            givenTo: { select: { id: true, name: true, image: true } },
+          },
+        })
+      : await prisma.review.create({
+          data: {
+            taskId,
+            givenById,
+            givenToId: resolvedGivenToId,
+            rating: numericRating,
+            comment,
+          },
+          include: {
+            givenBy: { select: { id: true, name: true, image: true } },
+            givenTo: { select: { id: true, name: true, image: true } },
+          },
+        });
 
-    const review = await prisma.review.create({
-      data: {
-        taskId,
-        givenById,
-        givenToId,
-        rating,
-        comment,
-      },
-      include: {
-        givenBy: { select: { id: true, name: true, image: true } },
-        givenTo: { select: { id: true, name: true, image: true } },
-      },
-    });
+    // Update recipient user's average rating and totalReviews
+    if (resolvedGivenToId) {
+      const allReviews = await prisma.review.findMany({
+        where: { givenToId: resolvedGivenToId },
+      });
 
-    // Update user's average rating
-    const allReviews = await prisma.review.findMany({
-      where: { givenToId },
-    });
+      const avgRating =
+        allReviews.length > 0
+          ? allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length
+          : numericRating;
 
-    const avgRating = allReviews.reduce((sum, r) => sum + r.rating, 0) / allReviews.length;
+      await prisma.user.update({
+        where: { id: resolvedGivenToId },
+        data: {
+          averageRating: parseFloat(avgRating.toFixed(2)),
+          totalReviews: allReviews.length,
+        },
+      });
 
-    await prisma.user.update({
-      where: { id: givenToId },
-      data: {
-        averageRating: parseFloat(avgRating.toFixed(2)),
-        totalReviews: allReviews.length,
-      },
-    });
-
-    // Send real-time review notification to the recipient
-    try {
-      await notificationEvents.reviewReceived(
-        taskId,
-        givenById,
-        review.givenBy?.name || 'A user',
-        rating,
-        givenToId
-      );
-    } catch (notifErr) {
-      console.warn('Review notification failed:', notifErr?.message);
+      // Send real-time review notification to the recipient
+      try {
+        await notificationEvents.reviewReceived(
+          taskId,
+          givenById,
+          review.givenBy?.name || 'A user',
+          numericRating,
+          resolvedGivenToId
+        );
+      } catch (notifErr) {
+        console.warn('Review notification failed:', notifErr?.message);
+      }
     }
 
     return review;

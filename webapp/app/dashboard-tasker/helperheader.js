@@ -236,7 +236,7 @@ export default function HelperHeader() {
               <span className="text-[13px] font-semibold text-white">
                 {currentUser?.name || "prreto G"}
               </span>
-              <span className="text-[11px] text-slate-400">Helper</span>
+              <span className="text-[11px] text-emerald-400 font-medium">Buddy Partner</span>
             </div>
             <ChevronDown className="h-3.5 w-3.5 text-slate-400 ml-0.5" />
           </button>
@@ -249,7 +249,7 @@ export default function HelperHeader() {
                 className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-[#132240]"
                 onClick={() => setOpen(false)}
               >
-                Helper Home
+                Buddy Home
               </Link>
               <Link
                 href="/dashboard-tasker/my-tasks"

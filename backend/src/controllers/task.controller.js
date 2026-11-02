@@ -173,7 +173,7 @@ export const searchTasks = async (req, res) => {
       category,
       city,
       location,
-      search,
+      search: search || req.query.q,
       minBudget,
       maxBudget,
       includeCatalog,
@@ -182,7 +182,7 @@ export const searchTasks = async (req, res) => {
       latitude: latitude ? parseFloat(latitude) : null,
       longitude: longitude ? parseFloat(longitude) : null,
       radiusKm: parseInt(radiusKm),
-      status: status && status !== "ALL" ? status : undefined,
+      status: status || undefined,
       limit: parseInt(limit),
       offset: parseInt(offset),
     });
@@ -195,11 +195,32 @@ export const searchTasks = async (req, res) => {
 };
 
 /**
+ * Update task details (reschedule, location, invite/change helper)
+ */
+export const updateTask = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const task = await taskService.updateTaskDetails(id, req.user.id, req.body || {}, req.user);
+    try { await indexTask(task); } catch (e) { console.warn('Indexing updated task failed', e); }
+    res.json(task);
+  } catch (error) {
+    console.error("Update task details error:", error);
+    const statusCode =
+      error.message === "Task not found"
+        ? 404
+        : error.message.includes("Only the task creator")
+          ? 403
+          : 400;
+    res.status(statusCode).json({ message: error.message });
+  }
+};
+
+/**
  * Update task status
  */
 export const updateTaskStatus = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id || req.params.taskId;
     const { status } = req.body;
 
     if (!status) {

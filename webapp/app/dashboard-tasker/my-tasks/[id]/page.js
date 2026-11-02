@@ -1,6 +1,8 @@
 "use client";
 
 import { getTaskById, updateTaskStatus, acceptTask, declineTask } from "@/app/components/services/task.service";
+import { releaseEscrowPayment } from "@/app/components/services/payment.service";
+import { getTaskMessages, sendMessage as sendTaskMessageApi } from "@/app/components/services/message.service";
 import { TaskDetailShimmer } from "@/app/components/ui/Shimmer";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -33,8 +35,11 @@ export default function TaskerTaskDetailPage() {
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
 
-  const handleTogglePaymentStatus = (markAsPaid) => {
+  const handleTogglePaymentStatus = async (markAsPaid) => {
     if (!task || typeof window === "undefined") return;
     const nowLabel = new Date().toLocaleString("en-IN", {
       day: "2-digit",
@@ -68,6 +73,15 @@ export default function TaskerTaskDetailPage() {
       // ignore storage errors
     }
     setTask((prev) => (prev ? { ...prev, ...patch } : prev));
+
+    try {
+      await releaseEscrowPayment(task.id, {
+        method: task.paidMethod || "Cash / Direct UPI",
+        markAsPaid,
+      });
+    } catch (err) {
+      console.warn("Payment status DB sync warning:", err?.message);
+    }
   };
 
   useEffect(() => {
@@ -85,8 +99,44 @@ export default function TaskerTaskDetailPage() {
       }
     };
 
+    const fetchMessages = async () => {
+      try {
+        const msgRes = await getTaskMessages(id);
+        const list = Array.isArray(msgRes?.messages)
+          ? msgRes.messages
+          : Array.isArray(msgRes)
+            ? msgRes
+            : [];
+        setMessages(list);
+      } catch {
+        setMessages([]);
+      }
+    };
+
     fetchTask();
+    fetchMessages();
   }, [id]);
+
+  async function handleSendReply(e) {
+    e.preventDefault();
+    if (!replyText.trim() || !task) return;
+    setSendingReply(true);
+    try {
+      const sent = await sendTaskMessageApi(
+        task.id,
+        task.createdById || task.createdBy?.id || null,
+        replyText.trim()
+      );
+      if (sent?.id) {
+        setMessages((prev) => [...prev, sent]);
+      }
+      setReplyText("");
+    } catch (err) {
+      alert(err.message || "Failed to send message");
+    } finally {
+      setSendingReply(false);
+    }
+  }
 
   async function handleAcceptRequest() {
     const token = localStorage.getItem("token");
@@ -272,8 +322,33 @@ export default function TaskerTaskDetailPage() {
 
           <div className="space-y-2 rounded-2xl bg-slate-950/50 p-4 text-sm text-slate-300 border border-slate-800/80">
             <p>📍 <strong className="text-white">Location:</strong> {task.location}</p>
-            <p>⏰ <strong className="text-white">Time:</strong> {task.preferredAt ? new Date(task.preferredAt).toLocaleString() : "Flexible"}</p>
+            <p>
+              ⏰ <strong className="text-white">Time:</strong>{" "}
+              {task.preferredAt
+                ? new Date(task.preferredAt).toLocaleDateString("en-IN", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })
+                : "Flexible"}
+              {task.timeSlot ? ` · ${task.timeSlot}` : ""}
+            </p>
             <p>💰 <strong className="text-white">Budget:</strong> <span className="font-bold text-emerald-400">₹{task.budget}</span></p>
+            {Array.isArray(task.attachments) && task.attachments.length > 0 && (
+              <div className="pt-1">
+                <strong className="text-white">Attachments:</strong>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {task.attachments.map((att, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-200"
+                    >
+                      📎 {att.name || `Attachment ${idx + 1}`}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             {status === "COMPLETED" && (
               <p>
                 💳 <strong className="text-white">Payment Status:</strong>{" "}
@@ -290,6 +365,59 @@ export default function TaskerTaskDetailPage() {
             <p className="font-semibold text-white">Customer Details</p>
             <p className="mt-1 text-sm text-slate-300">Name: <span className="text-white font-medium">{customerName}</span></p>
             <p className="text-sm text-slate-300">Phone: <span className="text-white font-medium">{customerPhone}</span></p>
+          </div>
+
+          {/* Live Customer Chat Thread */}
+          <div className="rounded-[1.5rem] border border-slate-800 bg-slate-950/60 p-4 space-y-3">
+            <p className="font-semibold text-white text-sm">
+              💬 Task Messages with {customerName}
+            </p>
+            <div className="max-h-48 overflow-y-auto space-y-2 rounded-xl border border-slate-800/80 bg-slate-900/70 p-3">
+              {messages.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-2">
+                  No messages yet. Send a message to coordinate arrival or task details.
+                </p>
+              ) : (
+                messages.map((m) => {
+                  const isCustomer = m.senderId === task.createdById;
+                  return (
+                    <div
+                      key={m.id}
+                      className={`flex flex-col ${isCustomer ? "items-start" : "items-end"}`}
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs ${
+                          isCustomer
+                            ? "bg-slate-800 text-slate-100"
+                            : "bg-blue-600 text-white"
+                        }`}
+                      >
+                        <p className="text-[10px] font-semibold opacity-75 mb-0.5">
+                          {isCustomer ? m.sender?.name || customerName : "You"}
+                        </p>
+                        <p>{m.message}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <form onSubmit={handleSendReply} className="flex gap-2">
+              <input
+                type="text"
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                placeholder={`Message ${customerName}...`}
+                className="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs text-white placeholder:text-slate-500 focus:border-blue-500 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={sendingReply || !replyText.trim()}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+              >
+                {sendingReply ? "Sending..." : "Send"}
+              </button>
+            </form>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

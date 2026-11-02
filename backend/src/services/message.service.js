@@ -1,11 +1,12 @@
-import  prisma  from '../utils/prisma.js';
+import prisma from '../utils/prisma.js';
+import { emitToUser } from '../config/socket.config.js';
+import { sendNotification } from './notification.service.js';
 
 /**
  * Send a message between task creator and helper
  */
 export const sendMessage = async (taskId, senderId, receiverId, message, messageType = 'TEXT', mediaUrl = null) => {
   try {
-    // Verify users are part of the task
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: { createdBy: true, assignedTo: true },
@@ -15,11 +16,21 @@ export const sendMessage = async (taskId, senderId, receiverId, message, message
       throw new Error('Task not found');
     }
 
-    const isValidParticipant =
-      (task.createdById === senderId || task.assignedToId === senderId) &&
-      (task.createdById === receiverId || task.assignedToId === receiverId);
+    let resolvedReceiverId = receiverId;
+    if (
+      !resolvedReceiverId ||
+      (resolvedReceiverId !== task.createdById && resolvedReceiverId !== task.assignedToId)
+    ) {
+      resolvedReceiverId =
+        senderId === task.createdById
+          ? task.assignedToId || task.createdById
+          : task.createdById;
+    }
 
-    if (!isValidParticipant) {
+    const isSenderParticipant =
+      task.createdById === senderId || task.assignedToId === senderId;
+
+    if (!isSenderParticipant) {
       throw new Error('User is not part of this task');
     }
 
@@ -27,7 +38,7 @@ export const sendMessage = async (taskId, senderId, receiverId, message, message
       data: {
         taskId,
         senderId,
-        receiverId,
+        receiverId: resolvedReceiverId,
         message,
         type: messageType,
         mediaUrl,
@@ -37,6 +48,22 @@ export const sendMessage = async (taskId, senderId, receiverId, message, message
         receiver: { select: { id: true, name: true, image: true } },
       },
     });
+
+    if (resolvedReceiverId && resolvedReceiverId !== senderId) {
+      try {
+        emitToUser(resolvedReceiverId, 'new_message', newMessage);
+        await sendNotification(
+          taskId,
+          senderId,
+          resolvedReceiverId,
+          'new_message',
+          `New Message from ${newMessage.sender?.name || 'HireBuddy User'}`,
+          String(message).slice(0, 120)
+        );
+      } catch (e) {
+        console.warn('Socket/notification on message failed:', e?.message);
+      }
+    }
 
     return newMessage;
   } catch (error) {

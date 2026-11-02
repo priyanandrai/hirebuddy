@@ -12,9 +12,13 @@ import {
   
   export const sendOtp = async (req, res) => {
     try {
-      const { phone } = req.body;
-      await sendOtpService(phone);
-      res.json({ success: true });
+      const { phone, email, identifier } = req.body;
+      const result = await sendOtpService(phone || email || identifier);
+      res.json({
+        success: true,
+        message: `OTP sent to ${result.identifier}`,
+        devOtp: result.otp,
+      });
     } catch (err) {
       res.status(400).json({ message: err.message });
     }
@@ -22,8 +26,8 @@ import {
   
   export const verifyOtp = async (req, res) => {
     try {
-      const { phone, otp } = req.body;
-      const data = await verifyOtpService(phone, otp);
+      const { phone, email, identifier, otp } = req.body;
+      const data = await verifyOtpService(phone || email || identifier, otp);
       res.json(data);
     } catch (err) {
       res.status(401).json({ message: err.message });

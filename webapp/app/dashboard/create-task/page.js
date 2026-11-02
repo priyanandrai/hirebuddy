@@ -4,9 +4,9 @@ import { Suspense, useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { createTask, getTaskCategories, createTaskCategory } from "@/app/components/services/task.service";
-import { getHelperByID, getUserProfile } from "@/app/components/services/user.service";
+import { getHelperByID, getHelpers, getUserProfile } from "@/app/components/services/user.service";
 import CustomSelect from "@/app/components/reuseable/CustomSelect";
-import { MapPin, Navigation, UserCheck, Calendar, Plus } from "lucide-react";
+import { MapPin, Navigation, UserCheck, Calendar, Plus, Users, Sparkles, CheckCircle2 } from "lucide-react";
 
 const SERVICE_LOCATIONS = [
   "Modipuram, Meerut",
@@ -18,6 +18,14 @@ const SERVICE_LOCATIONS = [
   "Greater Noida, UP",
   "Ghaziabad, UP",
   "Delhi NCR",
+];
+
+const TIME_SLOTS = [
+  "08:00 AM - 10:00 AM",
+  "10:00 AM - 12:00 PM",
+  "12:00 PM - 02:00 PM",
+  "03:00 PM - 05:00 PM",
+  "05:00 PM - 07:00 PM",
 ];
 
 function getTodayLocalDateString() {
@@ -40,6 +48,13 @@ function CreateTaskContent() {
   const searchParams = useSearchParams();
   const helperId = searchParams.get("helper");
   const prefilledCategory = searchParams.get("category") || "";
+  const prefilledService = searchParams.get("service") || "";
+  const prefilledPrice = searchParams.get("price") || "";
+  const prefilledHelperName = searchParams.get("helperName") || "";
+  const isBookNow =
+    searchParams.get("bookNow") === "1" ||
+    Boolean(helperId) ||
+    Boolean(prefilledService);
   const { data: session } = useSession();
   const router = useRouter();
 
@@ -56,12 +71,17 @@ function CreateTaskContent() {
   const [detectingGps, setDetectingGps] = useState(false);
 
   const [form, setForm] = useState({
-    title: "",
+    title: prefilledService || "",
     category: prefilledCategory,
-    description: "",
+    description: prefilledService
+      ? `Need verified ${prefilledService} assistance at my location.`
+      : "",
     location: "",
+    latitude: null,
+    longitude: null,
     date: getTodayLocalDateString(),
-    budget: "",
+    timeSlot: "10:00 AM - 12:00 PM",
+    budget: prefilledPrice || "",
     helperId: helperId || null,
   });
 
@@ -143,11 +163,18 @@ function CreateTaskContent() {
             formatted ||
             data?.display_name?.split(",").slice(0, 2).join(", ") ||
             `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-          setForm((prev) => ({ ...prev, location: finalLoc }));
+          setForm((prev) => ({
+            ...prev,
+            location: finalLoc,
+            latitude,
+            longitude,
+          }));
         } catch {
           setForm((prev) => ({
             ...prev,
             location: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+            latitude,
+            longitude,
           }));
         } finally {
           setDetectingGps(false);
@@ -221,28 +248,79 @@ function CreateTaskContent() {
     }
   }, [prefilledCategory, categories]);
 
-  // Mock helper (later replace with API fetch)
-  const [selectedHelper, setSelectedHelper] = useState();
-  useEffect(() => {
+  // Fetch available Buddies so customer can optionally pick a Buddy directly on Create Task
+  const [selectedHelper, setSelectedHelper] = useState(
+    helperId || prefilledHelperName
+      ? {
+          id: helperId || null,
+          name: prefilledHelperName || "Matched Service Buddy",
+          averageRating: 4.8,
+          skills: prefilledService || prefilledCategory || "Verified Service Partner",
+          city: "Meerut",
+        }
+      : null
+  );
+  const [availableBuddies, setAvailableBuddies] = useState([]);
+  const [assignmentMode, setAssignmentMode] = useState(
+    isBookNow ? "DIRECT" : "MARKETPLACE"
+  );
 
-    if (helperId)
+  useEffect(() => {
+    getHelpers()
+      .then((res) => {
+        const list = Array.isArray(res) ? res : res?.data || res?.helpers || [];
+        setAvailableBuddies(list);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (helperId) {
+      setAssignmentMode("DIRECT");
       fetchHelpers(helperId);
-  }, [helperId]);
+    } else if (isBookNow) {
+      setAssignmentMode("DIRECT");
+    }
+  }, [helperId, isBookNow]);
 
   const fetchHelpers = async (id) => {
     try {
       const res = await getHelperByID(id);
-      console.log("fetch helper res", res);
-     
-
-      // assuming API returns array   
-      setSelectedHelper(res.data || res);
+      const data = res?.data || res;
+      if (data && data.id) {
+        setSelectedHelper(data);
+        setForm((prev) => ({ ...prev, helperId: data.id }));
+      }
     } catch (error) {
-      console.error("Failed to fetch helpers", error);
-    } finally {
-      // setLoading(false);
+      console.error("Failed to fetch buddy", error);
     }
   };
+
+  const filteredBuddies = useMemo(() => {
+    if (!availableBuddies.length) return [];
+    const cat = String(form.category || prefilledCategory || "").toLowerCase().trim();
+    if (!cat) return availableBuddies.slice(0, 6);
+    const matching = availableBuddies.filter((b) => {
+      const skillText = Array.isArray(b.skills)
+        ? b.skills.join(" ")
+        : String(b.skills || b.service || "");
+      return skillText.toLowerCase().includes(cat);
+    });
+    return (matching.length > 0 ? matching : availableBuddies).slice(0, 6);
+  }, [availableBuddies, form.category, prefilledCategory]);
+
+  // If user clicked "Book Now" and no specific helper UUID was resolved yet, auto-assign the top matched Buddy for that service
+  useEffect(() => {
+    if (
+      assignmentMode === "DIRECT" &&
+      !form.helperId &&
+      filteredBuddies.length > 0
+    ) {
+      const best = filteredBuddies[0];
+      setSelectedHelper(best);
+      setForm((prev) => ({ ...prev, helperId: best.id }));
+    }
+  }, [assignmentMode, form.helperId, filteredBuddies]);
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -254,8 +332,31 @@ function CreateTaskContent() {
     setForm({ ...form, [name]: value });
   }
 
-  function handleFileChange(e) {
-    setFiles(Array.from(e.target.files));
+  async function handleFileChange(e) {
+    const selected = Array.from(e.target.files || []);
+    const encoded = await Promise.all(
+      selected.slice(0, 4).map(
+        (file) =>
+          new Promise((resolve) => {
+            if (file.size <= 350 * 1024 && file.type.startsWith("image/")) {
+              const reader = new FileReader();
+              reader.onload = () =>
+                resolve({
+                  name: file.name,
+                  type: file.type,
+                  size: file.size,
+                  url: typeof reader.result === "string" ? reader.result : null,
+                });
+              reader.onerror = () =>
+                resolve({ name: file.name, type: file.type, size: file.size, url: null });
+              reader.readAsDataURL(file);
+            } else {
+              resolve({ name: file.name, type: file.type, size: file.size, url: null });
+            }
+          })
+      )
+    );
+    setFiles(encoded);
   }
 
   function handleSubmit(e) {
@@ -284,22 +385,32 @@ function CreateTaskContent() {
 
     setLoading(true);
 
+    const isDirect = Boolean(form.helperId) || assignmentMode === "DIRECT";
+    const firstImage = files.find((f) => f?.url && String(f.url).length < 950)?.url || null;
     const payload = {
       title: form.title,
       category: form.category,
       description: form.description,
       location: form.location,
+      latitude: form.latitude,
+      longitude: form.longitude,
       budget: Number(form.budget),
       preferredAt: form.date,
+      timeSlot: form.timeSlot,
+      image: firstImage,
+      attachments: files.length > 0 ? files : null,
       helperId: form.helperId,
+      bookNow: isDirect,
     };
 
     createTask(payload, token)
       .then(() => {
         alert(
-          helperId
-            ? "Task created and sent to selected helper!"
-            : "Task created successfully!"
+          isDirect
+            ? `Task booked! ${
+                selectedHelper?.name || "Your selected Buddy"
+              } has been directly assigned to your task (not shown to other Helper Buddies).`
+            : "Task posted! Nearby verified Buddies have been notified."
         );
         router.push("/dashboard/my-tasks");
       })
@@ -316,24 +427,47 @@ function CreateTaskContent() {
   return (
     <main className="min-h-screen bg-white dark:bg-slate-950 px-6 py-8 text-slate-900 dark:text-slate-100">
       <div className="mx-auto max-w-3xl">
-        <div className="mb-8 text-center text-sm text-slate-600 dark:text-slate-300">
-          Add task details and optionally hire a specific helper.
+        <div className="mb-6 text-center">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Create a New Task</h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            Add task details, use your profile location or GPS, and either broadcast to nearby Buddies or pick a specific Buddy.
+          </p>
         </div>
 
         {selectedHelper && (
-          <div className="mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 shadow-lg shadow-emerald-950/20">
-            <p className="text-sm font-medium text-emerald-600 dark:text-emerald-300">Hiring this helper</p>
-            <div className="mt-2 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-400/15 text-sm font-semibold text-emerald-300">
-                {selectedHelper.name?.charAt(0) || "H"}
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
+                {selectedHelper.name?.charAt(0) || "B"}
               </div>
               <div className="text-sm">
-                <p className="font-medium text-white">{selectedHelper.name}</p>
-                <p className="text-xs text-slate-300">
-                  ⭐ {selectedHelper.rating || 4.8} · {selectedHelper.jobs || 0} jobs · {selectedHelper.location || "Local area"}
+                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                  🔒 Assigned Buddy (Exclusive Direct Booking)
+                </p>
+                <p className="font-bold text-slate-900 dark:text-white">{selectedHelper.name}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  ⭐ {selectedHelper.averageRating || selectedHelper.rating || 4.8} ·{" "}
+                  {Array.isArray(selectedHelper.skills)
+                    ? selectedHelper.skills.join(", ")
+                    : selectedHelper.skills || "Verified Service Partner"}{" "}
+                  · {selectedHelper.city || selectedHelper.location || "Meerut"}
+                </p>
+                <p className="mt-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                  Only {selectedHelper.name} will be assigned to this task — it will NOT be shown to other Helper Buddies.
                 </p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedHelper(null);
+                setForm((prev) => ({ ...prev, helperId: null }));
+                setAssignmentMode("MARKETPLACE");
+              }}
+              className="rounded-lg border border-emerald-500/30 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
+            >
+              Change / Switch to Open Broadcast
+            </button>
           </div>
         )}
 
@@ -427,9 +561,21 @@ function CreateTaskContent() {
                   multiple
                   accept="image/*,.pdf,.doc,.docx"
                   onChange={handleFileChange}
-                  className="block w-full text-sm text-slate-200 file:mr-4 file:rounded-full file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-100 hover:file:bg-slate-600"
+                  className="block w-full text-sm text-slate-600 dark:text-slate-200 file:mr-4 file:rounded-full file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-100 hover:file:bg-slate-600"
                 />
               </div>
+              {files.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {files.map((f, idx) => (
+                    <span
+                      key={`${f.name}-${idx}`}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300"
+                    >
+                      📎 {f.name}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>
@@ -528,7 +674,7 @@ function CreateTaskContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
                   Preferred Date
@@ -543,7 +689,28 @@ function CreateTaskContent() {
                   className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
                 <p className="mt-1 text-[11px] text-slate-400">
-                  Past dates are disabled (earliest: {minDate})
+                  Past dates disabled (min: {minDate})
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Preferred Time Slot
+                </label>
+                <select
+                  name="timeSlot"
+                  value={form.timeSlot}
+                  onChange={handleChange}
+                  className="w-full rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/60 px-3 py-3 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                >
+                  {TIME_SLOTS.map((slot) => (
+                    <option key={slot} value={slot}>
+                      {slot}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Shown to your assigned Buddy
                 </p>
               </div>
 
@@ -561,6 +728,126 @@ function CreateTaskContent() {
               </div>
             </div>
 
+            {/* How Buddy is Picked: Open Broadcast vs Pick a Specific Buddy */}
+            <div className="rounded-2xl border border-gray-200 dark:border-slate-700/80 bg-slate-50/70 dark:bg-slate-800/40 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-800 dark:text-slate-100">
+                    How should a Buddy be assigned?
+                  </label>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    100% of your task payment goes directly to the Buddy (held safely in Escrow until task completion).
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => router.push("/dashboard/helpers")}
+                  className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Browse All Buddies →
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssignmentMode("MARKETPLACE");
+                    setSelectedHelper(null);
+                    setForm((prev) => ({ ...prev, helperId: null }));
+                  }}
+                  className={`flex items-start gap-3 rounded-xl border p-3 text-left transition ${
+                    assignmentMode === "MARKETPLACE" && !form.helperId
+                      ? "border-blue-600 bg-blue-500/10 text-blue-950 dark:text-white"
+                      : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                  <div>
+                    <p className="text-xs font-bold">Auto-Broadcast to Nearby Buddies</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                      All verified Buddies in {form.location || "your area"} get notified immediately and can accept.
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAssignmentMode("DIRECT")}
+                  className={`flex items-start gap-3 rounded-xl border p-3 text-left transition ${
+                    assignmentMode === "DIRECT" || form.helperId
+                      ? "border-emerald-600 bg-emerald-500/10 text-emerald-950 dark:text-white"
+                      : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  <Users className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  <div>
+                    <p className="text-xs font-bold">Pick a Specific Buddy Now</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                      Select a verified Buddy below to send them a direct booking request.
+                    </p>
+                  </div>
+                </button>
+              </div>
+
+              {assignmentMode === "DIRECT" && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    Select a verified Buddy {form.category ? `for ${form.category}` : ""}:
+                  </p>
+                  {filteredBuddies.length === 0 ? (
+                    <p className="text-xs text-slate-500">
+                      No Buddies loaded yet. You can still post to the open marketplace or{" "}
+                      <span
+                        onClick={() => router.push("/dashboard/helpers")}
+                        className="cursor-pointer font-semibold text-blue-600 underline"
+                      >
+                        browse the Buddy directory
+                      </span>
+                      .
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {filteredBuddies.map((b) => {
+                        const isPicked = form.helperId === b.id;
+                        return (
+                          <div
+                            key={b.id}
+                            onClick={() => {
+                              setSelectedHelper(b);
+                              setForm((prev) => ({ ...prev, helperId: b.id }));
+                            }}
+                            className={`flex cursor-pointer items-center justify-between rounded-xl border p-2.5 transition ${
+                              isPicked
+                                ? "border-emerald-500 bg-emerald-500/15"
+                                : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-emerald-400"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-xs font-bold text-slate-800 dark:text-white">
+                                {(b.name || "B").charAt(0)}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-semibold text-slate-900 dark:text-white">
+                                  {b.name}
+                                </p>
+                                <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+                                  ⭐ {b.averageRating || 4.8} · {b.skills || "Multi-Service"}
+                                </p>
+                              </div>
+                            </div>
+                            {isPicked && (
+                              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="pt-2">
               <button
                 type="submit"
@@ -568,10 +855,10 @@ function CreateTaskContent() {
                 className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-emerald-900/30 transition hover:from-emerald-400 hover:to-emerald-500 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {loading
-                  ? "Creating..."
-                  : helperId
-                  ? "Create & Send to Helper"
-                  : "Create Task"}
+                  ? "Booking & Assigning Buddy..."
+                  : form.helperId || assignmentMode === "DIRECT"
+                  ? `Book Now & Assign ${selectedHelper?.name || "Selected Buddy"}`
+                  : "Post Task to Nearby Buddies"}
               </button>
             </div>
           </div>

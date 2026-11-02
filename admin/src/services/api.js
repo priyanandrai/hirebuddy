@@ -126,6 +126,8 @@ export const adminApi = {
     return apiRequest('/tasks/search', {
       params: {
         limit: 100,
+        view: 'admin',
+        status: 'ALL',
         ...filters,
       },
     });
@@ -184,6 +186,44 @@ export const adminApi = {
   deleteCategory: async (id) => {
     return apiRequest(`/categories/${id}`, {
       method: 'DELETE',
+    });
+  },
+
+  // Marketplace & Seller Management
+  getMarketplaceOverview: async () => {
+    return apiRequest('/marketplace/admin/overview');
+  },
+
+  verifySeller: async (sellerId, payload) => {
+    return apiRequest(`/marketplace/admin/sellers/${sellerId}/verify`, {
+      method: 'PATCH',
+      body: payload,
+    });
+  },
+
+  verifyAndPublishProduct: async (productId, payload) => {
+    return apiRequest(`/marketplace/admin/products/${productId}/verify`, {
+      method: 'PATCH',
+      body: payload,
+    });
+  },
+
+  processDailyNeftSettlement: async (payload = {}) => {
+    return apiRequest('/marketplace/admin/settlements/process-neft', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  // Customer Support Tickets
+  getSupportTickets: async () => {
+    return apiRequest('/support/admin/tickets');
+  },
+
+  replySupportTicket: async (ticketId, payload) => {
+    return apiRequest(`/support/admin/tickets/${ticketId}`, {
+      method: 'PATCH',
+      body: payload,
     });
   },
 

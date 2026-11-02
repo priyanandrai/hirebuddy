@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState, useMemo } from "react";
-import { getAssignedTasks, acceptTask, declineTask } from "@/app/components/services/task.service";
+import { getAssignedTasks, acceptTask, declineTask, updateTaskStatus } from "@/app/components/services/task.service";
+import { releaseEscrowPayment } from "@/app/components/services/payment.service";
 import { TaskerMyTaskRowShimmer } from "@/app/components/ui/Shimmer";
 
 const TASK_OVERRIDES_STORAGE_KEY = "hirebuddy_my_tasks_overrides_v1";
@@ -53,7 +54,7 @@ export default function TaskerMyTasksPage() {
     }
   };
 
-  const handleTogglePaymentStatus = (task, markAsPaid) => {
+  const handleTogglePaymentStatus = async (task, markAsPaid) => {
     const nowLabel = new Date().toLocaleString("en-IN", {
       day: "2-digit",
       month: "short",
@@ -76,6 +77,32 @@ export default function TaskerMyTasksPage() {
     setTasks((prev) =>
       prev.map((t) => (t.id === task.id ? { ...t, ...patch } : t))
     );
+
+    try {
+      await releaseEscrowPayment(task.id, {
+        method: task.paidMethod || "Cash / Direct UPI",
+        markAsPaid,
+      });
+    } catch (err) {
+      console.warn("Payment status DB sync warning:", err?.message);
+    }
+  };
+
+  const handleQuickStatusUpdate = async (taskId, newStatus) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    setActionLoadingId(taskId);
+    try {
+      await updateTaskStatus(taskId, newStatus, token);
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
+      );
+    } catch (err) {
+      console.error("Failed to update task status:", err);
+      alert(err.message || "Failed to update task status");
+    } finally {
+      setActionLoadingId(null);
+    }
   };
 
   const fetchAssignedTasks = async () => {
@@ -102,11 +129,18 @@ export default function TaskerMyTasksPage() {
     const handleStorageSync = () => {
       setTasks((prev) => applyStoredPaymentOverrides(prev));
     };
+    const handleLiveTaskAssigned = () => {
+      fetchAssignedTasks();
+    };
     window.addEventListener("storage", handleStorageSync);
     window.addEventListener("focus", handleStorageSync);
+    window.addEventListener("hirebuddy:task-requested", handleLiveTaskAssigned);
+    window.addEventListener("hirebuddy:task-status-changed", handleLiveTaskAssigned);
     return () => {
       window.removeEventListener("storage", handleStorageSync);
       window.removeEventListener("focus", handleStorageSync);
+      window.removeEventListener("hirebuddy:task-requested", handleLiveTaskAssigned);
+      window.removeEventListener("hirebuddy:task-status-changed", handleLiveTaskAssigned);
     };
   }, []);
 
@@ -310,7 +344,17 @@ export default function TaskerMyTasksPage() {
 
                   <div className="mt-3 space-y-1 text-xs text-slate-300 sm:text-sm">
                     <p>📍 {task.location}</p>
-                    <p>⏰ {task.preferredAt ? new Date(task.preferredAt).toLocaleString() : "Flexible"}</p>
+                    <p>
+                      ⏰{" "}
+                      {task.preferredAt
+                        ? new Date(task.preferredAt).toLocaleDateString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })
+                        : "Flexible"}
+                      {task.timeSlot ? ` · ${task.timeSlot}` : ""}
+                    </p>
                   </div>
 
                   {/* Completed Task Payment & Customer Rating Banner */}
@@ -438,7 +482,27 @@ export default function TaskerMyTasksPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex justify-end">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {isAssigned && (
+                          <button
+                            type="button"
+                            disabled={actionLoadingId === task.id}
+                            onClick={() => handleQuickStatusUpdate(task.id, "IN_PROGRESS")}
+                            className="rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-amber-400 disabled:opacity-60 shadow-md shadow-amber-950/20"
+                          >
+                            {actionLoadingId === task.id ? "Starting..." : "▶ Start Task"}
+                          </button>
+                        )}
+                        {isInProgress && (
+                          <button
+                            type="button"
+                            disabled={actionLoadingId === task.id}
+                            onClick={() => handleQuickStatusUpdate(task.id, "COMPLETED")}
+                            className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-60 shadow-md shadow-emerald-950/30"
+                          >
+                            {actionLoadingId === task.id ? "Completing..." : "✓ Mark Completed"}
+                          </button>
+                        )}
                         <Link
                           href={`/dashboard-tasker/my-tasks/${task.id}`}
                           className="rounded-xl bg-blue-600 px-5 py-2 text-center text-xs font-semibold text-white hover:bg-blue-500 shadow-md shadow-blue-950/30"

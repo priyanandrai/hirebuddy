@@ -17,6 +17,7 @@ export default function Navbar({ onRefresh }) {
     '/users': 'Customers & Users',
     '/tasks': 'Task Operations Center',
     '/categories': 'Category Management',
+    '/marketplace': 'Meerut Marketplace & Support',
     '/analytics': 'Platform Performance & Metrics',
     '/settings': 'System Settings',
   };

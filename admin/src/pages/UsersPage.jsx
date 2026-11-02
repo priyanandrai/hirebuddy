@@ -209,6 +209,17 @@ export default function UsersPage() {
             >
               Helpers
             </button>
+            <button
+              type="button"
+              onClick={() => setRoleFilter('SELLER')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                roleFilter === 'SELLER'
+                  ? 'bg-amber-600/30 text-amber-300 font-semibold border border-amber-500/30 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Sellers
+            </button>
           </div>
 
           <button
@@ -494,6 +505,18 @@ export default function UsersPage() {
                   } disabled:opacity-50`}
                 >
                   Helper (Provider)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRoleChange(selectedUser.id, 'SELLER')}
+                  disabled={actionLoading || selectedUser.role === 'SELLER'}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    selectedUser.role === 'SELLER'
+                      ? 'bg-amber-600 text-white shadow cursor-default'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700'
+                  } disabled:opacity-50`}
+                >
+                  Seller (Manufacturer)
                 </button>
               </div>
             </div>

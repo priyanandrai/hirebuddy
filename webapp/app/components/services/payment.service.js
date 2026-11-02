@@ -12,7 +12,13 @@ export const createPaymentOrder = (taskId, amount) => {
   });
 };
 
-export const verifyPayment = (razorpayOrderId, razorpayPaymentId, razorpaySignature, taskId) => {
+export const verifyPayment = (
+  razorpayOrderId,
+  razorpayPaymentId,
+  razorpaySignature,
+  taskId,
+  holdInEscrow = true
+) => {
   return apiClient(PAYMENT_ENDPOINTS.VERIFY_PAYMENT, {
     method: "POST",
     body: {
@@ -20,7 +26,28 @@ export const verifyPayment = (razorpayOrderId, razorpayPaymentId, razorpaySignat
       razorpay_payment_id: razorpayPaymentId,
       razorpay_signature: razorpaySignature,
       task_id: taskId,
+      holdInEscrow,
     },
+  });
+};
+
+export const releaseEscrowPayment = (taskId, options = {}) => {
+  return apiClient(PAYMENT_ENDPOINTS.RELEASE_ESCROW, {
+    method: "POST",
+    body: { taskId, ...options },
+  });
+};
+
+export const getSubscriptionStatus = () => {
+  return apiClient(PAYMENT_ENDPOINTS.SUBSCRIPTION_STATUS, {
+    method: "GET",
+  });
+};
+
+export const activateSubscription = (planType = "DAILY", paymentMethod = "ONLINE") => {
+  return apiClient(PAYMENT_ENDPOINTS.SUBSCRIPTION_ACTIVATE, {
+    method: "POST",
+    body: { planType, paymentMethod },
   });
 };
 
