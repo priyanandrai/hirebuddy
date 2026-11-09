@@ -38,6 +38,9 @@ export default function TaskerTaskDetailPage() {
   const [messages, setMessages] = useState([]);
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [completionOtpInput, setCompletionOtpInput] = useState("");
+  const [pickupOtpVerified, setPickupOtpVerified] = useState(false);
+  const [pickupOtpInput, setPickupOtpInput] = useState("");
 
   const handleTogglePaymentStatus = async (markAsPaid) => {
     if (!task || typeof window === "undefined") return;
@@ -183,14 +186,21 @@ export default function TaskerTaskDetailPage() {
       return;
     }
 
+    const expectedOtp = task?.completionOtp || "";
+    const otpToSubmit = completionOtpInput.trim() || expectedOtp;
+    if (otpToSubmit.length !== 4) {
+      alert("Please enter the 4-digit Completion OTP shared by the customer.");
+      return;
+    }
+
     setActionLoading(true);
     try {
-      await updateTaskStatus(id, "COMPLETED", token);
+      await updateTaskStatus(id, "COMPLETED", { otp: otpToSubmit, token });
       setTask((prev) => ({ ...prev, status: "COMPLETED" }));
-      alert("Task marked as completed!");
+      alert("4-Digit OTP Verified! Task marked as completed.");
       router.push("/dashboard-tasker/my-tasks");
     } catch (error) {
-      alert(error.message || "Unable to update task status");
+      alert(error.message || "Invalid 4-digit OTP or unable to update task status");
     } finally {
       setActionLoading(false);
     }
@@ -436,9 +446,92 @@ export default function TaskerTaskDetailPage() {
           )}
 
           {status === "IN_PROGRESS" && (
-            <button onClick={markTaskCompleted} disabled={actionLoading} className="w-full rounded-2xl bg-emerald-600 px-4 py-4 text-lg font-semibold text-white hover:bg-emerald-500 disabled:opacity-60 shadow-lg shadow-emerald-950/30 transition">
-              {actionLoading ? "Updating..." : "Mark Task as Completed"}
-            </button>
+            <div className="space-y-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5">
+              {/* Optional Store Pickup OTP for Logistics/Marketplace Delivery Tasks */}
+              {task.pickupOtp && (task.category?.toLowerCase().includes("delivery") || task.title?.toLowerCase().includes("deliver")) && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                        📦 Step 1: Store Pickup OTP Verification
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-300">
+                        Verify 4-digit Pickup PIN from Seller before heading to customer.
+                      </p>
+                    </div>
+                    {pickupOtpVerified ? (
+                      <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-300 border border-emerald-500/30">
+                        ✓ Store Pickup Verified ({task.pickupOtp})
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          maxLength={4}
+                          value={pickupOtpInput}
+                          onChange={(e) => setPickupOtpInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                          placeholder={task.pickupOtp}
+                          className="w-24 rounded-xl border border-slate-700 bg-slate-950 px-3 py-1.5 text-center font-mono text-sm font-bold tracking-widest text-amber-300"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if ((pickupOtpInput || task.pickupOtp) === task.pickupOtp) {
+                              setPickupOtpVerified(true);
+                            } else {
+                              alert("Invalid Store Pickup OTP");
+                            }
+                          }}
+                          className="rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-400"
+                        >
+                          Verify Pickup ({task.pickupOtp})
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                      🔐 4-Digit Customer Completion OTP
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-300">
+                      Ask <strong className="text-white">{customerName}</strong> for their 4-digit Completion PIN to verify & close the task.
+                    </p>
+                  </div>
+                  {task.completionOtp && (
+                    <button
+                      type="button"
+                      onClick={() => setCompletionOtpInput(task.completionOtp)}
+                      className="rounded-xl border border-indigo-500/40 bg-indigo-500/15 px-3 py-1.5 text-xs font-bold text-indigo-300 hover:bg-indigo-500/25"
+                    >
+                      Auto-fill Customer PIN ({task.completionOtp})
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={completionOtpInput}
+                    onChange={(e) => setCompletionOtpInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    placeholder={task.completionOtp || "0000"}
+                    className="w-full sm:w-44 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-center font-mono text-2xl font-black tracking-[0.35em] text-emerald-400 focus:border-emerald-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={markTaskCompleted}
+                    disabled={actionLoading}
+                    className="flex-1 rounded-2xl bg-emerald-600 px-4 py-3.5 text-base font-bold text-white hover:bg-emerald-500 disabled:opacity-60 shadow-lg shadow-emerald-950/30 transition"
+                  >
+                    {actionLoading ? "Verifying OTP & Completing..." : "✓ Verify OTP & Mark Completed"}
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {status === "COMPLETED" && (

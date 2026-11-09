@@ -158,9 +158,36 @@ export const adminApi = {
     });
   },
 
+  blockUser: async (userId, { isBlocked, reason } = {}) => {
+    return apiRequest(`/user/${userId}/block`, {
+      method: 'PATCH',
+      body: { isBlocked, reason },
+    });
+  },
+
   deleteUser: async (userId) => {
     return apiRequest(`/user/${userId}`, {
       method: 'DELETE',
+    });
+  },
+
+  // Search Logs & User Search Tracking
+  getSearchLogs: async (params = {}) => {
+    return apiRequest('/search/logs', {
+      params,
+    });
+  },
+
+  deleteSearchLog: async (id) => {
+    return apiRequest(`/search/logs/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  clearSearchLogs: async (params = {}) => {
+    return apiRequest('/search/logs', {
+      method: 'DELETE',
+      params,
     });
   },
 
@@ -225,6 +252,89 @@ export const adminApi = {
       method: 'PATCH',
       body: payload,
     });
+  },
+
+  // Marketplace Payments, GST, Tax (Sec 9(5), Sec 52 TCS, Sec 194-O TDS), Payouts & Double-Entry Ledger
+  getAdminPayments: async (params = {}) => {
+    return apiRequest('/admin/payments', { params });
+  },
+
+  getAdminPayouts: async (params = {}) => {
+    return apiRequest('/admin/payouts', { params });
+  },
+
+  approveAdminPayout: async (payoutId) => {
+    return apiRequest(`/admin/payouts/${payoutId}/approve`, {
+      method: 'POST',
+    });
+  },
+
+  getAdminTaxReports: async (params = {}) => {
+    return apiRequest('/admin/tax-reports', { params });
+  },
+
+  getAdminReconciliation: async (params = {}) => {
+    return apiRequest('/admin/reconciliation', { params });
+  },
+
+  getCommissionRules: async () => {
+    return apiRequest('/admin/commission-rules');
+  },
+
+  saveCommissionRule: async (payload) => {
+    return apiRequest('/admin/commission-rules', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  getTaxRules: async () => {
+    return apiRequest('/admin/tax-rules');
+  },
+
+  saveTaxRule: async (payload) => {
+    return apiRequest('/admin/tax-rules', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  // Technical SEO CMS, Blog Manager & Automated Audit Engine
+  getSeoOverview: async () => {
+    return apiRequest('/seo/admin/overview');
+  },
+
+  runSeoAudit: async () => {
+    return apiRequest('/seo/admin/audit', {
+      method: 'POST',
+    });
+  },
+
+  saveSeoPage: async (payload) => {
+    return apiRequest('/seo/admin/pages', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  saveServiceLocationPage: async (payload) => {
+    return apiRequest('/seo/admin/service-location', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  saveBlogPost: async (payload) => {
+    return apiRequest('/seo/admin/blogs', {
+      method: 'POST',
+      body: payload,
+    });
+  },
+
+  exportCsvUrl: (endpoint, params = {}) => {
+    const token = getStoredToken();
+    const query = new URLSearchParams({ ...params, format: 'csv', adminToken: token });
+    return `${API_BASE_URL}${endpoint}?${query.toString()}`;
   },
 
   // Health

@@ -1,0 +1,17 @@
+{
+  "name": "HireBuddy — Local Buddies & Meerut Manufacturers Marketplace",
+  "short_name": "HireBuddy",
+  "description": "Hire verified local Buddies with 0% commission & escrow protection, or order factory-direct products from Meerut manufacturers.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050b18",
+  "theme_color": "#1361f5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

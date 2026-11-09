@@ -2512,6 +2512,30 @@ function TaskDetailCard({
             </div>
           ) : statusUpper === "IN_PROGRESS" ? (
             <div className="space-y-2.5">
+              {/* 4-Digit Completion PIN Badge for Customer to share with Buddy */}
+              <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-3.5 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-300">
+                    Completion PIN
+                  </span>
+                  <span className="rounded-lg bg-amber-500/20 px-2.5 py-0.5 font-mono text-sm font-black tracking-widest text-amber-200 border border-amber-400/40">
+                    {task.completionOtp ||
+                      String(
+                        (Math.abs(
+                          String(task.id || "hb")
+                            .split("")
+                            .reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7)
+                        ) %
+                          9000) +
+                          1000
+                      )}
+                  </span>
+                </div>
+                <p className="mt-1 text-[10px] text-slate-300 leading-snug">
+                  Share this 4-digit PIN with your Buddy once work is finished.
+                </p>
+              </div>
+
               <button
                 type="button"
                 onClick={() => onStatusChange(task, "COMPLETED")}

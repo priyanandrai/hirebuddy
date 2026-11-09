@@ -7,11 +7,17 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
   deleteNotification,
+  sendTestPushNotification,
 } from "@/app/components/services/notification.service";
 import {
   initializeSocket,
   onReceiveNotification,
 } from "@/app/components/config/socketClient";
+import {
+  initializeFirebasePush,
+  showServiceWorkerNotification,
+} from "@/app/components/config/firebaseClient";
+import { getCurrentUser } from "@/app/components/services/auth.service";
 import { NotificationRowShimmer } from "@/app/components/ui/Shimmer";
 
 function timeAgo(dateString) {
@@ -101,11 +107,64 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("all");
   const [livePings, setLivePings] = useState(new Set());
+  const [pushState, setPushState] = useState({
+    ready: false,
+    testing: false,
+    feedback: "",
+  });
 
-  // Initial load
+  // Initial load + Firebase Push registration
   useEffect(() => {
     loadNotifications();
+    getCurrentUser()
+      .then((res) => {
+        const uid = res?.data?.id || res?.id;
+        if (uid) {
+          initializeFirebasePush(uid).then((status) => {
+            setPushState((prev) => ({
+              ...prev,
+              ready: Boolean(status?.serviceWorkerReady || status?.token),
+            }));
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const handleSendTestPush = async () => {
+    try {
+      setPushState((prev) => ({ ...prev, testing: true, feedback: "" }));
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+        await Notification.requestPermission().catch(() => {});
+      }
+      const res = await sendTestPushNotification();
+      const created = res?.data?.notification || res?.notification;
+      if (created?.id) {
+        setNotifications((prev) =>
+          prev.some((n) => n.id === created.id) ? prev : [created, ...prev]
+        );
+      }
+      await showServiceWorkerNotification(
+        "🔔 Firebase Push Connected",
+        "Your HireBuddy browser & background push notifications are active!",
+        { id: created?.id || `test-${Date.now()}`, clickUrl: "/dashboard/notifications" }
+      );
+      setPushState({
+        ready: true,
+        testing: false,
+        feedback: "Test push notification sent!",
+      });
+      setTimeout(() => {
+        setPushState((prev) => ({ ...prev, feedback: "" }));
+      }, 4000);
+    } catch (error) {
+      setPushState((prev) => ({
+        ...prev,
+        testing: false,
+        feedback: error?.message || "Failed to send test push",
+      }));
+    }
+  };
 
   // WebSocket real-time listener
   useEffect(() => {
@@ -240,15 +299,33 @@ export default function NotificationsPage() {
           </p>
         </div>
 
-        {notifications.length > 0 && unreadCount > 0 && (
+        <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
           <button
-            onClick={handleMarkAllAsRead}
-            className="self-start rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-xs font-semibold text-blue-600 shadow-sm transition hover:bg-gray-50 dark:border-slate-800 dark:bg-slate-900 dark:text-blue-400 dark:hover:bg-slate-800 sm:self-auto"
+            type="button"
+            onClick={handleSendTestPush}
+            disabled={pushState.testing}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-300"
           >
-            ✓ Mark all as read
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            {pushState.testing ? "Sending Push..." : "Test Firebase Push"}
           </button>
-        )}
+
+          {notifications.length > 0 && unreadCount > 0 && (
+            <button
+              onClick={handleMarkAllAsRead}
+              className="rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-xs font-semibold text-blue-600 shadow-sm transition hover:bg-gray-50 dark:border-slate-800 dark:bg-slate-900 dark:text-blue-400 dark:hover:bg-slate-800"
+            >
+              ✓ Mark all as read
+            </button>
+          )}
+        </div>
       </div>
+
+      {pushState.feedback && (
+        <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+          {pushState.feedback}
+        </div>
+      )}
 
       {/* Filter Tabs */}
       <div className="mb-6 flex flex-wrap gap-2 border-b border-gray-200 pb-3 dark:border-slate-800">
@@ -376,7 +453,7 @@ export default function NotificationsPage() {
                   <div className="flex shrink-0 items-center gap-2">
                     {n.taskId && (
                       <Link
-                        href={`/dashboard/tasks/${n.taskId}`}
+                        href={`/dashboard/my-tasks/${n.taskId}`}
                         onClick={(e) => e.stopPropagation()}
                         className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:border-slate-700 dark:text-blue-400 dark:hover:bg-slate-800"
                       >

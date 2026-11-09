@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { ShieldCheck, Activity, KeyRound, RefreshCw } from 'lucide-react';
+import { ShieldCheck, Activity, KeyRound, RefreshCw, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { adminApi } from '../../services/api';
 
@@ -9,6 +9,15 @@ export default function Navbar({ onRefresh }) {
   const { adminToken } = useAuth();
   const [backendOnline, setBackendOnline] = useState(true);
   const [checking, setChecking] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('hb_admin_theme');
+    return saved === 'dark' || saved === 'light' ? saved : 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('hb_admin_theme', theme);
+  }, [theme]);
 
   const routeTitles = {
     '/': 'Dashboard Overview',
@@ -18,6 +27,7 @@ export default function Navbar({ onRefresh }) {
     '/tasks': 'Task Operations Center',
     '/categories': 'Category Management',
     '/marketplace': 'Meerut Marketplace & Support',
+    '/search-logs': 'User Search Analytics & Logs',
     '/analytics': 'Platform Performance & Metrics',
     '/settings': 'System Settings',
   };
@@ -83,6 +93,16 @@ export default function Navbar({ onRefresh }) {
             {adminToken ? `${adminToken.slice(0, 12)}...` : 'No Token'}
           </span>
         </div>
+
+        {/* Theme Toggle Button */}
+        <button
+          onClick={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+          title={`Switch to ${theme === 'light' ? 'Dark' : 'White'} Theme`}
+          className="flex items-center gap-1.5 rounded-2xl border border-slate-800 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition"
+        >
+          {theme === 'light' ? <Sun className="h-3.5 w-3.5 text-amber-500" /> : <Moon className="h-3.5 w-3.5 text-blue-400" />}
+          <span className="hidden md:inline">{theme === 'light' ? 'White Theme' : 'Dark Theme'}</span>
+        </button>
 
         {/* Global Refresh Button */}
         {onRefresh && (

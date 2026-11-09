@@ -1,5 +1,6 @@
 import  prisma  from '../utils/prisma.js';
 import { emitToUser } from '../config/socket.config.js';
+import { sendFcmPushToUser } from './firebase.service.js';
 
 /**
  * Send a notification to a user
@@ -27,6 +28,16 @@ export const sendNotification = async (taskId, senderId, receiverId, type, title
     } catch (socketErr) {
       console.warn('Real-time notification emission failed:', socketErr?.message);
     }
+
+    // Firebase Cloud Messaging (FCM) push notification to receiver
+    sendFcmPushToUser(receiverId, {
+      title,
+      body: message || title,
+      taskId,
+      type,
+    }).catch((fcmErr) => {
+      console.warn('FCM push notification warning:', fcmErr?.message);
+    });
 
     return notification;
   } catch (error) {
@@ -357,6 +368,39 @@ export const notificationEvents = {
   },
 };
 
+/**
+ * Register or update user's Firebase Cloud Messaging (FCM) token
+ */
+export const registerFcmToken = async (userId, fcmToken) => {
+  if (!userId || !fcmToken) {
+    throw new Error('User ID and fcmToken are required');
+  }
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { fcmToken: String(fcmToken).trim() },
+    select: { id: true, name: true, fcmToken: true },
+  });
+  return {
+    success: true,
+    userId: updated.id,
+    fcmTokenRegistered: Boolean(updated.fcmToken),
+  };
+};
+
+/**
+ * Remove user's Firebase Cloud Messaging (FCM) token on logout/unsubscribe
+ */
+export const removeFcmToken = async (userId) => {
+  if (!userId) {
+    throw new Error('User ID is required');
+  }
+  await prisma.user.update({
+    where: { id: userId },
+    data: { fcmToken: null },
+  });
+  return { success: true, fcmTokenRegistered: false };
+};
+
 export default {
   sendNotification,
   getUserNotifications,
@@ -364,5 +408,7 @@ export default {
   markAllNotificationsAsRead,
   getUnreadNotificationCount,
   deleteNotification,
+  registerFcmToken,
+  removeFcmToken,
   notificationEvents,
 };

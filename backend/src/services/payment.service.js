@@ -218,10 +218,31 @@ export const handlePaymentSuccess = async (
 
     // Immediate release (100% goes to the Buddy — 0% task commission)
     if (payment.payeeId) {
-      await prisma.user.update({
+      const updatedPayee = await prisma.user.update({
         where: { id: payment.payeeId },
         data: { walletBalance: { increment: payment.amount } },
+        select: { walletBalance: true },
       });
+
+      try {
+        await prisma.walletTransaction.create({
+          data: {
+            userId: payment.payeeId,
+            type: 'TASK_EARNING',
+            direction: 'CREDIT',
+            amountPaise: payment.amount,
+            balanceAfterPaise: updatedPayee.walletBalance,
+            balanceAfter: updatedPayee.walletBalance,
+            method: payment.method || 'ONLINE',
+            referenceId: payment.id,
+            taskId: payment.taskId,
+            description: `100% Task payout for "${taskTitle}"`,
+            status: 'COMPLETED',
+          },
+        });
+      } catch (wErr) {
+        console.warn('WalletTransaction record warning:', wErr?.message);
+      }
 
       try {
         await notificationEvents.paymentReceived(
@@ -356,9 +377,25 @@ export const releaseEscrowForTask = async (taskId, triggeredByUserId = null, opt
         });
 
         if (payeeId && amountPaise > 0) {
-          await tx.user.update({
+          const updatedPayee = await tx.user.update({
             where: { id: payeeId },
             data: { walletBalance: { increment: amountPaise } },
+            select: { walletBalance: true },
+          });
+          await tx.walletTransaction.create({
+            data: {
+              userId: payeeId,
+              type: 'TASK_EARNING',
+              direction: 'CREDIT',
+              amountPaise,
+              balanceAfterPaise: updatedPayee.walletBalance,
+              balanceAfter: updatedPayee.walletBalance,
+              method: methodLabel,
+              referenceId: p.id,
+              taskId,
+              description: `100% Task payout for "${task.title}"`,
+              status: 'COMPLETED',
+            },
           });
         }
 
@@ -409,9 +446,26 @@ export const releaseEscrowForTask = async (taskId, triggeredByUserId = null, opt
       });
 
       // 100% of task payment goes directly to the Buddy's wallet (0% task commission)
-      await tx.user.update({
+      const updatedPayee = await tx.user.update({
         where: { id: payeeId },
         data: { walletBalance: { increment: heldPayment.amount } },
+        select: { walletBalance: true },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          userId: payeeId,
+          type: 'ESCROW_RELEASE',
+          direction: 'CREDIT',
+          amountPaise: heldPayment.amount,
+          balanceAfterPaise: updatedPayee.walletBalance,
+          balanceAfter: updatedPayee.walletBalance,
+          method: methodLabel,
+          referenceId: p.id,
+          taskId,
+          description: `Escrow released (100% payout) for "${task.title}"`,
+          status: 'COMPLETED',
+        },
       });
 
       return p;
@@ -579,6 +633,23 @@ export const activatePartnerSubscription = async (
       },
     });
 
+    if (paymentMethod === 'WALLET') {
+      await tx.walletTransaction.create({
+        data: {
+          userId,
+          type: 'SUBSCRIPTION',
+          direction: 'DEBIT',
+          amountPaise: plan.amountPaise,
+          balanceAfterPaise: updatedUser.walletBalance,
+          balanceAfter: updatedUser.walletBalance,
+          method: 'WALLET',
+          referenceId: sub.id,
+          description: `${plan.label} (${plan.days} day${plan.days > 1 ? 's' : ''}) paid via Wallet`,
+          status: 'COMPLETED',
+        },
+      });
+    }
+
     return { subscription: sub, user: updatedUser };
   });
 
@@ -710,6 +781,459 @@ export const refundPayment = async (paymentId, reason = 'Task cancelled') => {
   }
 };
 
+/**
+ * Get Wallet Overview & Transaction Ledger for Customer or Buddy
+ */
+export const getWalletOverview = async (userId) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      role: true,
+      walletBalance: true,
+      partnerPlanType: true,
+      subscriptionActiveUntil: true,
+    },
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  const [walletTransactions, payments, subscriptions] = await Promise.all([
+    prisma.walletTransaction.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    }),
+    prisma.payment.findMany({
+      where: {
+        OR: [{ payerId: userId }, { payeeId: userId }],
+      },
+      include: {
+        task: { select: { id: true, title: true, status: true, category: true } },
+        payer: { select: { id: true, name: true, image: true } },
+        payee: { select: { id: true, name: true, image: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    }),
+    prisma.partnerSubscription.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    }),
+  ]);
+
+  const balancePaise = user.walletBalance || 0;
+  const balanceRupees = Number((balancePaise / 100).toFixed(2));
+
+  // Escrow held for this user (either as payer or payee)
+  const escrowHeldPaise = payments
+    .filter((p) => p.status === 'HELD_IN_ESCROW')
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const escrowHeldRupees = Number((escrowHeldPaise / 100).toFixed(2));
+
+  // Build unified ledger combining WalletTransactions + historical Payments not already represented
+  const referencedPaymentIds = new Set(
+    walletTransactions.map((t) => t.referenceId).filter(Boolean)
+  );
+
+  const syntheticFromPayments = payments
+    .filter((p) => !referencedPaymentIds.has(p.id) && p.status !== 'INITIATED')
+    .map((p) => {
+      const isCredit = p.payeeId === userId && p.payerId !== userId;
+      return {
+        id: `pay_${p.id}`,
+        userId,
+        type:
+          p.status === 'HELD_IN_ESCROW'
+            ? 'ESCROW_HOLD'
+            : isCredit
+            ? 'TASK_EARNING'
+            : 'TASK_PAYMENT',
+        direction: isCredit ? 'CREDIT' : 'DEBIT',
+        amountPaise: p.amount,
+        amountRupees: Number((Number(p.amount || 0) / 100).toFixed(2)),
+        method: p.method || 'ONLINE',
+        referenceId: p.razorpayPaymentId || p.razorpayOrderId || p.id,
+        taskId: p.taskId,
+        description: p.task?.title
+          ? `${isCredit ? 'Task payout' : 'Task payment'}: "${p.task.title}"`
+          : isCredit
+          ? 'Task payout received'
+          : 'Task payment',
+        status: p.status,
+        createdAt: p.completedAt || p.createdAt,
+      };
+    });
+
+  const normalizedWalletTx = walletTransactions.map((tx) => {
+    const balPaise = tx.balanceAfter ?? tx.balanceAfterPaise ?? null;
+    return {
+      ...tx,
+      balanceAfter: balPaise,
+      amountRupees: Number((Number(tx.amountPaise || 0) / 100).toFixed(2)),
+      balanceAfterRupees:
+        balPaise !== null && balPaise !== undefined
+          ? Number((Number(balPaise) / 100).toFixed(2))
+          : null,
+    };
+  });
+
+  const ledger = [...normalizedWalletTx, ...syntheticFromPayments].sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  );
+
+  const totalCreditedPaise = ledger
+    .filter((tx) => tx.direction === 'CREDIT' && ['COMPLETED', 'RELEASED'].includes(tx.status))
+    .reduce((sum, tx) => sum + Number(tx.amountPaise || 0), 0);
+
+  const totalDebitedPaise = ledger
+    .filter((tx) => tx.direction === 'DEBIT' && ['COMPLETED', 'RELEASED', 'HELD_IN_ESCROW'].includes(tx.status))
+    .reduce((sum, tx) => sum + Number(tx.amountPaise || 0), 0);
+
+  const now = new Date();
+  const isSubscriptionActive =
+    user.subscriptionActiveUntil && new Date(user.subscriptionActiveUntil) > now;
+
+  return {
+    user: {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      partnerPlanType: user.partnerPlanType,
+      subscriptionActiveUntil: user.subscriptionActiveUntil,
+      isSubscriptionActive: Boolean(isSubscriptionActive),
+    },
+    balancePaise,
+    balanceRupees,
+    escrowHeldPaise,
+    escrowHeldRupees,
+    totalCreditedPaise,
+    totalCreditedRupees: Number((totalCreditedPaise / 100).toFixed(2)),
+    totalDebitedPaise,
+    totalDebitedRupees: Number((totalDebitedPaise / 100).toFixed(2)),
+    transactions: ledger,
+    payments,
+    subscriptions,
+    plans: PARTNER_SUBSCRIPTION_PLANS,
+  };
+};
+
+/**
+ * Top up user's Wallet Balance
+ */
+export const topupWallet = async (
+  userId,
+  {
+    amountRupees,
+    amountPaise,
+    method = 'UPI',
+    razorpayPaymentId = null,
+    razorpayOrderId = null,
+    description = null,
+  } = {}
+) => {
+  const resolvedPaise = amountPaise
+    ? Math.round(Number(amountPaise))
+    : Math.round(Number(amountRupees || 0) * 100);
+
+  if (!resolvedPaise || resolvedPaise < 100) {
+    throw new Error('Minimum top-up amount is ₹1');
+  }
+  if (resolvedPaise > 10000000) {
+    throw new Error('Maximum single top-up amount is ₹1,00,000');
+  }
+
+  const formattedRupees = (resolvedPaise / 100).toFixed(2);
+
+  const result = await prisma.$transaction(async (tx) => {
+    const updatedUser = await tx.user.update({
+      where: { id: userId },
+      data: {
+        walletBalance: { increment: resolvedPaise },
+      },
+      select: {
+        id: true,
+        name: true,
+        walletBalance: true,
+      },
+    });
+
+    const walletTx = await tx.walletTransaction.create({
+      data: {
+        userId,
+        type: 'TOPUP',
+        direction: 'CREDIT',
+        amountPaise: resolvedPaise,
+        balanceAfterPaise: updatedUser.walletBalance,
+        balanceAfter: updatedUser.walletBalance,
+        method: method || 'UPI',
+        referenceId: razorpayPaymentId || razorpayOrderId || `topup_${Date.now()}`,
+        description: description || `Added ₹${formattedRupees} to HireBuddy Wallet via ${method || 'UPI'}`,
+        status: 'COMPLETED',
+      },
+    });
+
+    return { user: updatedUser, transaction: walletTx };
+  });
+
+  return {
+    success: true,
+    message: `₹${formattedRupees} added to your wallet!`,
+    balancePaise: result.user.walletBalance,
+    balanceRupees: Number((result.user.walletBalance / 100).toFixed(2)),
+    transaction: {
+      ...result.transaction,
+      amountRupees: Number((result.transaction.amountPaise / 100).toFixed(2)),
+    },
+  };
+};
+
+/**
+ * Withdraw funds from Wallet to UPI / Bank Account
+ */
+export const withdrawFromWallet = async (
+  userId,
+  { amountRupees, amountPaise, payoutMethod = 'UPI', upiId = '', bankAccount = '', ifsc = '' } = {}
+) => {
+  const resolvedPaise = amountPaise
+    ? Math.round(Number(amountPaise))
+    : Math.round(Number(amountRupees || 0) * 100);
+
+  if (!resolvedPaise || resolvedPaise < 100) {
+    throw new Error('Minimum withdrawal amount is ₹1');
+  }
+
+  const destination =
+    payoutMethod === 'BANK'
+      ? `${bankAccount || 'Bank A/C'}${ifsc ? ` (${ifsc})` : ''}`
+      : upiId || 'Linked UPI ID';
+
+  if (payoutMethod === 'UPI' && !upiId?.trim()) {
+    throw new Error('Please enter a valid UPI ID (e.g. name@upi) for instant withdrawal');
+  }
+  if (payoutMethod === 'BANK' && (!bankAccount?.trim() || !ifsc?.trim())) {
+    throw new Error('Please enter both Bank Account Number and IFSC Code');
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true, walletBalance: true },
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  if ((user.walletBalance || 0) < resolvedPaise) {
+    throw new Error(
+      `Insufficient wallet balance (Available: ₹${((user.walletBalance || 0) / 100).toFixed(2)})`
+    );
+  }
+
+  const formattedRupees = (resolvedPaise / 100).toFixed(2);
+
+  const result = await prisma.$transaction(async (tx) => {
+    const updatedUser = await tx.user.update({
+      where: { id: userId },
+      data: {
+        walletBalance: { decrement: resolvedPaise },
+      },
+      select: {
+        id: true,
+        walletBalance: true,
+      },
+    });
+
+    const walletTx = await tx.walletTransaction.create({
+      data: {
+        userId,
+        type: 'WITHDRAWAL',
+        direction: 'DEBIT',
+        amountPaise: resolvedPaise,
+        balanceAfterPaise: updatedUser.walletBalance,
+        balanceAfter: updatedUser.walletBalance,
+        method: payoutMethod,
+        payoutDestination: destination,
+        referenceId: `payout_${Date.now()}`,
+        description: `Withdrawn ₹${formattedRupees} to ${destination}`,
+        status: 'COMPLETED',
+      },
+    });
+
+    return { user: updatedUser, transaction: walletTx };
+  });
+
+  return {
+    success: true,
+    message: `₹${formattedRupees} withdrawn to ${destination} successfully!`,
+    balancePaise: result.user.walletBalance,
+    balanceRupees: Number((result.user.walletBalance / 100).toFixed(2)),
+    transaction: {
+      ...result.transaction,
+      amountRupees: Number((result.transaction.amountPaise / 100).toFixed(2)),
+    },
+  };
+};
+
+/**
+ * Pay for a Task directly using HireBuddy Wallet balance (supports Escrow Hold or Direct Release)
+ */
+export const payTaskWithWallet = async (
+  userId,
+  { taskId, holdInEscrow = true } = {}
+) => {
+  if (!taskId) {
+    throw new Error('taskId is required');
+  }
+
+  const [user, task] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, walletBalance: true },
+    }),
+    prisma.task.findUnique({
+      where: { id: taskId },
+      select: {
+        id: true,
+        title: true,
+        budget: true,
+        status: true,
+        createdById: true,
+        assignedToId: true,
+        paymentStatus: true,
+      },
+    }),
+  ]);
+
+  if (!user) throw new Error('User not found');
+  if (!task) throw new Error('Task not found');
+
+  const rawBudget = Number(task.budget || 0);
+  const amountPaise = rawBudget > 0 ? Math.round(rawBudget * 100) : 0;
+
+  if (amountPaise <= 0) {
+    throw new Error('Task budget must be greater than ₹0');
+  }
+
+  if ((user.walletBalance || 0) < amountPaise) {
+    throw new Error(
+      `Insufficient wallet balance (Available: ₹${((user.walletBalance || 0) / 100).toFixed(
+        2
+      )}, Required: ₹${(amountPaise / 100).toFixed(2)}). Please top up your wallet first.`
+    );
+  }
+
+  const shouldHold = Boolean(holdInEscrow) && task.status !== 'COMPLETED';
+  const paymentStatus = shouldHold ? 'HELD_IN_ESCROW' : 'COMPLETED';
+  const payeeId = task.assignedToId || task.createdById;
+  const formattedRupees = (amountPaise / 100).toFixed(2);
+
+  const result = await prisma.$transaction(async (tx) => {
+    const updatedPayer = await tx.user.update({
+      where: { id: userId },
+      data: { walletBalance: { decrement: amountPaise } },
+      select: { walletBalance: true },
+    });
+
+    const payment = await tx.payment.create({
+      data: {
+        taskId: task.id,
+        payerId: userId,
+        payeeId,
+        amount: amountPaise,
+        method: 'WALLET',
+        razorpayOrderId: `wallet_${task.id.slice(0, 8)}_${Date.now()}`,
+        razorpayPaymentId: `wpay_${Date.now()}`,
+        status: paymentStatus,
+        completedAt: shouldHold ? null : new Date(),
+      },
+    });
+
+    await tx.task.update({
+      where: { id: task.id },
+      data: {
+        paymentStatus,
+        razorpayOrderId: payment.razorpayOrderId,
+      },
+    });
+
+    await tx.walletTransaction.create({
+      data: {
+        userId,
+        type: shouldHold ? 'ESCROW_HOLD' : 'TASK_PAYMENT',
+        direction: 'DEBIT',
+        amountPaise,
+        balanceAfterPaise: updatedPayer.walletBalance,
+        balanceAfter: updatedPayer.walletBalance,
+        method: 'WALLET',
+        referenceId: payment.id,
+        taskId: task.id,
+        description: shouldHold
+          ? `Escrow hold from Wallet for "${task.title}"`
+          : `Paid from Wallet for "${task.title}"`,
+        status: 'COMPLETED',
+      },
+    });
+
+    if (!shouldHold && task.assignedToId && task.assignedToId !== userId) {
+      const updatedPayee = await tx.user.update({
+        where: { id: task.assignedToId },
+        data: { walletBalance: { increment: amountPaise } },
+        select: { walletBalance: true },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          userId: task.assignedToId,
+          type: 'TASK_EARNING',
+          direction: 'CREDIT',
+          amountPaise,
+          balanceAfterPaise: updatedPayee.walletBalance,
+          balanceAfter: updatedPayee.walletBalance,
+          method: 'WALLET',
+          referenceId: payment.id,
+          taskId: task.id,
+          description: `100% Task payout for "${task.title}"`,
+          status: 'COMPLETED',
+        },
+      });
+    }
+
+    return { payment, balancePaise: updatedPayer.walletBalance };
+  });
+
+  if (task.assignedToId && task.assignedToId !== userId) {
+    try {
+      await sendNotification(
+        task.id,
+        userId,
+        task.assignedToId,
+        shouldHold ? 'payment_escrow_held' : 'payment_received',
+        shouldHold ? 'Wallet Payment Secured in Escrow!' : '100% Payment Credited to Wallet!',
+        shouldHold
+          ? `₹${formattedRupees} for "${task.title}" is now secured in Escrow via Wallet.`
+          : `₹${formattedRupees} for "${task.title}" has been credited 100% to your wallet!`
+      );
+    } catch (e) {
+      console.warn('Wallet task payment notification warning:', e?.message);
+    }
+  }
+
+  return {
+    success: true,
+    heldInEscrow: shouldHold,
+    payment: result.payment,
+    balancePaise: result.balancePaise,
+    balanceRupees: Number((result.balancePaise / 100).toFixed(2)),
+  };
+};
+
 export default {
   createPaymentOrder,
   verifyPaymentSignature,
@@ -717,6 +1241,10 @@ export default {
   releaseEscrowForTask,
   getPartnerSubscriptionStatus,
   activatePartnerSubscription,
+  getWalletOverview,
+  topupWallet,
+  withdrawFromWallet,
+  payTaskWithWallet,
   handlePaymentFailure,
   getPaymentHistory,
   getPaymentDetails,

@@ -1,8 +1,12 @@
-"use client";
-
 import Footer from "../components/layout/Footer";
 import HelperHeader from "./helperheader";
 import RealtimeNotificationCenter from "../components/ui/RealtimeNotificationCenter";
+import { generateNoIndexMetadata } from "../lib/seo";
+
+export const metadata = generateNoIndexMetadata(
+  "Helper Partner Dashboard",
+  "Manage your HireBuddy helper tasks, earnings, tax profile, and payouts."
+);
 
 export default function DashboardLayout({ children }) {
   return (

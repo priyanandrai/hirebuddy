@@ -1,5 +1,5 @@
 import { apiClient } from "../lib/apiClient";
-import { AUTH_ENDPOINTS } from "../lib/endpoints";
+import { AUTH_ENDPOINTS, USER_ENDPOINTS } from "../lib/endpoints";
 
 export const signupUser = (payload) => {
   return apiClient(AUTH_ENDPOINTS.SIGNUP, {
@@ -26,5 +26,11 @@ export const registerHelper = (payload) => {
   return apiClient(AUTH_ENDPOINTS.REGISTER_HELPER, {
     method: "POST",
     body: payload,
+  });
+};
+
+export const getCurrentUser = () => {
+  return apiClient(USER_ENDPOINTS.GET_PROFILE, {
+    method: "GET",
   });
 };

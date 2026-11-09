@@ -29,6 +29,21 @@ router.put('/read-all', notificationController.markAllAsRead);
 router.put('/mark/read-all', notificationController.markAllAsRead);
 
 /**
+ * POST /api/notifications/fcm-token - Register Firebase Cloud Messaging (FCM) device token
+ */
+router.post('/fcm-token', notificationController.registerFcmToken);
+
+/**
+ * DELETE /api/notifications/fcm-token - Remove Firebase Cloud Messaging (FCM) device token
+ */
+router.delete('/fcm-token', notificationController.removeFcmToken);
+
+/**
+ * POST /api/notifications/test-push - Trigger a live test push & socket notification
+ */
+router.post('/test-push', notificationController.sendTestPush);
+
+/**
  * DELETE /api/notifications/:notificationId - Delete notification
  */
 router.delete('/:notificationId', notificationController.deleteNotification);

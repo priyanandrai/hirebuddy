@@ -271,6 +271,13 @@ export default function AuthenticatedHeader({
           </button>
 
           <Link
+            href="/dashboard/wallet"
+            className="hidden md:inline-flex items-center justify-center gap-1.5 rounded-full border border-blue-500/40 bg-blue-500/10 px-3.5 py-2 text-xs font-bold text-blue-400 transition hover:bg-blue-500/20"
+          >
+            <span>💳 Wallet: ₹{Math.round((displayUser?.walletBalance || 0) / 100)}</span>
+          </Link>
+
+          <Link
             href="/marketplace"
             className="hidden md:inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
           >
@@ -454,6 +461,7 @@ export default function AuthenticatedHeader({
                   </div>
 
                   <DropdownItem href="/dashboard" setOpen={setProfileOpen}>📊 Dashboard</DropdownItem>
+                  <DropdownItem href="/dashboard/wallet" setOpen={setProfileOpen}>💳 My Wallet (₹{Math.round((displayUser?.walletBalance || 0) / 100)})</DropdownItem>
                   <DropdownItem href="/dashboard/my-tasks" setOpen={setProfileOpen}>📝 My Tasks</DropdownItem>
                   <DropdownItem href="/dashboard/helpers" setOpen={setProfileOpen}>🤝 Browse Buddies</DropdownItem>
                   <DropdownItem href="/marketplace" setOpen={setProfileOpen}>🛍️ Meerut Marketplace</DropdownItem>

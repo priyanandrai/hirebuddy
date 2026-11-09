@@ -11,6 +11,9 @@ import CategoriesPage from './pages/CategoriesPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SettingsPage from './pages/SettingsPage';
 import MarketplacePage from './pages/MarketplacePage';
+import SearchLogsPage from './pages/SearchLogsPage';
+import FinanceTaxDashboardPage from './pages/FinanceTaxDashboardPage';
+import SeoCmsDashboardPage from './pages/SeoCmsDashboardPage';
 
 export default function App() {
   return (
@@ -21,10 +24,13 @@ export default function App() {
       {/* Protected Admin Routes */}
       <Route path="/" element={<AdminLayout />}>
         <Route index element={<DashboardPage />} />
+        <Route path="finance" element={<FinanceTaxDashboardPage />} />
+        <Route path="seo" element={<SeoCmsDashboardPage />} />
         <Route path="marketplace" element={<MarketplacePage />} />
         <Route path="verifications" element={<VerificationsPage />} />
         <Route path="helpers" element={<HelpersPage />} />
         <Route path="users" element={<UsersPage />} />
+        <Route path="search-logs" element={<SearchLogsPage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="categories" element={<CategoriesPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />

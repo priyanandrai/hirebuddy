@@ -48,14 +48,25 @@ export const MESSAGE_ENDPOINTS = {
 };
 
 export const PAYMENT_ENDPOINTS = {
+  CALCULATE_BREAKDOWN: "/payments/calculate-breakdown",
   CREATE_ORDER: "/payments/create-order",
   VERIFY_PAYMENT: "/payments/verify",
   RELEASE_ESCROW: "/payments/release-escrow",
   SUBSCRIPTION_STATUS: "/payments/subscription/status",
   SUBSCRIPTION_ACTIVATE: "/payments/subscription/activate",
+  WALLET: "/payments/wallet",
+  WALLET_TOPUP: "/payments/wallet/topup",
+  WALLET_WITHDRAW: "/payments/wallet/withdraw",
+  WALLET_PAY_TASK: "/payments/wallet/pay-task",
   GET_PAYMENT_HISTORY: "/payments/history",
+  GET_BOOKING_PAYMENT: "/payments/booking",
   GET_PAYMENT_DETAILS: "/payments",
   REFUND_PAYMENT: "/payments",
+  HELPER_EARNINGS: "/helpers/earnings",
+  HELPER_PAYOUTS: "/helpers/payouts",
+  HELPER_PAYOUT_REQUEST: "/helpers/payouts/request",
+  HELPER_TAX_PROFILE: "/helpers/tax-profile",
+  HELPER_BANK_ACCOUNT: "/helpers/bank-account",
 };
 
 export const MARKETPLACE_ENDPOINTS = {
@@ -93,5 +104,7 @@ export const NOTIFICATION_ENDPOINTS = {
   MARK_AS_READ: "/notifications",
   MARK_ALL_AS_READ: "/notifications/mark/read-all",
   DELETE_NOTIFICATION: "/notifications",
+  FCM_TOKEN: "/notifications/fcm-token",
+  TEST_PUSH: "/notifications/test-push",
 };
   

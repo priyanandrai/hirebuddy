@@ -38,11 +38,22 @@ export const authMiddleware = async (req, res, next) => {
         phone: true,
         name: true,
         role: true,
+        isBlocked: true,
+        blockedReason: true,
       },
     });
 
     if (!user) {
       return res.status(401).json({ message: "User not found" });
+    }
+
+    if (user.isBlocked) {
+      return res.status(403).json({
+        message: user.blockedReason
+          ? `Account blocked by administrator: ${user.blockedReason}`
+          : "Your account has been blocked by the administrator.",
+        isBlocked: true,
+      });
     }
 
     req.user = user;

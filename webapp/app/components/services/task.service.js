@@ -52,10 +52,18 @@ export const declineTask = (taskId, reason, token) => {
   });
 };
 
-export const updateTaskStatus = (taskId, status, token) => {
+export const updateTaskStatus = (taskId, status, tokenOrOptions, maybeToken) => {
+  let token = maybeToken;
+  let otp = null;
+  if (typeof tokenOrOptions === "object" && tokenOrOptions !== null) {
+    otp = tokenOrOptions.otp || tokenOrOptions.completionOtp || null;
+    token = tokenOrOptions.token || maybeToken;
+  } else {
+    token = tokenOrOptions;
+  }
   return apiClient(`${TASK_ENDPOINTS.UPDATE_TASK_STATUS}/${taskId}/status`, {
     method: "PUT",
-    body: { status },
+    body: { status, ...(otp ? { otp } : {}) },
     token,
   });
 };

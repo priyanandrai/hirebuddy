@@ -22,6 +22,8 @@ import {
   Check,
   Key,
   Sparkles,
+  Ban,
+  Unlock,
 } from 'lucide-react';
 import { adminApi } from '../services/api';
 import Badge from '../components/common/Badge';
@@ -146,6 +148,48 @@ export default function HelpersPage() {
       alert(`Helper verification updated to ${newStatus}!`);
     } catch (err) {
       alert(err.message || 'Failed to update verification status');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleToggleBlockHelper = async (helper) => {
+    const nextBlocked = !helper.isBlocked;
+    let reason = '';
+    if (nextBlocked) {
+      const input = window.prompt(
+        `Enter reason for blocking ${helper.name || 'this helper'} (optional):`,
+        helper.blockedReason || 'Policy violation / Admin action'
+      );
+      if (input === null) return;
+      reason = input.trim() || 'Blocked by Administrator';
+    } else {
+      if (!window.confirm(`Unblock ${helper.name || 'this helper'} and restore account access?`)) return;
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await adminApi.blockUser(helper.id, {
+        isBlocked: nextBlocked,
+        reason: nextBlocked ? reason : null,
+      });
+      const updated = res?.user || { ...helper, isBlocked: nextBlocked, blockedReason: nextBlocked ? reason : null };
+      setHelpers((prev) =>
+        prev.map((h) =>
+          h.id === helper.id
+            ? { ...h, isBlocked: updated.isBlocked, blockedReason: updated.blockedReason }
+            : h
+        )
+      );
+      if (selectedHelper?.id === helper.id) {
+        setSelectedHelper((prev) => ({
+          ...prev,
+          isBlocked: updated.isBlocked,
+          blockedReason: updated.blockedReason,
+        }));
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to update helper block status');
     } finally {
       setActionLoading(false);
     }
@@ -379,17 +423,17 @@ export default function HelpersPage() {
         />
       ) : (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-300">
-              <thead className="bg-slate-950/70 text-xs uppercase font-semibold text-slate-400 border-b border-slate-800">
+          <div className="w-full overflow-x-auto max-h-[68vh] overflow-y-auto">
+            <table className="w-full min-w-[960px] text-left text-sm text-slate-300">
+              <thead className="sticky top-0 z-10 bg-slate-950 text-xs uppercase font-semibold text-slate-400 border-b border-slate-800">
                 <tr>
-                  <th className="px-5 py-3.5">Helper Profile</th>
-                  <th className="px-4 py-3.5">Contact Details</th>
-                  <th className="px-4 py-3.5">Location</th>
-                  <th className="px-4 py-3.5">Experience & Rate</th>
-                  <th className="px-4 py-3.5">Skills</th>
-                  <th className="px-4 py-3.5">Verification</th>
-                  <th className="px-4 py-3.5 text-right">Actions</th>
+                  <th className="px-5 py-3.5 whitespace-nowrap">Helper Profile</th>
+                  <th className="px-4 py-3.5 whitespace-nowrap">Contact Details</th>
+                  <th className="px-4 py-3.5 whitespace-nowrap">Location</th>
+                  <th className="px-4 py-3.5 whitespace-nowrap">Experience & Rate</th>
+                  <th className="px-4 py-3.5 whitespace-nowrap">Skills</th>
+                  <th className="px-4 py-3.5 whitespace-nowrap">Verification</th>
+                  <th className="px-4 py-3.5 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
@@ -422,6 +466,11 @@ export default function HelpersPage() {
                               <span>{h.name}</span>
                               {h.idVerificationStatus === 'VERIFIED' && (
                                 <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                              )}
+                              {h.isBlocked && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 uppercase tracking-wide">
+                                  Blocked
+                                </span>
                               )}
                             </div>
                             <div className="flex items-center gap-1 text-xs text-amber-400 mt-0.5">
@@ -500,17 +549,54 @@ export default function HelpersPage() {
                       </td>
 
                       {/* Actions */}
-                      <td className="px-4 py-4 text-right">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedHelper(h);
-                          }}
-                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium border border-slate-700 transition-colors inline-flex items-center gap-1.5"
-                        >
-                          <Eye className="w-3.5 h-3.5 text-emerald-400" />
-                          Inspect
-                        </button>
+                      <td className="px-4 py-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedHelper(h);
+                            }}
+                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium border border-slate-700 transition-colors inline-flex items-center gap-1"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                            Inspect
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleBlockHelper(h);
+                            }}
+                            disabled={actionLoading}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors inline-flex items-center gap-1 ${
+                              h.isBlocked
+                                ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/30'
+                            }`}
+                          >
+                            {h.isBlocked ? (
+                              <>
+                                <Unlock className="w-3.5 h-3.5" />
+                                Unblock
+                              </>
+                            ) : (
+                              <>
+                                <Ban className="w-3.5 h-3.5" />
+                                Block
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteHelper(h.id);
+                            }}
+                            disabled={actionLoading}
+                            className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg text-xs border border-rose-500/30 transition-colors"
+                            title="Delete Helper Profile"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -545,10 +631,20 @@ export default function HelpersPage() {
                 className="w-16 h-16 rounded-2xl object-cover border border-slate-700 bg-slate-900 shrink-0"
               />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-lg font-bold text-white truncate">{selectedHelper.name}</h3>
                   <Badge status={selectedHelper.idVerificationStatus || 'UNVERIFIED'} />
+                  {selectedHelper.isBlocked && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 uppercase tracking-wide">
+                      Blocked Account
+                    </span>
+                  )}
                 </div>
+                {selectedHelper.isBlocked && selectedHelper.blockedReason && (
+                  <p className="text-xs text-rose-400 mt-1">
+                    Block Reason: {selectedHelper.blockedReason}
+                  </p>
+                )}
                 <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-slate-500" />
                   {selectedHelper.city || 'Location not specified'}
@@ -659,15 +755,39 @@ export default function HelpersPage() {
             </div>
 
             {/* Footer */}
-            <div className="flex justify-between items-center gap-2 pt-2 border-t border-slate-800">
-              <button
-                onClick={() => handleDeleteHelper(selectedHelper.id)}
-                disabled={actionLoading}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-900/50 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                Delete Helper Account
-              </button>
+            <div className="flex flex-wrap justify-between items-center gap-2 pt-2 border-t border-slate-800">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleToggleBlockHelper(selectedHelper)}
+                  disabled={actionLoading}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-colors disabled:opacity-50 ${
+                    selectedHelper.isBlocked
+                      ? 'bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border-emerald-900/50'
+                      : 'bg-amber-950/40 hover:bg-amber-900/60 text-amber-300 border-amber-900/50'
+                  }`}
+                >
+                  {selectedHelper.isBlocked ? (
+                    <>
+                      <Unlock className="w-3.5 h-3.5" />
+                      Unblock Helper
+                    </>
+                  ) : (
+                    <>
+                      <Ban className="w-3.5 h-3.5" />
+                      Block Helper
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => handleDeleteHelper(selectedHelper.id)}
+                  disabled={actionLoading}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-900/50 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Helper Account
+                </button>
+              </div>
 
               <button
                 onClick={() => setSelectedHelper(null)}

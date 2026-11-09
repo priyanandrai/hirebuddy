@@ -53,48 +53,69 @@ export default function Footer() {
           </div>
         )}
 
-        <div className="mt-12 grid gap-10 text-sm text-slate-400 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-10 text-sm text-slate-400 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-white">Platform & Marketplace</h3>
-            <ul className="space-y-3">
+            <h3 className="text-sm font-semibold text-white">Popular Services</h3>
+            <ul className="space-y-2.5">
+              <li><a href="/services" className="hover:text-white transition">All Home Services</a></li>
+              <li><a href="/services/home-cleaning" className="hover:text-white transition">Home Cleaning</a></li>
+              <li><a href="/services/plumber" className="hover:text-white transition">Plumber Services</a></li>
+              <li><a href="/services/electrician" className="hover:text-white transition">Electrician Services</a></li>
+              <li><a href="/services/carpenter" className="hover:text-white transition">Carpenter Services</a></li>
+              <li><a href="/services/driver" className="hover:text-white transition">Personal Driver</a></li>
+              <li><a href="/services/ac-appliance-repair" className="hover:text-white transition">AC & Appliance Repair</a></li>
+            </ul>
+          </div>
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-white">Cities & Localities</h3>
+            <ul className="space-y-2.5">
+              <li><a href="/locations" className="hover:text-white transition">All Service Cities</a></li>
+              <li><a href="/locations/noida" className="hover:text-white transition">Home Services in Noida</a></li>
+              <li><a href="/locations/ghaziabad" className="hover:text-white transition">Home Services in Ghaziabad</a></li>
+              <li><a href="/locations/delhi" className="hover:text-white transition">Home Services in Delhi</a></li>
+              <li><a href="/locations/meerut" className="hover:text-white transition">Home Services in Meerut</a></li>
+              <li><a href="/services/home-cleaning/noida" className="hover:text-white transition">Home Cleaning in Noida</a></li>
+              <li><a href="/services/plumber/noida" className="hover:text-white transition">Plumber in Noida</a></li>
+              <li><a href="/services/electrician/meerut" className="hover:text-white transition">Electrician in Meerut</a></li>
+            </ul>
+          </div>
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-white">Platform & Resources</h3>
+            <ul className="space-y-2.5">
               {!isBuddyView && (
                 <li><a href="/post-task" className="hover:text-white transition">Post a Task</a></li>
               )}
+              <li><a href="/how-it-works" className="hover:text-white transition">How HireBuddy Works</a></li>
+              <li><a href="/pricing" className="hover:text-white transition">Service Pricing Guide</a></li>
+              <li><a href="/safety" className="hover:text-white transition">Trust & Safety</a></li>
+              <li><a href="/blog" className="hover:text-white transition">Home Care Blog & Guides</a></li>
+              <li><a href="/faq" className="hover:text-white transition">Frequently Asked Questions</a></li>
               <li><a href="/marketplace" className="hover:text-white transition">Meerut Manufacturers Store</a></li>
-              <li><a href="/become-a-seller" className="hover:text-white transition">Sell on HireBuddy (Manufacturers)</a></li>
-              <li><a href="/become-a-helper" className="hover:text-white transition">Become a Buddy (Service Partner)</a></li>
-              <li><a href="/services" className="hover:text-white transition">Services</a></li>
-              <li><a href="/how-it-works" className="hover:text-white transition">How it Works</a></li>
+              <li><a href="/become-a-helper" className="hover:text-white transition">Become a Helper Partner</a></li>
             </ul>
           </div>
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-white">Support & Policies</h3>
-            <ul className="space-y-3">
-              <li><a href="/dashboard/support" className="hover:text-white transition">Customer & Partner Support</a></li>
-              <li><a href="/refund-policy" className="hover:text-white transition">Refund & Escrow Policy</a></li>
-              <li><a href="/shipping-policy" className="hover:text-white transition">Shipping & 2% Delivery Policy</a></li>
-              <li><a href="/privacy" className="hover:text-white transition">Privacy Policy</a></li>
-            </ul>
-          </div>
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-white">Legal & Agreements</h3>
-            <ul className="space-y-3">
+            <h3 className="text-sm font-semibold text-white">Company & Policies</h3>
+            <ul className="space-y-2.5">
               <li><a href="/about" className="hover:text-white transition">About HireBuddy</a></li>
+              <li><a href="/contact" className="hover:text-white transition">Contact & Support</a></li>
+              <li><a href="/refund-policy" className="hover:text-white transition">Refund & Escrow Policy</a></li>
+              <li><a href="/shipping-policy" className="hover:text-white transition">Shipping & Delivery Policy</a></li>
+              <li><a href="/privacy" className="hover:text-white transition">Privacy Policy</a></li>
               <li><a href="/terms" className="hover:text-white transition">Terms & Conditions</a></li>
-              <li><a href="/helper-agreement" className="hover:text-white transition">Buddy Partner Agreement</a></li>
-              <li><a href="/seller-agreement" className="hover:text-white transition">Manufacturer Seller Agreement</a></li>
+              <li><a href="/helper-agreement" className="hover:text-white transition">Helper Partner Agreement</a></li>
             </ul>
           </div>
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-white">Contact & Grievance Officer</h3>
             <p className="text-slate-400">Need help? Reach out to our 24/7 support & compliance desk.</p>
             <p className="text-xs text-slate-300">
-              Email: <a href="mailto:support@hirebuddy.com" className="text-emerald-400 hover:underline">support@hirebuddy.com</a>
+              Email: <a href="mailto:support@hirebuddy.in" className="text-emerald-400 hover:underline">support@hirebuddy.in</a>
             </p>
             <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-400 space-y-1">
               <p className="font-semibold text-slate-200">Consumer Protection (E-Commerce) Rules</p>
               <p>Grievance Officer: Ankit Sharma</p>
-              <p>Email: grievance@hirebuddy.com</p>
+              <p>Email: grievance@hirebuddy.in</p>
               <p>HQ: Modipuram, Meerut, UP - 250110</p>
             </div>
           </div>

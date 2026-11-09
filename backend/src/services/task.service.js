@@ -1,6 +1,7 @@
 import prisma from "../utils/prisma.js";
 import { notificationEvents } from "./notification.service.js";
 import { releaseEscrowForTask } from "./payment.service.js";
+import { processHelperPayoutForBooking } from "./payout.service.js";
 import { indexTask, deleteTask } from "./es.client.js";
 import { emitToTaskRoom, emitToUser, emitBroadcast } from "../config/socket.config.js";
 import {
@@ -79,6 +80,20 @@ const resolveHelperIdForTask = async (helperId, categoryName = "", title = "", e
 };
 
 /**
+ * Deterministic 4-digit OTP derived from task ID for completion & pickup verification
+ */
+export const deriveFourDigitOtp = (seed = "", salt = "complete") => {
+  const str = `${seed || "hb"}-${salt}`;
+  let hash = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  const num = (Math.abs(hash) % 9000) + 1000;
+  return String(num);
+};
+
+/**
  * Enrich a DB task with flattened review & payment fields for frontend consumption
  */
 const enrichTaskWithRelations = (task) => {
@@ -103,8 +118,13 @@ const enrichTaskWithRelations = (task) => {
         ? "COMPLETED"
         : latestPayment?.status || task.paymentStatus || "PENDING";
 
+  const completionOtp = task.completionOtp || deriveFourDigitOtp(task.id, "complete");
+  const pickupOtp = task.pickupOtp || deriveFourDigitOtp(task.id, "pickup");
+
   return {
     ...task,
+    completionOtp,
+    pickupOtp,
     paymentStatus: effectivePaymentStatus,
     paidMethod: latestPayment?.method || null,
     paidAtLabel,
@@ -1298,7 +1318,7 @@ export const getTasksCreatedByUser = async (userId) => {
 /**
  * Update task status
  */
-export const updateTaskStatus = async (taskId, userId, newStatus, user = null) => {
+export const updateTaskStatus = async (taskId, userId, newStatus, user = null, otpCode = null) => {
   try {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
@@ -1329,6 +1349,28 @@ export const updateTaskStatus = async (taskId, userId, newStatus, user = null) =
 
     if (!isAdmin && !validTransitions[task.status]?.includes(newStatus)) {
       throw new Error(`Cannot transition from ${task.status} to ${newStatus}`);
+    }
+
+    // Verify Completion / Pickup OTP if provided by Helper
+    if (otpCode !== null && otpCode !== undefined && String(otpCode).trim() !== "") {
+      const enteredOtp = String(otpCode).trim();
+      const linkedOrder = await prisma.marketplaceOrder
+        .findFirst({ where: { deliveryTaskId: taskId } })
+        .catch(() => null);
+
+      if (newStatus === "IN_PROGRESS") {
+        const expectedPickup = linkedOrder?.pickupOtp || deriveFourDigitOtp(taskId, "pickup");
+        const expectedComplete = deriveFourDigitOtp(taskId, "complete");
+        if (enteredOtp !== expectedPickup && enteredOtp !== expectedComplete) {
+          throw new Error("Invalid Pickup OTP. Please check the 4-digit PIN with the Seller/Customer.");
+        }
+      } else if (newStatus === "COMPLETED") {
+        const expectedDelivery = linkedOrder?.deliveryOtp || deriveFourDigitOtp(taskId, "complete");
+        const expectedComplete = deriveFourDigitOtp(taskId, "complete");
+        if (enteredOtp !== expectedDelivery && enteredOtp !== expectedComplete) {
+          throw new Error("Invalid Completion OTP. Please enter the 4-digit PIN from the Customer.");
+        }
+      }
     }
 
     const updatedTask = await prisma.task.update({
@@ -1368,11 +1410,22 @@ export const updateTaskStatus = async (taskId, userId, newStatus, user = null) =
         })
         .catch(() => {});
     } else if (newStatus === "COMPLETED") {
-      // Automatically release held escrow payment (100% to Buddy) when task is completed
+      // Automatically release held escrow payment or trigger Razorpay Route helper payout when task is completed
       try {
-        await releaseEscrowForTask(taskId, userId === "admin" ? task.createdById : userId);
+        const confirmedMarketplacePayment = await prisma.payment.findFirst({
+          where: { taskId, status: "CONFIRMED" },
+          orderBy: { createdAt: "desc" },
+        });
+        if (confirmedMarketplacePayment) {
+          await processHelperPayoutForBooking({
+            paymentId: confirmedMarketplacePayment.id,
+            taskId,
+          });
+        } else {
+          await releaseEscrowForTask(taskId, userId === "admin" ? task.createdById : userId);
+        }
       } catch (escrowErr) {
-        console.warn("Auto escrow release check warning:", escrowErr?.message);
+        console.warn("Auto escrow/payout release check warning:", escrowErr?.message);
       }
       // Sync MarketplaceOrder status if this is a platform delivery task
       await prisma.marketplaceOrder
@@ -1401,14 +1454,14 @@ export const updateTaskStatus = async (taskId, userId, newStatus, user = null) =
 };
 
 // Index task after status update
-export const updateTaskStatusAndIndex = async (taskId, userId, newStatus, user = null) => {
-  const updated = await updateTaskStatus(taskId, userId, newStatus, user);
+export const updateTaskStatusAndIndex = async (taskId, userId, newStatus, user = null, otpCode = null) => {
+  const updated = await updateTaskStatus(taskId, userId, newStatus, user, otpCode);
   try {
     await indexTask(updated);
   } catch (e) {
     console.error('Failed to index task after status update', e);
   }
-  return updated;
+  return enrichTaskWithRelations(updated);
 };
 
 /**

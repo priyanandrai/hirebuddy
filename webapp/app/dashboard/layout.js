@@ -1,8 +1,12 @@
-"use client";
-
 import Footer from "../components/layout/Footer";
 import Header from "../components/layout/HeaderAfterlogin";
 import RealtimeNotificationCenter from "../components/ui/RealtimeNotificationCenter";
+import { generateNoIndexMetadata } from "../lib/seo";
+
+export const metadata = generateNoIndexMetadata(
+  "Customer Dashboard",
+  "Manage your HireBuddy bookings, wallet, and helper tasks."
+);
 
 export default function DashboardLayout({ children }) {
   return (

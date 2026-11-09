@@ -6,20 +6,33 @@ import {
   getNotifications,
   markAllNotificationsAsRead,
   markNotificationAsRead,
+  sendTestPushNotification,
 } from "@/app/components/services/notification.service";
 import {
   initializeSocket,
   onReceiveNotification,
 } from "@/app/components/config/socketClient";
+import {
+  initializeFirebasePush,
+  showServiceWorkerNotification,
+} from "@/app/components/config/firebaseClient";
+import { getCurrentUser } from "@/app/components/services/auth.service";
 import { NotificationRowShimmer } from "@/app/components/ui/Shimmer";
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [testingPush, setTestingPush] = useState(false);
 
   useEffect(() => {
     loadNotifications();
     initializeSocket().catch(() => {});
+    getCurrentUser()
+      .then((res) => {
+        const uid = res?.data?.id || res?.id;
+        if (uid) initializeFirebasePush(uid).catch(() => {});
+      })
+      .catch(() => {});
 
     const handleLiveNotif = (e) => {
       const newNotif = e.detail;
@@ -72,20 +85,57 @@ export default function NotificationsPage() {
     }
   };
 
+  const handleSendTestPush = async () => {
+    try {
+      setTestingPush(true);
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+        await Notification.requestPermission().catch(() => {});
+      }
+      const res = await sendTestPushNotification();
+      const created = res?.data?.notification || res?.notification;
+      if (created?.id) {
+        setNotifications((prev) =>
+          prev.some((n) => n.id === created.id) ? prev : [created, ...prev]
+        );
+      }
+      await showServiceWorkerNotification(
+        "🔔 Firebase Push Connected",
+        "Helper real-time & background push notifications are active!",
+        { id: created?.id || `test-${Date.now()}`, clickUrl: "/dashboard-tasker/notifications" }
+      );
+    } catch (error) {
+      console.error("Failed to send test push", error);
+    } finally {
+      setTestingPush(false);
+    }
+  };
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-8 text-slate-100">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Notifications</h1>
           <p className="mt-1 text-sm text-slate-300">Stay updated on your tasks and activities</p>
         </div>
 
-        <button
-          onClick={handleMarkAllRead}
-          className="text-sm font-medium text-emerald-400 hover:underline"
-        >
-          Mark all as read
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSendTestPush}
+            disabled={testingPush}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-50"
+          >
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            {testingPush ? "Sending Push..." : "Test Firebase Push"}
+          </button>
+
+          <button
+            onClick={handleMarkAllRead}
+            className="text-sm font-medium text-emerald-400 hover:underline"
+          >
+            Mark all as read
+          </button>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-[2rem] border border-slate-800 bg-slate-900/80 shadow-2xl shadow-slate-950/30">

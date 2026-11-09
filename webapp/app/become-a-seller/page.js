@@ -33,6 +33,7 @@ export default function SellerOnboardingAndHubPage() {
   const [orders, setOrders] = useState([]);
   const [settlements, setSettlements] = useState([]);
   const [metrics, setMetrics] = useState(null);
+  const [taxInvoiceOrder, setTaxInvoiceOrder] = useState(null);
 
   // Step 1: Seller Onboarding Form (KYC, FSSAI, Pickup Point, Contact Person, Bank Account for Daily NEFT)
   const [kycForm, setKycForm] = useState({
@@ -928,6 +929,11 @@ export default function SellerOnboardingAndHubPage() {
                               {ord.settlementStatus}
                               {ord.neftUtrNumber ? ` (UTR: ${ord.neftUtrNumber})` : ""}
                             </span>
+                            {ord.pickupOtp && (
+                              <span className="rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold text-amber-300">
+                                📦 Store Pickup OTP: {ord.pickupOtp}
+                              </span>
+                            )}
                           </div>
                           <p className="mt-1 text-xs text-slate-300">
                             Customer: <strong>{ord.customerName}</strong> ({ord.customerPhone}) • Address: {ord.shippingAddress}
@@ -937,10 +943,22 @@ export default function SellerOnboardingAndHubPage() {
                               Product Total: <strong>₹{ord.productSubtotalRupees}</strong>
                             </span>
                             <span className="text-emerald-400 font-bold">
-                              Your Seller Share: ₹{ord.sellerPayableRupees}
+                              Gross Seller Share: ₹{ord.sellerPayableRupees}
                             </span>
                             <span className="text-blue-300">
                               Platform Commission: ₹{ord.platformCommissionRupees}
+                            </span>
+                            <span className="text-purple-300">
+                              18% GST on Comm. (SAC 998599): ₹
+                              {ord.taxBreakdown?.gstOnCommission18PctRupees ??
+                                Number(((ord.platformCommissionRupees || 0) * 0.18).toFixed(2))}
+                            </span>
+                            <span className="text-cyan-300">
+                              TCS (0.5%) + TDS u/s 194-O (0.1%): ₹
+                              {(
+                                (ord.taxBreakdown?.gstTcs0_5PctRupees ?? Number(((ord.productSubtotalRupees || 0) * 0.005).toFixed(2))) +
+                                (ord.taxBreakdown?.tds194O_0_1PctRupees ?? Number(((ord.productSubtotalRupees || 0) * 0.001).toFixed(2)))
+                              ).toFixed(2)}
                             </span>
                             {ord.deliveryFeeRupees > 0 && (
                               <span className="text-amber-300">
@@ -951,6 +969,13 @@ export default function SellerOnboardingAndHubPage() {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setTaxInvoiceOrder(ord)}
+                            className="rounded-xl border border-indigo-500/40 bg-indigo-500/15 px-3 py-2 text-xs font-bold text-indigo-300 hover:bg-indigo-500/25"
+                          >
+                            🧾 Tax &amp; Settlement Invoice
+                          </button>
                           <select
                             value={ord.orderStatus}
                             onChange={(e) =>
@@ -1006,6 +1031,110 @@ export default function SellerOnboardingAndHubPage() {
           )}
         </div>
       </main>
+
+      {/* TAX & SETTLEMENT BREAKDOWN INVOICE MODAL (GST SAC 998599, TCS u/s 52, TDS u/s 194-O) */}
+      {taxInvoiceOrder && (() => {
+        const gross = Number(taxInvoiceOrder.productSubtotalRupees || 0);
+        const comm = Number(taxInvoiceOrder.platformCommissionRupees || 0);
+        const gstOnComm = Number(
+          taxInvoiceOrder.taxBreakdown?.gstOnCommission18PctRupees ?? (comm * 0.18).toFixed(2)
+        );
+        const tcs = Number(
+          taxInvoiceOrder.taxBreakdown?.gstTcs0_5PctRupees ?? (gross * 0.005).toFixed(2)
+        );
+        const tds = Number(
+          taxInvoiceOrder.taxBreakdown?.tds194O_0_1PctRupees ?? (gross * 0.001).toFixed(2)
+        );
+        const sellerGross = Number(taxInvoiceOrder.sellerPayableRupees || 0);
+        const netBankPayout = Number(
+          taxInvoiceOrder.taxBreakdown?.netSellerBankPayoutRupees ??
+            Math.max(0, sellerGross - gstOnComm - tcs - tds).toFixed(2)
+        );
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-lg rounded-3xl border border-[#223966] bg-[#081226] p-6 shadow-2xl">
+              <div className="flex items-start justify-between gap-3 border-b border-[#162749] pb-4">
+                <div>
+                  <span className="rounded-full bg-indigo-500/20 px-2.5 py-0.5 text-[10px] font-bold text-indigo-300 border border-indigo-500/30">
+                    SAC 998599 • E-Commerce Tax &amp; Settlement Statement
+                  </span>
+                  <h3 className="mt-1.5 text-lg font-extrabold text-white">
+                    Order {taxInvoiceOrder.orderNumber} — Tax Breakdown
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Seller: {sellerProfile?.businessName || "Meerut Verified Manufacturer"} • GSTIN:{" "}
+                    {sellerProfile?.gstNumber || "09AABCM1234F1Z5"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTaxInvoiceOrder(null)}
+                  className="rounded-xl border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-300 hover:bg-slate-700"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-2.5 rounded-2xl border border-[#1c325c] bg-[#050c1a] p-4 text-xs">
+                <div className="flex justify-between text-slate-300">
+                  <span>1. Gross Product Value (Taxable Base)</span>
+                  <span className="font-bold text-white">₹{gross.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-blue-300">
+                  <span>2. Platform Marketplace Commission</span>
+                  <span>- ₹{comm.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-purple-300">
+                  <span>3. 18% GST on Platform Commission (SAC 998599)</span>
+                  <span>- ₹{gstOnComm.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-cyan-300">
+                  <span>4. GST TCS u/s 52 of CGST Act (0.5%)</span>
+                  <span>- ₹{tcs.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-amber-300">
+                  <span>5. Income Tax TDS u/s 194-O (0.1%)</span>
+                  <span>- ₹{tds.toFixed(2)}</span>
+                </div>
+                {taxInvoiceOrder.deliveryFeeRupees > 0 && (
+                  <div className="flex justify-between text-slate-400 pt-1 border-t border-slate-800">
+                    <span>HireBuddy Partner Delivery (+2% Customer Paid)</span>
+                    <span>₹{Number(taxInvoiceOrder.deliveryFeeRupees).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between pt-2.5 border-t border-slate-700 text-sm font-extrabold text-emerald-400">
+                  <span>Net Seller Bank Settlement (NEFT)</span>
+                  <span>₹{netBankPayout.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+                <span>
+                  Store Pickup PIN: <strong className="text-amber-300">{taxInvoiceOrder.pickupOtp}</strong> • Delivery PIN:{" "}
+                  <strong className="text-indigo-300">{taxInvoiceOrder.deliveryOtp}</strong>
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-200 hover:bg-slate-700"
+                  >
+                    🖨️ Print Statement
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTaxInvoiceOrder(null)}
+                    className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <Footer />
     </div>

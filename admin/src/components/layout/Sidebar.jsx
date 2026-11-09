@@ -12,7 +12,10 @@ import {
   Sparkles,
   LogOut,
   ExternalLink,
-  Store
+  Store,
+  Search,
+  IndianRupee,
+  Globe
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -21,10 +24,13 @@ export default function Sidebar({ pendingCount = 0 }) {
 
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/finance', label: 'Finance, GST & Tax', icon: IndianRupee },
+    { to: '/seo', label: 'Technical SEO & Blog', icon: Globe },
     { to: '/marketplace', label: 'Meerut Marketplace', icon: Store },
     { to: '/verifications', label: 'ID Verifications', icon: ShieldCheck, badge: pendingCount > 0 ? pendingCount : null },
     { to: '/helpers', label: 'Buddies (Partners)', icon: Wrench },
     { to: '/users', label: 'Users & Customers', icon: Users },
+    { to: '/search-logs', label: 'User Searches', icon: Search },
     { to: '/tasks', label: 'All Tasks', icon: CheckSquare },
     { to: '/categories', label: 'Categories', icon: Grid },
     { to: '/analytics', label: 'Analytics', icon: BarChart3 },
@@ -63,7 +69,7 @@ export default function Sidebar({ pendingCount = 0 }) {
                 `flex items-center justify-between rounded-2xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-150 ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                    : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                    : 'admin-sidebar-link text-slate-300 hover:bg-slate-900 hover:text-white'
                 }`
               }
             >
@@ -87,7 +93,7 @@ export default function Sidebar({ pendingCount = 0 }) {
           href="http://localhost:3000"
           target="_blank"
           rel="noreferrer"
-          className="flex items-center justify-between rounded-2xl px-3.5 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-900 hover:text-slate-200 transition"
+          className="admin-sidebar-link flex items-center justify-between rounded-2xl px-3.5 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-900 hover:text-slate-200 transition"
         >
           <div className="flex items-center gap-3">
             <ExternalLink className="h-4 w-4 text-slate-500" />

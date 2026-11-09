@@ -1,54 +1,364 @@
 @import "tailwindcss";
 
-:root {
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root,
+html[data-theme="light"] {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0f172a;
+  --surface-1: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f5f9;
+  --border-color: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --muted: #475569;
+  --muted-light: #64748b;
 }
 
-/* Respect explicit data-theme attribute on <html> */
-[data-theme="light"] {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-[data-theme="dark"] {
+html[data-theme="dark"] {
   --background: #020617;
   --foreground: #e6eef8;
 }
 
-/* Quick overrides: map a few common Tailwind slate classes to light-theme values */
-[data-theme="light"] {
-  --surface-1: #ffffff;
-  --surface-2: #f8fafc;
-  --border-color: #e6e9ee;
-  --muted: #6b7280;
+/* ============================================================================
+   DEFAULT WHITE (LIGHT) THEME OVERRIDES FOR HARDCODED DARK UTILITIES
+   ============================================================================ */
+
+/* 1. Primary Page & Section Backgrounds -> Soft Light Slate (#f8fafc) so white cards pop */
+html[data-theme="light"] .bg-slate-950,
+html[data-theme="light"] .bg-\[\#030814\],
+html[data-theme="light"] .bg-\[\#050b18\],
+html[data-theme="light"] .bg-\[\#050c1a\],
+html[data-theme="light"] .bg-\[\#060913\],
+html[data-theme="light"] .bg-\[\#060c1b\],
+html[data-theme="light"] .bg-\[\#060d1d\] {
+  background-color: #f8fafc !important;
+  background-image: none !important;
 }
 
-/* Background overrides for common container classes */
-[data-theme="light"] .bg-slate-950 { background-color: var(--surface-1) !important; }
-[data-theme="light"] .bg-slate-900 { background-color: var(--surface-2) !important; }
-[data-theme="light"] .bg-slate-900\/80 { background-color: rgba(248,250,252,0.8) !important; }
+/* 2. Sticky Top Headers -> Crisp White with subtle blur */
+html[data-theme="light"] .bg-slate-950\/95,
+html[data-theme="light"] .bg-slate-950\/90,
+html[data-theme="light"] .bg-slate-950\/80,
+html[data-theme="light"] .bg-slate-950\/75,
+html[data-theme="light"] .bg-slate-950\/70,
+html[data-theme="light"] .bg-\[\#040915\],
+html[data-theme="light"] .bg-\[\#040915\]\/95,
+html[data-theme="light"] .bg-\[\#060c1b\]\/90,
+html[data-theme="light"] .bg-\[\#060c1b\]\/95 {
+  background-color: rgba(255, 255, 255, 0.96) !important;
+}
 
-/* Text color overrides */
-[data-theme="light"] .text-slate-100, [data-theme="light"] .text-white { color: var(--foreground) !important; }
-[data-theme="light"] .text-slate-200, [data-theme="light"] .text-slate-300 { color: var(--muted) !important; }
+/* 3. Cards, Modals, Banners & Primary Containers -> Crisp White (#ffffff) */
+html[data-theme="light"] .bg-slate-900,
+html[data-theme="light"] .bg-slate-900\/95,
+html[data-theme="light"] .bg-slate-900\/90,
+html[data-theme="light"] .bg-slate-900\/80,
+html[data-theme="light"] .bg-slate-900\/70,
+html[data-theme="light"] .bg-slate-900\/60,
+html[data-theme="light"] .bg-slate-900\/50,
+html[data-theme="light"] .bg-slate-900\/40,
+html[data-theme="light"] .bg-\[\#071022\],
+html[data-theme="light"] .bg-\[\#071022\]\/90,
+html[data-theme="light"] .bg-\[\#071124\],
+html[data-theme="light"] .bg-\[\#071226\]\/95,
+html[data-theme="light"] .bg-\[\#071a24\],
+html[data-theme="light"] .bg-\[\#081020\],
+html[data-theme="light"] .bg-\[\#081126\],
+html[data-theme="light"] .bg-\[\#081225\],
+html[data-theme="light"] .bg-\[\#081226\],
+html[data-theme="light"] .bg-\[\#081226\]\/95,
+html[data-theme="light"] .bg-\[\#090d18\],
+html[data-theme="light"] .bg-\[\#091224\],
+html[data-theme="light"] .bg-\[\#091326\],
+html[data-theme="light"] .bg-\[\#0a1326\],
+html[data-theme="light"] .bg-\[\#0a1326\]\/90,
+html[data-theme="light"] .bg-\[\#0a1326\]\/95,
+html[data-theme="light"] .bg-\[\#0a1428\],
+html[data-theme="light"] .bg-\[\#0b1120\],
+html[data-theme="light"] .bg-\[\#0b1120\]\/80,
+html[data-theme="light"] .bg-\[\#0b1120\]\/90,
+html[data-theme="light"] .bg-\[\#0b1120\]\/95,
+html[data-theme="light"] .bg-\[\#0b1426\],
+html[data-theme="light"] .bg-\[\#0b1528\],
+html[data-theme="light"] .bg-\[\#0b1528\]\/95,
+html[data-theme="light"] .bg-\[\#0b162c\],
+html[data-theme="light"] .bg-\[\#0b1730\],
+html[data-theme="light"] .bg-\[\#0b1831\],
+html[data-theme="light"] .bg-\[\#0c162c\],
+html[data-theme="light"] .bg-\[\#0c172c\],
+html[data-theme="light"] .bg-\[\#0c1830\] {
+  background-color: #ffffff !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04) !important;
+}
 
-/* Border color overrides */
-[data-theme="light"] .border-slate-800 { border-color: var(--border-color) !important; }
+/* 4. Inputs, Secondary Pills, Icon Boxes & Hover Surfaces -> Soft Slate (#f1f5f9) */
+html[data-theme="light"] .bg-slate-800,
+html[data-theme="light"] .bg-slate-800\/90,
+html[data-theme="light"] .bg-slate-800\/80,
+html[data-theme="light"] .bg-slate-800\/70,
+html[data-theme="light"] .bg-slate-800\/60,
+html[data-theme="light"] .bg-slate-800\/50,
+html[data-theme="light"] .bg-slate-800\/40,
+html[data-theme="light"] .bg-slate-950\/60,
+html[data-theme="light"] .bg-slate-950\/50,
+html[data-theme="light"] .bg-slate-950\/40,
+html[data-theme="light"] .bg-\[\#0d1424\],
+html[data-theme="light"] .bg-\[\#0d1526\]\/90,
+html[data-theme="light"] .bg-\[\#0d182e\],
+html[data-theme="light"] .bg-\[\#0d1b36\],
+html[data-theme="light"] .bg-\[\#0e1629\],
+html[data-theme="light"] .bg-\[\#0f1c36\],
+html[data-theme="light"] .bg-\[\#101c35\],
+html[data-theme="light"] .bg-\[\#101d38\],
+html[data-theme="light"] .bg-\[\#111e38\],
+html[data-theme="light"] .bg-\[\#111e38\]\/70,
+html[data-theme="light"] .bg-\[\#122241\],
+html[data-theme="light"] .bg-\[\#122449\],
+html[data-theme="light"] .bg-\[\#131c31\],
+html[data-theme="light"] .bg-\[\#13203b\],
+html[data-theme="light"] .bg-\[\#132240\],
+html[data-theme="light"] .bg-\[\#132548\],
+html[data-theme="light"] .bg-\[\#152238\],
+html[data-theme="light"] .bg-\[\#152442\],
+html[data-theme="light"] .bg-\[\#162749\],
+html[data-theme="light"] .bg-\[\#1c2d4d\],
+html[data-theme="light"] .hover\:bg-slate-900:hover,
+html[data-theme="light"] .hover\:bg-slate-800:hover,
+html[data-theme="light"] .hover\:bg-slate-800\/60:hover,
+html[data-theme="light"] .hover\:bg-slate-800\/40:hover,
+html[data-theme="light"] .hover\:bg-\[\#0b1831\]:hover,
+html[data-theme="light"] .hover\:bg-\[\#111e38\]:hover,
+html[data-theme="light"] .hover\:bg-\[\#111e38\]\/70:hover,
+html[data-theme="light"] .hover\:bg-\[\#122241\]:hover,
+html[data-theme="light"] .hover\:bg-\[\#122449\]:hover,
+html[data-theme="light"] .hover\:bg-\[\#13203b\]:hover,
+html[data-theme="light"] .hover\:bg-\[\#132240\]:hover,
+html[data-theme="light"] .hover\:bg-\[\#132548\]:hover,
+html[data-theme="light"] .hover\:bg-\[\#152442\]:hover,
+html[data-theme="light"] .hover\:bg-\[\#162749\]:hover,
+html[data-theme="light"] .group:hover .group-hover\:bg-\[\#132548\] {
+  background-color: #f1f5f9 !important;
+}
 
+/* Emerald verified badges in light mode */
+html[data-theme="light"] .bg-\[\#063b2d\],
+html[data-theme="light"] .bg-\[\#042f26\]\/95,
+html[data-theme="light"] .bg-\[\#0c2823\],
+html[data-theme="light"] .bg-\[\#102a25\],
+html[data-theme="light"] .bg-\[\#0d6e52\]\/90 {
+  background-color: #ecfdf5 !important;
+  border-color: #a7f3d0 !important;
+  color: #047857 !important;
+}
+
+html[data-theme="light"] .hover\:bg-slate-700:hover {
+  background-color: #e2e8f0 !important;
+}
+
+html[data-theme="light"] .hover\:text-white:hover,
+html[data-theme="light"] .hover\:text-slate-100:hover,
+html[data-theme="light"] .hover\:text-slate-200:hover {
+  color: var(--foreground) !important;
+}
+
+/* 5. Dark Gradient Section Overrides in Light Mode */
+html[data-theme="light"] .from-\[\#071327\],
+html[data-theme="light"] .from-\[\#081126\],
+html[data-theme="light"] .from-\[\#08152d\],
+html[data-theme="light"] .from-\[\#08162f\],
+html[data-theme="light"] .from-\[\#0b1528\],
+html[data-theme="light"] .from-\[\#050b18\],
+html[data-theme="light"] .from-\[\#060c1b\],
+html[data-theme="light"] .from-slate-950,
+html[data-theme="light"] .from-slate-900,
+html[data-theme="light"] .from-blue-600\/20,
+html[data-theme="light"] .from-emerald-600\/20 {
+  --tw-gradient-from: #eff6ff !important;
+}
+html[data-theme="light"] .via-\[\#091832\],
+html[data-theme="light"] .via-\[\#0b1f42\],
+html[data-theme="light"] .via-\[\#0c2044\],
+html[data-theme="light"] .via-slate-950,
+html[data-theme="light"] .via-slate-900 {
+  --tw-gradient-via: #f8fafc !important;
+}
+html[data-theme="light"] .to-\[\#060c1b\],
+html[data-theme="light"] .to-\[\#061022\],
+html[data-theme="light"] .to-\[\#061527\],
+html[data-theme="light"] .to-\[\#07182b\],
+html[data-theme="light"] .to-\[\#050b18\],
+html[data-theme="light"] .to-slate-950,
+html[data-theme="light"] .to-slate-900 {
+  --tw-gradient-to: #ffffff !important;
+}
+
+/* 6. Borders */
+html[data-theme="light"] .border-slate-800,
+html[data-theme="light"] .border-slate-800\/80,
+html[data-theme="light"] .border-slate-800\/60,
+html[data-theme="light"] .border-slate-700,
+html[data-theme="light"] .border-slate-700\/80,
+html[data-theme="light"] .border-slate-700\/60,
+html[data-theme="light"] .border-\[\#0b1528\],
+html[data-theme="light"] .border-\[\#111e38\],
+html[data-theme="light"] .border-\[\#122342\],
+html[data-theme="light"] .border-\[\#132544\],
+html[data-theme="light"] .border-\[\#14223d\],
+html[data-theme="light"] .border-\[\#142342\],
+html[data-theme="light"] .border-\[\#142544\],
+html[data-theme="light"] .border-\[\#152238\],
+html[data-theme="light"] .border-\[\#15223a\],
+html[data-theme="light"] .border-\[\#15233e\],
+html[data-theme="light"] .border-\[\#152544\],
+html[data-theme="light"] .border-\[\#152849\],
+html[data-theme="light"] .border-\[\#15284a\],
+html[data-theme="light"] .border-\[\#162542\],
+html[data-theme="light"] .border-\[\#162645\],
+html[data-theme="light"] .border-\[\#162646\],
+html[data-theme="light"] .border-\[\#162749\],
+html[data-theme="light"] .border-\[\#162a4f\],
+html[data-theme="light"] .border-\[\#172642\],
+html[data-theme="light"] .border-\[\#17294d\],
+html[data-theme="light"] .border-\[\#172a4f\],
+html[data-theme="light"] .border-\[\#182949\],
+html[data-theme="light"] .border-\[\#192a4a\],
+html[data-theme="light"] .border-\[\#192b4d\],
+html[data-theme="light"] .border-\[\#192d52\],
+html[data-theme="light"] .border-\[\#1a2b4c\],
+html[data-theme="light"] .border-\[\#1a3058\],
+html[data-theme="light"] .border-\[\#1b2b4b\],
+html[data-theme="light"] .border-\[\#1b2c4d\],
+html[data-theme="light"] .border-\[\#1b2e54\],
+html[data-theme="light"] .border-\[\#1c2f52\],
+html[data-theme="light"] .border-\[\#1c325c\],
+html[data-theme="light"] .border-\[\#1d2d4e\],
+html[data-theme="light"] .border-\[\#1d2f52\],
+html[data-theme="light"] .border-\[\#1d3156\],
+html[data-theme="light"] .border-\[\#1d3158\],
+html[data-theme="light"] .border-\[\#1d3159\],
+html[data-theme="light"] .border-\[\#1d325a\],
+html[data-theme="light"] .border-\[\#1d3562\],
+html[data-theme="light"] .border-\[\#1e3152\],
+html[data-theme="light"] .border-\[\#1e3154\],
+html[data-theme="light"] .border-\[\#1e3156\],
+html[data-theme="light"] .border-\[\#1f3664\],
+html[data-theme="light"] .border-\[\#203864\],
+html[data-theme="light"] .border-\[\#223966\],
+html[data-theme="light"] .border-\[\#233d6e\],
+html[data-theme="light"] .border-\[\#24375c\],
+html[data-theme="light"] .border-\[\#243860\],
+html[data-theme="light"] .border-\[\#243f73\],
+html[data-theme="light"] .border-\[\#254175\],
+html[data-theme="light"] .border-\[\#2a3c5e\],
+html[data-theme="light"] .border-\[\#2a3f66\],
+html[data-theme="light"] .border-\[\#2c4778\] {
+  border-color: var(--border-color) !important;
+}
+
+html[data-theme="light"] .hover\:border-\[\#233d6e\]:hover,
+html[data-theme="light"] .hover\:border-\[\#243f73\]:hover,
+html[data-theme="light"] .hover\:border-\[\#254175\]:hover,
+html[data-theme="light"] .hover\:border-\[\#2c4778\]:hover {
+  border-color: #93c5fd !important;
+}
+
+html[data-theme="light"] .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
+html[data-theme="light"] .divide-slate-700 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border-color) !important;
+}
+
+/* 7. Typography in Light Theme */
+html[data-theme="light"] .text-slate-100,
+html[data-theme="light"] .text-white {
+  color: var(--foreground) !important;
+}
+
+html[data-theme="light"] .text-slate-200,
+html[data-theme="light"] .text-slate-300 {
+  color: #334155 !important;
+}
+
+html[data-theme="light"] .text-slate-400 {
+  color: #475569 !important;
+}
+
+/* 8. Preserve white text on solid colored buttons, active pills, and photo badges */
+html[data-theme="light"] .bg-blue-600,
+html[data-theme="light"] .bg-blue-500,
+html[data-theme="light"] .bg-emerald-600,
+html[data-theme="light"] .bg-emerald-500,
+html[data-theme="light"] .bg-rose-600,
+html[data-theme="light"] .bg-rose-500,
+html[data-theme="light"] .bg-red-600,
+html[data-theme="light"] .bg-red-500,
+html[data-theme="light"] .bg-indigo-600,
+html[data-theme="light"] .bg-amber-600,
+html[data-theme="light"] .bg-purple-600,
+html[data-theme="light"] .bg-\[\#0d6efd\],
+html[data-theme="light"] .bg-\[\#1361f5\],
+html[data-theme="light"] .bg-\[\#1d6bf3\],
+html[data-theme="light"] .bg-\[\#2563eb\],
+html[data-theme="light"] .bg-\[\#10b981\],
+html[data-theme="light"] .bg-\[\#27946b\],
+html[data-theme="light"] .bg-\[\#2ca16d\],
+html[data-theme="light"] .bg-\[\#2fa97c\],
+html[data-theme="light"] .bg-\[\#34b27b\],
+html[data-theme="light"] .bg-\[\#6366f1\],
+html[data-theme="light"] .bg-\[\#d97706\],
+html[data-theme="light"] .bg-\[\#ec4899\],
+html[data-theme="light"] .bg-\[\#ef4444\],
+html[data-theme="light"] .bg-\[\#050d1e\]\/90,
+html[data-theme="light"] .bg-\[\#050d1e\]\/80,
+html[data-theme="light"] .from-\[\#0a41d8\],
+html[data-theme="light"] .from-blue-600,
+html[data-theme="light"] .from-emerald-600,
+html[data-theme="light"] .from-emerald-500,
+html[data-theme="light"] .from-rose-600,
+html[data-theme="light"] .bg-blue-600 .text-white,
+html[data-theme="light"] .bg-emerald-600 .text-white,
+html[data-theme="light"] .bg-emerald-500 .text-white,
+html[data-theme="light"] .bg-rose-600 .text-white,
+html[data-theme="light"] .bg-red-600 .text-white,
+html[data-theme="light"] .bg-\[\#0d6efd\] .text-white,
+html[data-theme="light"] .bg-\[\#1361f5\] .text-white,
+html[data-theme="light"] .bg-\[\#1d6bf3\] .text-white,
+html[data-theme="light"] .bg-\[\#2563eb\] .text-white,
+html[data-theme="light"] .bg-\[\#10b981\] .text-white,
+html[data-theme="light"] .bg-\[\#2fa97c\] .text-white,
+html[data-theme="light"] .bg-\[\#ef4444\] .text-white,
+html[data-theme="light"] .from-\[\#0a41d8\] .text-white {
+  color: #ffffff !important;
+}
+
+/* Readable accent badges in light mode */
+html[data-theme="light"] .text-emerald-300,
+html[data-theme="light"] .text-\[\#34d399\] { color: #047857 !important; }
+html[data-theme="light"] .text-emerald-400 { color: #059669 !important; }
+html[data-theme="light"] .text-amber-300 { color: #b45309 !important; }
+html[data-theme="light"] .text-amber-400 { color: #d97706 !important; }
+html[data-theme="light"] .text-blue-300 { color: #1d4ed8 !important; }
+html[data-theme="light"] .text-blue-400 { color: #2563eb !important; }
+html[data-theme="light"] .text-rose-300 { color: #be123c !important; }
+html[data-theme="light"] .text-rose-400 { color: #e11d48 !important; }
+
+/* Shimmer skeletons in light mode */
+html[data-theme="light"] .shimmer-skeleton,
+html[data-theme="light"] .shimmer-skeleton-subtle {
+  background: linear-gradient(
+    90deg,
+    #f1f5f9 0%,
+    #e2e8f0 50%,
+    #f1f5f9 100%
+  ) !important;
+  background-size: 200% 100% !important;
+}
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {

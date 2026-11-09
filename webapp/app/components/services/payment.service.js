@@ -51,6 +51,33 @@ export const activateSubscription = (planType = "DAILY", paymentMethod = "ONLINE
   });
 };
 
+export const getWallet = () => {
+  return apiClient(PAYMENT_ENDPOINTS.WALLET, {
+    method: "GET",
+  });
+};
+
+export const topupWallet = (payload = {}) => {
+  return apiClient(PAYMENT_ENDPOINTS.WALLET_TOPUP, {
+    method: "POST",
+    body: payload,
+  });
+};
+
+export const withdrawWallet = (payload = {}) => {
+  return apiClient(PAYMENT_ENDPOINTS.WALLET_WITHDRAW, {
+    method: "POST",
+    body: payload,
+  });
+};
+
+export const payTaskWithWallet = (payload = {}) => {
+  return apiClient(PAYMENT_ENDPOINTS.WALLET_PAY_TASK, {
+    method: "POST",
+    body: payload,
+  });
+};
+
 export const getPaymentHistory = (limit = 20, offset = 0) => {
   return apiClient(`${PAYMENT_ENDPOINTS.GET_PAYMENT_HISTORY}?limit=${limit}&offset=${offset}`, {
     method: "GET",
@@ -70,10 +97,70 @@ export const refundPayment = (paymentId, reason = "Task cancelled") => {
   });
 };
 
+export const calculateBookingBreakdown = (payload = {}) => {
+  return apiClient(PAYMENT_ENDPOINTS.CALCULATE_BREAKDOWN, {
+    method: "POST",
+    body: payload,
+  });
+};
+
+export const getBookingPaymentDetails = (bookingId) => {
+  return apiClient(`${PAYMENT_ENDPOINTS.GET_BOOKING_PAYMENT}/${bookingId}`, {
+    method: "GET",
+  });
+};
+
+export const getHelperEarningsLedger = () => {
+  return apiClient(PAYMENT_ENDPOINTS.HELPER_EARNINGS, {
+    method: "GET",
+  });
+};
+
+export const getHelperPayouts = () => {
+  return apiClient(PAYMENT_ENDPOINTS.HELPER_PAYOUTS, {
+    method: "GET",
+  });
+};
+
+export const requestHelperPayout = (payload = {}) => {
+  return apiClient(PAYMENT_ENDPOINTS.HELPER_PAYOUT_REQUEST, {
+    method: "POST",
+    body: payload,
+  });
+};
+
+export const saveHelperTaxProfile = (payload = {}) => {
+  return apiClient(PAYMENT_ENDPOINTS.HELPER_TAX_PROFILE, {
+    method: "POST",
+    body: payload,
+  });
+};
+
+export const saveHelperBankAccount = (payload = {}) => {
+  return apiClient(PAYMENT_ENDPOINTS.HELPER_BANK_ACCOUNT, {
+    method: "POST",
+    body: payload,
+  });
+};
+
 export default {
+  calculateBookingBreakdown,
   createPaymentOrder,
   verifyPayment,
+  releaseEscrowPayment,
+  getSubscriptionStatus,
+  activateSubscription,
+  getWallet,
+  topupWallet,
+  withdrawWallet,
+  payTaskWithWallet,
   getPaymentHistory,
+  getBookingPaymentDetails,
   getPaymentDetails,
   refundPayment,
+  getHelperEarningsLedger,
+  getHelperPayouts,
+  requestHelperPayout,
+  saveHelperTaxProfile,
+  saveHelperBankAccount,
 };

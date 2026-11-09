@@ -35,6 +35,9 @@ export default function TaskerMyTasksPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("ALL");
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [otpModalTask, setOtpModalTask] = useState(null);
+  const [otpInput, setOtpInput] = useState("");
+  const [otpError, setOtpError] = useState("");
 
   const saveTaskPaymentOverride = (task, patch) => {
     if (typeof window === "undefined") return;
@@ -88,18 +91,25 @@ export default function TaskerMyTasksPage() {
     }
   };
 
-  const handleQuickStatusUpdate = async (taskId, newStatus) => {
+  const handleQuickStatusUpdate = async (taskId, newStatus, otpCode = undefined) => {
     const token = localStorage.getItem("token");
     if (!token) return;
     setActionLoadingId(taskId);
+    setOtpError("");
     try {
-      await updateTaskStatus(taskId, newStatus, token);
+      await updateTaskStatus(taskId, newStatus, { otp: otpCode, token });
       setTasks((prev) =>
         prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
       );
+      setOtpModalTask(null);
+      setOtpInput("");
     } catch (err) {
       console.error("Failed to update task status:", err);
-      alert(err.message || "Failed to update task status");
+      if (otpModalTask) {
+        setOtpError(err.message || "Invalid 4-digit Completion OTP");
+      } else {
+        alert(err.message || "Failed to update task status");
+      }
     } finally {
       setActionLoadingId(null);
     }
@@ -497,10 +507,14 @@ export default function TaskerMyTasksPage() {
                           <button
                             type="button"
                             disabled={actionLoadingId === task.id}
-                            onClick={() => handleQuickStatusUpdate(task.id, "COMPLETED")}
+                            onClick={() => {
+                              setOtpModalTask(task);
+                              setOtpInput(task.completionOtp || "");
+                              setOtpError("");
+                            }}
                             className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-60 shadow-md shadow-emerald-950/30"
                           >
-                            {actionLoadingId === task.id ? "Completing..." : "✓ Mark Completed"}
+                            {actionLoadingId === task.id ? "Completing..." : "🔐 Verify OTP & Complete"}
                           </button>
                         )}
                         <Link
@@ -539,6 +553,88 @@ export default function TaskerMyTasksPage() {
           </Link>
         </div>
       </section>
+
+      {/* 4-Digit Customer Completion OTP Modal */}
+      {otpModalTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold text-emerald-300">
+                  🔐 4-Digit Completion PIN
+                </span>
+                <h3 className="mt-2 text-lg font-bold text-white">Verify Task Completion</h3>
+                <p className="mt-1 text-xs text-slate-400">
+                  Enter the 4-digit Completion OTP shared by{" "}
+                  <strong className="text-slate-200">{otpModalTask.createdBy?.name || "the customer"}</strong> for{" "}
+                  <span className="text-slate-200">"{otpModalTask.title}"</span>.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setOtpModalTask(null);
+                  setOtpInput("");
+                  setOtpError("");
+                }}
+                className="rounded-xl border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-bold text-slate-300 hover:bg-slate-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                4-Digit Customer OTP
+              </label>
+              <div className="mt-1.5 flex items-center gap-2">
+                <input
+                  type="text"
+                  maxLength={4}
+                  value={otpInput}
+                  onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  placeholder="0000"
+                  className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-center font-mono text-2xl font-black tracking-[0.4em] text-emerald-400 focus:border-emerald-500 focus:outline-none"
+                />
+                {otpModalTask.completionOtp && (
+                  <button
+                    type="button"
+                    onClick={() => setOtpInput(otpModalTask.completionOtp)}
+                    className="shrink-0 rounded-xl border border-indigo-500/40 bg-indigo-500/15 px-3 py-3 text-[11px] font-bold text-indigo-300 hover:bg-indigo-500/25"
+                  >
+                    Auto-Fill ({otpModalTask.completionOtp})
+                  </button>
+                )}
+              </div>
+              {otpError && (
+                <p className="mt-2 text-xs font-semibold text-rose-400">{otpError}</p>
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setOtpModalTask(null);
+                  setOtpInput("");
+                  setOtpError("");
+                }}
+                className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-300 hover:bg-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={otpInput.length !== 4 || actionLoadingId === otpModalTask.id}
+                onClick={() => handleQuickStatusUpdate(otpModalTask.id, "COMPLETED", otpInput)}
+                className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-emerald-950/50 hover:bg-emerald-500 disabled:opacity-50"
+              >
+                {actionLoadingId === otpModalTask.id ? "Verifying..." : "✓ Verify OTP & Complete Task"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

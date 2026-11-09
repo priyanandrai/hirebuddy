@@ -9,6 +9,7 @@ import {
   verifyPayment,
   releaseEscrowPayment,
 } from "@/app/components/services/payment.service";
+import { openRazorpayCheckout } from "@/app/components/lib/razorpayCheckout";
 import { TaskDetailShimmer } from "@/app/components/ui/Shimmer";
 import Link from "next/link";
 
@@ -53,10 +54,18 @@ export default function TaskDetailsPage() {
         orderRes?.orderId ||
         `order_escrow_${Date.now()}`;
 
-      await verifyPayment({
+      const checkoutRes = await openRazorpayCheckout({
+        amountInRupees: Number(task.budget || 300),
         orderId,
-        paymentId: `pay_escrow_${Date.now()}`,
-        signature: "sandbox_escrow_verified",
+        keyId: orderRes?.keyId || orderRes?.data?.keyId,
+        title: `Escrow: ${task.title}`,
+        description: `Hold ₹${task.budget} in HireBuddy Escrow`,
+      });
+
+      await verifyPayment({
+        orderId: checkoutRes.razorpayOrderId || orderId,
+        paymentId: checkoutRes.razorpayPaymentId || `pay_escrow_${Date.now()}`,
+        signature: checkoutRes.razorpaySignature || "sandbox_escrow_verified",
         holdInEscrow: true,
       });
 
@@ -231,6 +240,23 @@ export default function TaskDetailsPage() {
               </p>
             )}
           </div>
+
+          {/* Completion OTP Card when Task is Assigned or In Progress */}
+          {(normalizedStatus === "ASSIGNED" || normalizedStatus === "IN_PROGRESS") && (
+            <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 p-5 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-sm font-bold text-amber-300 flex items-center gap-2">
+                  <span>🔐 4-Digit Task Completion PIN</span>
+                </h2>
+                <p className="text-xs text-slate-300 mt-1">
+                  Share this PIN with {task.assignedTo?.name || "your Buddy"} only after the work is completed to verify completion and release held escrow payment.
+                </p>
+              </div>
+              <div className="rounded-xl border border-amber-400/50 bg-slate-950/80 px-4 py-2.5 font-mono text-xl font-black tracking-[0.25em] text-amber-300">
+                {task.completionOtp || "4829"}
+              </div>
+            </div>
+          )}
 
           {/* Escrow Payment Protection Card (Hold Payment & 100% Release to Buddy) */}
           <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/15 p-5 space-y-3">

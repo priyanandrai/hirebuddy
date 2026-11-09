@@ -234,6 +234,8 @@ export const getMyProfileService = async (userId) => {
       idDocumentType: true,
       addressProofType: true,
       idVerifiedAt: true,
+      isBlocked: true,
+      blockedReason: true,
       createdAt: true,
     },
   });
@@ -255,15 +257,12 @@ export const getMyProfileService = async (userId) => {
 export const getHelper = async (id) => {
   const selectFields = {
     id: true,
+    slug: true,
     name: true,
-    email: true,
-    phone: true,
     image: true,
     role: true,
     city: true,
-    address: true,
-    latitude: true,
-    longitude: true,
+    bio: true,
     skills: true,
     experience: true,
     hourlyRate: true,
@@ -271,13 +270,15 @@ export const getHelper = async (id) => {
     averageRating: true,
     totalReviews: true,
     idVerificationStatus: true,
-    idDocumentUrl: true,
     idVerifiedAt: true,
+    isPublicProfileApproved: true,
     createdAt: true,
   };
 
-  let user = await prisma.user.findUnique({
-    where: { id },
+  let user = await prisma.user.findFirst({
+    where: {
+      OR: [{ id }, { slug: id }],
+    },
     select: selectFields,
   });
 
@@ -340,6 +341,8 @@ export const getHelpersListService = async () => {
       idVerificationStatus: true,
       idDocumentUrl: true,
       addressProofUrl: true,
+      isBlocked: true,
+      blockedReason: true,
       createdAt: true,
     },
     orderBy: {
@@ -399,6 +402,7 @@ export const searchHelpersDbService = async (params = {}) => {
 
   const where = {
     role: "HELPER",
+    isBlocked: false,
   };
 
   const andConditions = [];
@@ -531,6 +535,8 @@ export const getAllUsersService = async ({ role, search, limit = 50, offset = 0 
         totalReviews: true,
         walletBalance: true,
         isAvailable: true,
+        isBlocked: true,
+        blockedReason: true,
         idVerificationStatus: true,
         idDocumentUrl: true,
         createdAt: true,
@@ -545,6 +551,42 @@ export const getAllUsersService = async ({ role, search, limit = 50, offset = 0 
   ]);
 
   return { total, users };
+};
+
+export const toggleBlockUserService = async (userId, isBlocked = true, blockedReason = null) => {
+  const blocked = Boolean(isBlocked);
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      isBlocked: blocked,
+      blockedReason: blocked ? (blockedReason || "Blocked by Administrator") : null,
+      ...(blocked ? { isAvailable: false } : {}),
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      role: true,
+      isBlocked: true,
+      blockedReason: true,
+      isAvailable: true,
+    },
+  });
+
+  if (user.role === "HELPER") {
+    try {
+      if (blocked) {
+        await deleteHelper(userId);
+      } else {
+        await indexHelper(user);
+      }
+    } catch (e) {
+      console.warn("ES update after block/unblock failed:", e?.message);
+    }
+  }
+
+  return user;
 };
 
 export const updateUserRoleService = async (userId, role) => {
@@ -569,6 +611,12 @@ export const deleteUserService = async (userId) => {
       where: { OR: [{ payerId: userId }, { payeeId: userId }] },
     });
     await tx.partnerSubscription.deleteMany({
+      where: { userId },
+    });
+    await tx.walletTransaction.deleteMany({
+      where: { userId },
+    });
+    await tx.searchLog.deleteMany({
       where: { userId },
     });
     await tx.supportTicket.deleteMany({

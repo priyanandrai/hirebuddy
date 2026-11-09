@@ -459,3 +459,20 @@ export function PaymentRowShimmer({ count = 4 }) {
     </div>
   );
 }
+
+/**
+ * Alias / single-card shimmer for Marketplace & Task Cards
+ */
+export function TaskCardShimmer({ count = 1 }) {
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-3 shadow-lg">
+      <div className="h-40 w-full rounded-xl shimmer-skeleton" />
+      <div className="h-4 w-3/4 rounded-md shimmer-skeleton" />
+      <div className="h-3 w-full rounded shimmer-skeleton-subtle" />
+      <div className="flex items-center justify-between pt-2">
+        <div className="h-5 w-20 rounded-md shimmer-skeleton" />
+        <div className="h-9 w-24 rounded-xl shimmer-skeleton" />
+      </div>
+    </div>
+  );
+}

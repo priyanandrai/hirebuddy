@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { getHelpers, getUserProfile } from "@/app/components/services/user.service";
 import { getTaskCategories, updateTask } from "@/app/components/services/task.service";
+import { logUserSearch } from "@/app/components/services/search.service";
 import { HelperDirectoryCardShimmer } from "@/app/components/ui/Shimmer";
 import {
   Search,
@@ -600,6 +601,26 @@ function HelpersPageContent() {
       return (b.rating || 0) - (a.rating || 0);
     });
   }, [allHelpers, query, selectedLocation, selectedTaskType, availableOnly, sortBy]);
+
+  // Log what user is searching in Buddies Directory for Admin visibility
+  useEffect(() => {
+    const qClean = query.trim();
+    const catClean = selectedTaskType !== "ALL" ? selectedTaskType : null;
+    const locClean = selectedLocation !== "ALL" ? selectedLocation : null;
+    if (!qClean && !catClean && !locClean) return;
+
+    const timer = setTimeout(() => {
+      logUserSearch({
+        query: qClean || catClean || `Location: ${locClean}`,
+        category: catClean,
+        location: locClean,
+        section: "HELPERS",
+        resultsCount: filteredHelpers.length,
+      });
+    }, 650);
+
+    return () => clearTimeout(timer);
+  }, [query, selectedTaskType, selectedLocation, filteredHelpers.length]);
 
   const hasActiveFilters =
     Boolean(query.trim()) ||

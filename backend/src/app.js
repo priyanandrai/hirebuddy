@@ -6,6 +6,8 @@ import authRoutes from "./routes/auth.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import taskRoutes from "./routes/task.routes.js";
 import paymentRoutes from "./routes/payment.routes.js";
+import helperFinanceRoutes from "./routes/helperFinance.routes.js";
+import adminFinanceRoutes from "./routes/adminFinance.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 import reviewRoutes from "./routes/review.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
@@ -15,6 +17,7 @@ import categoryRoutes from './routes/category.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import marketplaceRoutes from './routes/marketplace.routes.js';
 import supportRoutes from './routes/support.routes.js';
+import seoRoutes from './routes/seo.routes.js';
 
 const app = express();
 
@@ -22,12 +25,25 @@ app.use(
   cors({
     origin: (origin, callback) => callback(null, true),
     credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Idempotency-Key",
+      "X-Razorpay-Signature",
+      "X-Razorpay-Event-Id",
+    ],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   })
 );
 
-app.use(express.json());
+// Preserve rawBody buffer for webhook HMAC signature verification
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 
 // Serve static uploaded documents and files
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
@@ -36,6 +52,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/helpers", helperFinanceRoutes);
+app.use("/api/admin", adminFinanceRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/notifications", notificationRoutes);
@@ -45,6 +63,7 @@ app.use('/api/categories', categoryRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/seo', seoRoutes);
 
 app.get("/", (req, res) => {
   res.json({ status: "ok", service: "HireBuddy Backend API", timestamp: new Date().toISOString() });

@@ -41,14 +41,14 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex">
+    <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex overflow-x-hidden">
       {/* Sidebar */}
       <Sidebar pendingCount={pendingCount} />
 
       {/* Main Content Area */}
-      <div className="flex-1 pl-64 flex flex-col min-h-screen">
+      <div className="flex-1 min-w-0 pl-64 flex flex-col min-h-screen max-w-full">
         <Navbar onRefresh={handleGlobalRefresh} />
-        <main className="flex-1 p-8 overflow-y-auto">
+        <main className="flex-1 min-w-0 p-6 lg:p-8 overflow-y-auto overflow-x-hidden">
           <Outlet context={{ refreshTrigger, onRefresh: handleGlobalRefresh }} />
         </main>
       </div>

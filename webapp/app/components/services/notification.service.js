@@ -36,10 +36,32 @@ export const deleteNotification = (notificationId) => {
   });
 };
 
+export const registerFcmToken = (fcmToken) => {
+  return apiClient(NOTIFICATION_ENDPOINTS.FCM_TOKEN, {
+    method: "POST",
+    body: { fcmToken },
+  });
+};
+
+export const removeFcmToken = () => {
+  return apiClient(NOTIFICATION_ENDPOINTS.FCM_TOKEN, {
+    method: "DELETE",
+  });
+};
+
+export const sendTestPushNotification = () => {
+  return apiClient(NOTIFICATION_ENDPOINTS.TEST_PUSH, {
+    method: "POST",
+  });
+};
+
 export default {
   getNotifications,
   getUnreadNotificationCount,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   deleteNotification,
+  registerFcmToken,
+  removeFcmToken,
+  sendTestPushNotification,
 };

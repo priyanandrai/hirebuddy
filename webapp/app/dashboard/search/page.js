@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import HeaderAfterlogin from "../../components/layout/HeaderAfterlogin";
 import Footer from "../../components/layout/Footer";
-import { searchTasks, searchHelpers } from "../../components/services/search.service";
+import { searchTasks, searchHelpers, logUserSearch } from "../../components/services/search.service";
 import { getTaskCategories } from "../../components/services/task.service";
 import { getAuthToken } from "../../components/lib/getSessionToken";
 import { hireBuddy } from "../../components/services/hire.service";
@@ -650,6 +650,25 @@ function SearchContent() {
 
     return list;
   }, [allHelpers, appliedFilters, sortBy]);
+
+  // Log what the user is searching so Admin can see live search activity
+  useEffect(() => {
+    const activeCat = appliedFilters.categories?.[0] || null;
+    const activeLoc = appliedFilters.location || null;
+    if (!q && !activeCat && !activeLoc) return;
+
+    const timer = setTimeout(() => {
+      logUserSearch({
+        query: q || activeCat || `Location: ${activeLoc}`,
+        category: activeCat,
+        location: activeLoc,
+        section: "SERVICES",
+        resultsCount: filteredHelpers.length + visibleTasks.length,
+      });
+    }, 650);
+
+    return () => clearTimeout(timer);
+  }, [q, appliedFilters.categories, appliedFilters.location, filteredHelpers.length, visibleTasks.length]);
 
   const toggleSection = (key) => {
     setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));

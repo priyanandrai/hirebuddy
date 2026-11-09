@@ -3,6 +3,12 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { initializeSocket } from "../config/socketClient";
+import {
+  initializeFirebasePush,
+  registerPushServiceWorker,
+  showServiceWorkerNotification,
+} from "../config/firebaseClient";
+import { getCurrentUser } from "../services/auth.service";
 import { markNotificationAsRead } from "../services/notification.service";
 import { X, Bell, ExternalLink, Volume2, VolumeX } from "lucide-react";
 
@@ -125,18 +131,32 @@ export default function RealtimeNotificationCenter({ role = "USER" }) {
         playNotificationChime();
       }
 
-      // Trigger native OS Browser Notification if tab is hidden and permission granted
+      // Trigger native OS / Service Worker Notification if tab is hidden or push test
       try {
         if (
           typeof window !== "undefined" &&
           "Notification" in window &&
           window.Notification.permission === "granted" &&
-          document.hidden
+          (document.hidden || String(newToast.type || "").includes("test"))
         ) {
-          new window.Notification(newToast.title || "HireBuddy Update", {
-            body: newToast.message || "You have a new real-time notification",
-            icon: "/favicon.ico",
-          });
+          const isHelper = role === "HELPER";
+          const targetUrl = newToast.taskId
+            ? isHelper
+              ? `/dashboard-tasker/tasks/${newToast.taskId}`
+              : `/dashboard/my-tasks/${newToast.taskId}`
+            : isHelper
+            ? "/dashboard-tasker/notifications"
+            : "/dashboard/notifications";
+
+          showServiceWorkerNotification(
+            newToast.title || "HireBuddy Update",
+            newToast.message || "You have a new real-time notification",
+            {
+              id: newToast.id,
+              taskId: newToast.taskId,
+              clickUrl: targetUrl,
+            }
+          );
         }
       } catch {
         // ignore browser notification errors
@@ -146,16 +166,30 @@ export default function RealtimeNotificationCenter({ role = "USER" }) {
         setToasts((prev) => prev.filter((t) => t.toastId !== toastId));
       }, 6500);
     },
-    [soundEnabled]
+    [soundEnabled, role]
   );
 
   useEffect(() => {
     initializeSocket().catch(() => {});
+    registerPushServiceWorker().catch(() => {});
 
-    // Request native browser notification permission unobtrusively on first user interaction
+    let currentUserId = null;
+    getCurrentUser()
+      .then((res) => {
+        const uid = res?.data?.id || res?.id;
+        if (uid) {
+          currentUserId = uid;
+          initializeFirebasePush(uid).catch(() => {});
+        }
+      })
+      .catch(() => {});
+
+    // Request native browser notification permission & register FCM token on first user interaction
     const requestBrowserPermOnce = () => {
       try {
-        if (
+        if (currentUserId) {
+          initializeFirebasePush(currentUserId).catch(() => {});
+        } else if (
           typeof window !== "undefined" &&
           "Notification" in window &&
           window.Notification.permission === "default"
@@ -243,7 +277,7 @@ export default function RealtimeNotificationCenter({ role = "USER" }) {
     if (toast.taskId) {
       return isHelper
         ? `/dashboard-tasker/tasks/${toast.taskId}`
-        : `/dashboard/tasks/${toast.taskId}`;
+        : `/dashboard/my-tasks/${toast.taskId}`;
     }
     return isHelper ? "/dashboard-tasker/notifications" : "/dashboard/notifications";
   };

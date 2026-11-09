@@ -221,13 +221,19 @@ export const updateTask = async (req, res) => {
 export const updateTaskStatus = async (req, res) => {
   try {
     const id = req.params.id || req.params.taskId;
-    const { status } = req.body;
+    const { status, otp, completionOtp } = req.body;
 
     if (!status) {
       return res.status(400).json({ message: "Status is required" });
     }
 
-    const task = await taskService.updateTaskStatusAndIndex(id, req.user.id, status, req.user);
+    const task = await taskService.updateTaskStatusAndIndex(
+      id,
+      req.user.id,
+      status,
+      req.user,
+      otp || completionOtp || null
+    );
 
     res.json(task);
   } catch (error) {

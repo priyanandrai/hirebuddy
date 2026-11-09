@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useContext } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Search, Bell, ChevronDown, Moon, X } from "lucide-react";
+import { Search, Bell, ChevronDown, Moon, Sun, X, Wallet } from "lucide-react";
+import { ThemeContext } from "@/app/providers";
 import { getUnreadNotificationCount } from "@/app/components/services/notification.service";
 import { getUserProfile } from "@/app/components/services/user.service";
 import { initializeSocket } from "@/app/components/config/socketClient";
@@ -11,6 +12,7 @@ import { initializeSocket } from "@/app/components/config/socketClient";
 export default function HelperHeader() {
   const router = useRouter();
   const pathname = usePathname();
+  const { theme, toggleTheme } = useContext(ThemeContext);
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
@@ -198,13 +200,28 @@ export default function HelperHeader() {
 
         {/* Right Controls */}
         <div className="relative flex items-center gap-3.5 sm:gap-4" ref={dropdownRef}>
-          {/* Theme Moon Button */}
+          {/* Buddy Wallet Pill */}
+          <Link
+            href="/dashboard-tasker/wallet"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-bold text-emerald-400 hover:bg-emerald-500/20 transition"
+          >
+            <Wallet className="h-3.5 w-3.5" />
+            <span>₹{Math.round((currentUser?.walletBalance || 0) / 100)}</span>
+          </Link>
+
+          {/* Theme Toggle Button */}
           <button
             type="button"
+            onClick={toggleTheme}
             aria-label="Toggle theme"
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
             className="flex h-9 w-9 items-center justify-center rounded-full border border-[#1a2b4c] bg-[#091326] text-amber-400 hover:bg-[#132240] transition"
           >
-            <Moon className="h-4 w-4 fill-amber-400 text-amber-400" />
+            {theme === "dark" ? (
+              <Moon className="h-4 w-4 fill-amber-400 text-amber-400" />
+            ) : (
+              <Sun className="h-4 w-4 text-amber-500" />
+            )}
           </button>
 
           {/* Notification Bell with Red Badge */}
@@ -265,13 +282,20 @@ export default function HelperHeader() {
               >
                 Browse All Tasks
               </Link>
+              <Link
+                href="/dashboard-tasker/wallet"
+                className="block px-4 py-2.5 text-sm font-semibold text-emerald-400 hover:bg-[#132240]"
+                onClick={() => setOpen(false)}
+              >
+                💳 My Buddy Wallet
+              </Link>
               {isVerified && (
                 <Link
                   href="/dashboard-tasker/earnings"
                   className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-[#132240]"
                   onClick={() => setOpen(false)}
                 >
-                  ₹ Earnings
+                  ₹ Earnings & Pass
                 </Link>
               )}
               <Link

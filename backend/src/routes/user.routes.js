@@ -11,6 +11,7 @@ import {
   getAssignedHelpersFromMyTasks,
   getAllUsers,
   updateUserRole,
+  blockUser,
   deleteUser,
   createHelperByAdmin,
   getMyProfile,
@@ -38,6 +39,9 @@ router.post('/id/:id/verify', authMiddleware, verifyUserId);
 router.patch('/id/:id/verify', authMiddleware, verifyUserId);
 router.put('/:id/role', authMiddleware, updateUserRole);
 router.patch('/:id/role', authMiddleware, updateUserRole);
+router.patch('/:id/block', authMiddleware, blockUser);
+router.post('/:id/block', authMiddleware, blockUser);
+router.put('/:id/block', authMiddleware, blockUser);
 router.delete('/:id', authMiddleware, deleteUser);
 
 export default router;

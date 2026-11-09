@@ -81,6 +81,12 @@ export const verifyOtpService = async (identifier, otp) => {
                 role: "USER",
               },
       });
+    } else if (user.isBlocked) {
+      throw new Error(
+        user.blockedReason
+          ? `Account blocked by administrator: ${user.blockedReason}`
+          : "Your account has been blocked by the administrator."
+      );
     }
 
     const token = signUserToken(user);
@@ -124,6 +130,12 @@ export const googleAuthService = async ({ email, name, image }) => {
           role: null, // role selection pending
         },
       });
+    } else if (user.isBlocked) {
+      throw new Error(
+        user.blockedReason
+          ? `Account blocked by administrator: ${user.blockedReason}`
+          : "Your account has been blocked by the administrator."
+      );
     }
 
     const token = signUserToken(user);

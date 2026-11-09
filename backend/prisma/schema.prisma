@@ -22,6 +22,9 @@ model User {
   address    String?
   
   // HELPER-specific fields
+  slug                    String?   // SEO-friendly helper profile slug (e.g. "ramesh-kumar-electrician-meerut")
+  bio                     String?   @db.Text
+  isPublicProfileApproved Boolean   @default(false)
   skills      String?   // e.g. "Plumbing, Electrician"
   experience  Int?      // years
   hourlyRate  Int?      // in paise
@@ -37,6 +40,13 @@ model User {
   // Partner Active Account Subscription (₹4-5/day or monthly pass)
   partnerPlanType         String?   // "DAILY" | "MONTHLY" | "TRIAL"
   subscriptionActiveUntil DateTime?
+
+  // Firebase Cloud Messaging (FCM) Push Notification Token
+  fcmToken                String?   @db.VarChar(500)
+
+  // Admin Account Block Controls
+  isBlocked               Boolean   @default(false)
+  blockedReason           String?   @db.VarChar(500)
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -64,6 +74,17 @@ model User {
   supportTickets SupportTicket[]
   sellerProfile SellerProfile?
   marketplaceOrders MarketplaceOrder[] @relation("CustomerMarketplaceOrders")
+  walletTransactions WalletTransaction[]
+  searchLogs SearchLog[]
+
+  // Marketplace Financial, Tax & Payout relations
+  helperTaxProfile   HelperTaxProfile?
+  helperBankAccounts HelperBankAccount[]
+  helperPayouts      HelperPayout[]
+  taxWithholdings    TaxWithholding[]
+  refundsRequested   Refund[]            @relation("RefundRequester")
+
+  @@index([slug])
 }
 
 model Otp {
@@ -90,9 +111,25 @@ model Task {
   attachments Json?
   status      TaskStatus @default(OPEN)
   
-  // Payment tracking
+  // Payment tracking & Immutable Pricing/Tax Snapshot (all monetary values in integer paise)
   paymentStatus PaymentStatus @default(PENDING)
   razorpayOrderId String?
+  baseServicePaise            Int?
+  discountPaise               Int      @default(0)
+  platformFundedDiscountPaise Int      @default(0)
+  helperFundedDiscountPaise   Int      @default(0)
+  commissionPaise             Int      @default(0)
+  gstOnServicePaise           Int      @default(0)
+  gstOnCommissionPaise        Int      @default(0)
+  tcsPaise                    Int      @default(0)
+  tdsPaise                    Int      @default(0)
+  totalChargedPaise           Int?
+  netHelperPayablePaise       Int?
+  supplyType                  String?  @default("ORDINARY_MARKETPLACE") // "ORDINARY_MARKETPLACE" | "SECTION_9_5" | "PRINCIPAL_PROVIDER"
+  customerStateCode           String?  @default("UP")
+  helperStateCode             String?  @default("UP")
+  appliedCommissionRuleId     String?
+  appliedTaxRuleId            String?
 
   createdById  String
   assignedToId String?
@@ -105,6 +142,10 @@ model Task {
   reviews    Review[]
   payments   Payment[]
   notifications Notification[]
+  taxTransactions TaxTransaction[]
+  helperPayouts   HelperPayout[]
+  refunds         Refund[]
+  invoices        Invoice[]
 
   createdAt DateTime @default(now())
   completedAt DateTime?
@@ -136,11 +177,16 @@ enum TaskStatus {
 enum PaymentStatus {
   PENDING
   INITIATED
+  CONFIRMED
   HELD_IN_ESCROW
   RELEASED
+  SETTLED
   COMPLETED
   FAILED
+  PARTIALLY_REFUNDED
   REFUNDED
+  DISPUTED
+  CHARGEBACK
 }
 
 enum MessageType {
@@ -196,7 +242,7 @@ model Review {
   @@index([givenToId])
 }
 
-// ===== PAYMENT MODEL (RAZORPAY) =====
+// ===== PAYMENT MODEL (PROVIDER-AGNOSTIC + RAZORPAY ROUTE) =====
 model Payment {
   id        String   @id @default(uuid())
   taskId    String
@@ -204,13 +250,39 @@ model Payment {
   payerId   String
   payeeId   String
   
-  amount    Int      // in paise
+  amount    Int      // Total charged to customer in paise
   currency  String   @default("INR")
   
-  // Razorpay fields
-  razorpayOrderId String?
+  // Provider & Gateway fields
+  provider          String   @default("RAZORPAY") // "RAZORPAY" | "CASHFREE"
+  idempotencyKey    String?
+  razorpayOrderId   String?
   razorpayPaymentId String?
   razorpaySignature String?
+  gatewayTransferId String?
+  transferHoldStatus String? @default("ON_HOLD") // "ON_HOLD" | "RELEASED" | "REVERSED" | "NOT_APPLICABLE"
+
+  // Financial & Tax Snapshot (integer paise)
+  baseServicePaise        Int     @default(0)
+  discountPaise           Int     @default(0)
+  platformDiscountPaise   Int     @default(0)
+  helperDiscountPaise     Int     @default(0)
+  commissionRateBps       Int     @default(0) // e.g., 1500 = 15.00%
+  commissionPaise         Int     @default(0)
+  gstOnServicePaise       Int     @default(0)
+  gstOnCommissionPaise    Int     @default(0)
+  tcsPaise                Int     @default(0)
+  tdsPaise                Int     @default(0)
+  gatewayFeePaise         Int     @default(0)
+  gatewayGstPaise         Int     @default(0)
+  netHelperEarningsPaise  Int     @default(0)
+  refundedAmountPaise     Int     @default(0)
+  supplyType              String  @default("ORDINARY_MARKETPLACE")
+  placeOfSupplyState      String  @default("UP")
+  isInterState            Boolean @default(false)
+  appliedCommissionRuleId String?
+  appliedTaxRuleId        String?
+  pricingSnapshot         Json?
   
   status    PaymentStatus @default(PENDING)
   method    String   @default("razorpay")
@@ -219,12 +291,23 @@ model Payment {
   payer     User     @relation("PayerPayments", fields: [payerId], references: [id], onDelete: Cascade)
   payee     User     @relation("PayeePayments", fields: [payeeId], references: [id], onDelete: Cascade)
 
+  attempts        PaymentAttempt[]
+  taxTransactions TaxTransaction[]
+  taxWithholdings TaxWithholding[]
+  helperPayouts   HelperPayout[]
+  refunds         Refund[]
+  ledgerJournals  LedgerJournal[]
+  invoices        Invoice[]
+
   createdAt DateTime @default(now())
   completedAt DateTime?
   
   @@index([taskId])
   @@index([payerId])
   @@index([payeeId])
+  @@index([razorpayOrderId])
+  @@index([razorpayPaymentId])
+  @@index([idempotencyKey])
 }
 
 // ===== NOTIFICATION MODEL =====
@@ -253,17 +336,31 @@ model Notification {
   @@index([receiverId])
 }
 
-// ===== CATEGORY MODEL =====
+// ===== CATEGORY MODEL (SERVICES + SEO METADATA) =====
 model Category {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  slug        String   @unique
-  description String?  @db.Text
-  icon        String?
-  subServices Json?
-  isPopular   Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  name               String   @unique
+  slug               String   @unique
+  description        String?  @db.Text
+  icon               String?
+  subServices        Json?
+  isPopular          Boolean  @default(true)
+  seoTitle           String?  @db.VarChar(255)
+  metaDescription    String?  @db.VarChar(500)
+  canonicalUrl       String?  @db.VarChar(500)
+  h1Heading          String?  @db.VarChar(255)
+  introContent       String?  @db.Text
+  detailedContent    String?  @db.Text
+  benefits           Json?
+  howItWorks         Json?
+  faqs               Json?
+  startingPricePaise Int      @default(19900)
+  ogImage            String?  @db.VarChar(500)
+  isActive           Boolean  @default(true)
+  isIndexable        Boolean  @default(true)
+  publicationStatus  String   @default("PUBLISHED") // "DRAFT" | "PUBLISHED" | "ARCHIVED"
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
 // ===== PARTNER SUBSCRIPTION MODEL (₹4-5/day or Monthly Pass) =====
@@ -483,3 +580,693 @@ model SettlementBatch {
   @@index([sellerId])
   @@index([status])
 }
+
+// ===== WALLET TRANSACTION MODEL =====
+model WalletTransaction {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String   // "TOPUP" | "WITHDRAWAL" | "TASK_PAYMENT" | "ESCROW_RELEASE" | "SUBSCRIPTION_PASS" | "REFUND"
+  direction         String   @default("CREDIT") // "CREDIT" | "DEBIT"
+  amountPaise       Int
+  balanceAfterPaise Int      @default(0)
+  balanceAfter      Int?     @default(0)
+  method            String   @default("ONLINE") // "UPI" | "RAZORPAY" | "BANK_TRANSFER" | "WALLET"
+  payoutDestination String?  @db.VarChar(255)
+  taskId            String?
+  status            String   @default("COMPLETED") // "COMPLETED" | "PENDING" | "FAILED"
+  referenceId       String?
+  description       String?  @db.VarChar(500)
+  metadata          Json?
+  createdAt         DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ===== USER SEARCH LOG MODEL (Admin Search Analytics) =====
+model SearchLog {
+  id           String   @id @default(uuid())
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userName     String?
+  userEmail    String?
+  userPhone    String?
+  userRole     String?  // "USER" | "HELPER" | "SELLER" | "GUEST"
+  query        String   @db.VarChar(500)
+  category     String?  @db.VarChar(255)
+  location     String?  @db.VarChar(255)
+  section      String   @default("HELPERS") // "HELPERS" | "TASKS" | "MARKETPLACE" | "SERVICES"
+  resultsCount Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([section])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// PHASE 2: COMPLETE MARKETPLACE PAYMENT, GST, TDS/TCS, PAYOUT & LEDGER MODELS
+// ============================================================================
+
+enum TaxConfigStatus {
+  DRAFT
+  PENDING_CA_REVIEW
+  APPROVED
+  ACTIVE
+  EXPIRED
+}
+
+enum SupplyClassification {
+  ORDINARY_MARKETPLACE
+  SECTION_9_5
+  PRINCIPAL_PROVIDER
+}
+
+model PaymentProvider {
+  id                  String   @id @default(uuid())
+  code                String   @unique // "RAZORPAY" | "CASHFREE"
+  name                String
+  isActive            Boolean  @default(true)
+  isDefault           Boolean  @default(false)
+  environment         String   @default("SANDBOX") // "SANDBOX" | "PRODUCTION"
+  supportsRouteSplit  Boolean  @default(true)
+  gatewayFeeBps       Int      @default(200) // e.g. 200 bps = 2.00%
+  gstOnGatewayFeeBps  Int      @default(1800) // 18.00% GST on gateway fee
+  configMetadata      Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model PaymentAttempt {
+  id                String   @id @default(uuid())
+  paymentId         String
+  payment           Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  provider          String   @default("RAZORPAY")
+  idempotencyKey    String   @unique
+  gatewayOrderId    String?
+  gatewayPaymentId  String?
+  amountPaise       Int
+  currency          String   @default("INR")
+  method            String?  // "upi" | "card" | "netbanking" | "wallet"
+  status            String   @default("INITIATED") // "INITIATED" | "AUTHORIZED" | "CAPTURED" | "FAILED"
+  errorCode         String?
+  errorDescription  String?  @db.Text
+  rawResponse       Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([paymentId])
+  @@index([gatewayOrderId])
+}
+
+model PaymentWebhookEvent {
+  id               String    @id @default(uuid())
+  eventId          String    @unique // Gateway unique webhook event ID for idempotency
+  provider         String    @default("RAZORPAY")
+  eventType        String    // "payment.captured" | "payment.failed" | "transfer.processed" | "transfer.failed" | "refund.processed" | "payment.dispute.created"
+  gatewayOrderId   String?
+  gatewayPaymentId String?
+  signature        String?   @db.VarChar(500)
+  signatureValid   Boolean   @default(false)
+  payload          Json
+  processingStatus String    @default("RECEIVED") // "RECEIVED" | "PROCESSED" | "DUPLICATE_IGNORED" | "FAILED"
+  errorMessage     String?   @db.Text
+  processedAt      DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([gatewayOrderId])
+  @@index([gatewayPaymentId])
+  @@index([processingStatus])
+}
+
+model CommissionRule {
+  id               String    @id @default(uuid())
+  name             String
+  description      String?   @db.VarChar(500)
+  serviceCategory  String?   // null = applies to all categories unless overridden
+  helperId         String?   // null = applies to all helpers unless overridden
+  commissionModel  String    @default("PERCENTAGE") // "PERCENTAGE" | "FIXED" | "HYBRID" | "ZERO"
+  percentageBps    Int       @default(1500) // e.g., 1000 = 10%, 1500 = 15%, 2000 = 20%, 0 = 0%
+  fixedAmountPaise Int       @default(0)
+  minCommissionPaise Int     @default(0)
+  maxCommissionPaise Int?
+  isPromotional    Boolean   @default(false)
+  promoCode        String?
+  priority         Int       @default(10) // Higher priority wins (Helper > Promo > Category > Global)
+  isActive         Boolean   @default(true)
+  effectiveFrom    DateTime  @default(now())
+  effectiveTo      DateTime?
+  createdByAdmin   String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([serviceCategory])
+  @@index([helperId])
+  @@index([isActive])
+}
+
+model TaxRule {
+  id                       String               @id @default(uuid())
+  serviceCategory          String               // e.g. "Home Cleaning", "Plumbing", "Electrician", "Driver", "Carpenter"
+  gstClassification        SupplyClassification @default(ORDINARY_MARKETPLACE)
+  sacCode                  String?              @db.VarChar(32) // Configurable SAC code reviewed by CA (never hardcoded/invented)
+  gstOnServiceRateBps      Int                  @default(1800) // In basis points (e.g. 1800 = 18.00%, 500 = 5.00%, 0 = 0%)
+  gstOnCommissionRateBps   Int                  @default(1800) // Platform commission GST rate in bps
+  cgstShareBps             Int                  @default(5000) // 50% of GST rate for intra-state
+  sgstShareBps             Int                  @default(5000) // 50% of GST rate for intra-state
+  igstShareBps             Int                  @default(10000) // 100% of GST rate for inter-state
+  isSection95Applicable    Boolean              @default(false)
+  isSection52TcsApplicable Boolean              @default(true)
+  tcsRateBps               Int                  @default(50)   // Configurable TCS rate in bps (e.g., 50 bps = 0.50% [0.25% CGST + 0.25% SGST or 0.50% IGST])
+  taxLiabilityOwner        String               @default("HELPER_IF_REGISTERED") // "PLATFORM_9_5" | "PLATFORM_PRINCIPAL" | "HELPER_IF_REGISTERED" | "EXEMPT"
+  invoiceIssuer            String               @default("HELPER_OR_PLATFORM_ON_BEHALF") // "PLATFORM" | "HELPER" | "DUAL_INVOICE"
+  requiresHelperGst        Boolean              @default(false)
+  tdsSection               String               @default("194-O")
+  tdsRateWithPanBps        Int                  @default(10)   // Configurable Sec 194-O rate in bps (e.g. 10 bps = 0.10% or 100 bps = 1.00% as reviewed by CA)
+  tdsRateNoPanBps          Int                  @default(500)  // Configurable Sec 206AA higher rate when PAN is missing/invalid (500 bps = 5.00%)
+  tdsAnnualThresholdPaise  BigInt               @default(50000000) // e.g. ₹5,00,000 = 50,000,000 paise for Individual/HUF
+  effectiveFrom            DateTime             @default(now())
+  effectiveTo              DateTime?
+  approvalStatus           TaxConfigStatus      @default(PENDING_CA_REVIEW)
+  caReviewerName           String?
+  caReviewNotes            String?              @db.Text
+  approvedAt               DateTime?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+
+  @@index([serviceCategory])
+  @@index([approvalStatus])
+}
+
+model HelperTaxProfile {
+  id                        String   @id @default(uuid())
+  userId                    String   @unique
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  legalEntityType           String   @default("INDIVIDUAL") // "INDIVIDUAL" | "HUF" | "PROPRIETORSHIP" | "PARTNERSHIP" | "COMPANY"
+  panMasked                 String?  @db.VarChar(20) // e.g., "XXXXX1234F"
+  panEncrypted              String?  @db.Text
+  panHash                   String?
+  panVerificationStatus     String   @default("UNVERIFIED") // "UNVERIFIED" | "PENDING" | "VERIFIED" | "INVALID"
+  isGstRegistered           Boolean  @default(false)
+  gstin                     String?  @db.VarChar(20)
+  gstVerificationStatus     String   @default("NOT_APPLICABLE") // "NOT_APPLICABLE" | "VERIFIED" | "INVALID"
+  stateCode                 String   @default("UP")
+  financialYear             String   @default("2026-27")
+  annualGrossTurnoverPaise  BigInt   @default(0) // Cumulative gross service value in current FY
+  tdsExemptCertificateNo    String?
+  tdsExemptValidUntil       DateTime?
+  lowerTdsRateBps           Int?
+  payoutSchedulePreference  String   @default("ON_COMPLETION") // "ON_COMPLETION" | "DAILY" | "WEEKLY" | "ADMIN_MANUAL"
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
+
+model HelperBankAccount {
+  id                      String   @id @default(uuid())
+  userId                  String
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  beneficiaryName         String
+  accountNumberMasked     String   @db.VarChar(32) // e.g., "XXXXXXXX4321"
+  accountNumberEncrypted  String   @db.Text
+  ifscCode                String   @db.VarChar(20)
+  bankName                String?
+  branchName              String?
+  upiIdMasked             String?
+  razorpayLinkedAccountId String?  // e.g. "acc_..." for Razorpay Route
+  razorpayStakeholderId   String?
+  razorpayFundAccountId   String?
+  verificationStatus      String   @default("PENDING") // "PENDING" | "VERIFIED" | "FAILED"
+  isPrimary               Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model TaxTransaction {
+  id                          String   @id @default(uuid())
+  taskId                      String
+  task                        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  paymentId                   String
+  payment                     Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  taxRuleId                   String?
+  serviceCategory             String
+  supplyClassification        String   // "ORDINARY_MARKETPLACE" | "SECTION_9_5" | "PRINCIPAL_PROVIDER"
+  sacCode                     String?
+  supplierStateCode           String   @default("UP")
+  placeOfSupplyStateCode      String   @default("UP")
+  isInterState                Boolean  @default(false)
+  taxLiabilityOwner           String
+  taxableServiceValuePaise    Int      @default(0)
+  serviceCgstPaise            Int      @default(0)
+  serviceSgstPaise            Int      @default(0)
+  serviceIgstPaise            Int      @default(0)
+  taxableCommissionValuePaise Int      @default(0)
+  commissionCgstPaise         Int      @default(0)
+  commissionSgstPaise         Int      @default(0)
+  commissionIgstPaise         Int      @default(0)
+  isSection52TcsApplicable    Boolean  @default(false)
+  tcsNetTaxableBasePaise      Int      @default(0)
+  tcsCgstPaise                Int      @default(0)
+  tcsSgstPaise                Int      @default(0)
+  tcsIgstPaise                Int      @default(0)
+  totalTcsPaise               Int      @default(0)
+  isReversal                  Boolean  @default(false)
+  taxPeriod                   String   // e.g., "2026-11"
+  createdAt                   DateTime @default(now())
+
+  @@index([taskId])
+  @@index([paymentId])
+  @@index([taxPeriod])
+}
+
+model TaxWithholding {
+  id                      String    @id @default(uuid())
+  helperId                String
+  helper                  User      @relation(fields: [helperId], references: [id], onDelete: Cascade)
+  paymentId               String
+  payment                 Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  taskId                  String?
+  section                 String    @default("194-O")
+  financialYear           String    @default("2026-27")
+  quarter                 String    @default("Q3") // "Q1" | "Q2" | "Q3" | "Q4"
+  grossTransactionPaise   Int       // Legally applicable gross service amount base
+  cumulativeFyGrossPaise  BigInt    @default(0)
+  panStatus               String    @default("VERIFIED") // "VERIFIED" | "MISSING_HIGHER_RATE" | "EXEMPT_BELOW_THRESHOLD"
+  tdsRateBps              Int       @default(0)
+  tdsDeductedPaise        Int       @default(0)
+  tdsDepositedPaise       Int       @default(0)
+  challanNumber           String?
+  bsrCode                 String?
+  depositedAt             DateTime?
+  certificateNumber       String?   // Form 16A certificate reference
+  status                  String    @default("DEDUCTED") // "EXEMPT" | "DEDUCTED" | "DEPOSITED" | "REVERSED"
+  createdAt               DateTime  @default(now())
+
+  @@index([helperId])
+  @@index([paymentId])
+  @@index([financialYear, quarter])
+}
+
+model HelperPayout {
+  id                      String          @id @default(uuid())
+  helperId                String
+  helper                  User            @relation(fields: [helperId], references: [id], onDelete: Cascade)
+  taskId                  String
+  task                    Task            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  paymentId               String
+  payment                 Payment         @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  idempotencyKey          String          @unique
+  grossServiceValuePaise  Int
+  commissionDeductedPaise Int             @default(0)
+  gstOnCommissionPaise    Int             @default(0)
+  tcsDeductedPaise        Int             @default(0)
+  tdsDeductedPaise        Int             @default(0)
+  helperDiscountPaise     Int             @default(0)
+  refundAdjustmentPaise   Int             @default(0)
+  netPayoutPaise          Int
+  payoutSchedule          String          @default("ON_COMPLETION") // "ON_COMPLETION" | "DAILY" | "WEEKLY" | "ADMIN_MANUAL"
+  eligibilityStatus       String          @default("PENDING_COMPLETION") // "PENDING_COMPLETION" | "HELD_KYC_INCOMPLETE" | "HELD_BANK_UNVERIFIED" | "HELD_DISPUTE" | "ELIGIBLE" | "APPROVED"
+  holdReason              String?         @db.VarChar(500)
+  status                  String          @default("PENDING") // "PENDING" | "ON_HOLD" | "PROCESSING" | "SETTLED" | "FAILED" | "REVERSED"
+  gatewayProvider         String          @default("RAZORPAY")
+  gatewayTransferId       String?
+  gatewaySettlementId     String?
+  utrNumber               String?
+  approvedByAdminId       String?
+  approvedAt              DateTime?
+  initiatedAt             DateTime?
+  settledAt               DateTime?
+  attempts                PayoutAttempt[]
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  @@index([helperId])
+  @@index([taskId])
+  @@index([paymentId])
+  @@index([status])
+}
+
+model PayoutAttempt {
+  id                String       @id @default(uuid())
+  payoutId          String
+  payout            HelperPayout @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  idempotencyKey    String       @unique
+  attemptNumber     Int          @default(1)
+  amountPaise       Int
+  gatewayTransferId String?
+  status            String       @default("INITIATED") // "INITIATED" | "PROCESSED" | "FAILED" | "REVERSED"
+  failureReason     String?      @db.Text
+  rawResponse       Json?
+  createdAt         DateTime     @default(now())
+
+  @@index([payoutId])
+}
+
+model Refund {
+  id                           String             @id @default(uuid())
+  paymentId                    String
+  payment                      Payment            @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  taskId                       String
+  task                         Task               @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  requestedById                String
+  requestedBy                  User               @relation("RefundRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  approvedByAdminId            String?
+  idempotencyKey               String             @unique
+  cancellationStage            String             // "BEFORE_ACCEPTANCE" | "AFTER_ACCEPTANCE" | "LATE_CANCELLATION" | "HELPER_NO_SHOW" | "PARTIAL_COMPLETION" | "DISPUTE" | "CHARGEBACK"
+  cancelledByRole              String             // "USER" | "HELPER" | "ADMIN"
+  refundType                   String             @default("FULL") // "FULL" | "PARTIAL"
+  reason                       String             @db.Text
+  originalPaidPaise            Int
+  refundableCustomerPaise      Int
+  cancellationPenaltyPaise     Int                @default(0)
+  commissionReversedPaise      Int                @default(0)
+  helperEarningsAdjustedPaise  Int                @default(0)
+  serviceGstReversedPaise      Int                @default(0)
+  commissionGstReversedPaise   Int                @default(0)
+  tcsReversedPaise             Int                @default(0)
+  tdsReversedPaise             Int                @default(0)
+  gatewayFeeNonRefundablePaise Int                @default(0)
+  gatewayRefundId              String?
+  gatewayTransferReversalId    String?
+  wasHelperAlreadyPaid         Boolean            @default(false)
+  status                       String             @default("INITIATED") // "INITIATED" | "PROCESSED" | "FAILED"
+  processedAt                  DateTime?
+  adjustments                  RefundAdjustment[]
+  createdAt                    DateTime           @default(now())
+
+  @@index([paymentId])
+  @@index([taskId])
+}
+
+model RefundAdjustment {
+  id                  String   @id @default(uuid())
+  refundId            String
+  refund              Refund   @relation(fields: [refundId], references: [id], onDelete: Cascade)
+  helperId            String
+  totalRecoveryPaise  Int      // Amount to recover from helper when refund occurred after payout
+  recoveredPaise      Int      @default(0)
+  remainingPaise      Int
+  status              String   @default("OPEN") // "OPEN" | "PARTIALLY_RECOVERED" | "RECOVERED" | "WAIVED"
+  recoveredInPayoutId String?
+  notes               String?  @db.VarChar(500)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([helperId])
+  @@index([status])
+}
+
+model FinancialAccount {
+  id           String        @id @default(uuid())
+  code         String        @unique // e.g., "1001_CUSTOMER_CLEARING", "2001_HELPER_PAYABLE", "4001_COMMISSION_REVENUE", etc.
+  name         String
+  accountType  String        // "ASSET" | "LIABILITY" | "REVENUE" | "EXPENSE"
+  normalSide   String        // "DEBIT" | "CREDIT"
+  balancePaise BigInt        @default(0)
+  currency     String        @default("INR")
+  entries      LedgerEntry[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model LedgerJournal {
+  id                String        @id @default(uuid())
+  journalNumber     String        @unique // e.g., "JRN-202611-000001"
+  eventType         String        // "PAYMENT_CAPTURED" | "PAYOUT_SETTLED" | "REFUND_ISSUED" | "CHARGEBACK" | "REVERSAL"
+  bookingId         String?
+  paymentId         String?
+  payment           Payment?      @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  description       String        @db.VarChar(500)
+  totalDebitPaise   Int
+  totalCreditPaise  Int
+  currency          String        @default("INR")
+  taxPeriod         String        // e.g., "2026-11"
+  isReversal        Boolean       @default(false)
+  reversedJournalId String?
+  entries           LedgerEntry[]
+  createdAt         DateTime      @default(now())
+
+  @@index([bookingId])
+  @@index([paymentId])
+  @@index([taxPeriod])
+}
+
+model LedgerEntry {
+  id                   String           @id @default(uuid())
+  journalId            String
+  journal              LedgerJournal    @relation(fields: [journalId], references: [id], onDelete: Cascade)
+  accountId            String
+  account              FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  accountCode          String
+  bookingId            String?
+  paymentId            String?
+  helperId             String?
+  customerId           String?
+  gatewayReference     String?
+  debitPaise           Int              @default(0)
+  creditPaise          Int              @default(0)
+  currency             String           @default("INR")
+  taxPeriod            String
+  reconciliationStatus String           @default("UNRECONCILED") // "UNRECONCILED" | "MATCHED" | "MISMATCH"
+  createdAt            DateTime         @default(now())
+
+  @@index([journalId])
+  @@index([accountId])
+  @@index([bookingId])
+  @@index([paymentId])
+  @@index([helperId])
+}
+
+model Reconciliation {
+  id                 String    @id @default(uuid())
+  batchNumber        String    @unique
+  reconciliationDate DateTime  @default(now())
+  scope              String    @default("FULL") // "PAYMENTS" | "TRANSFERS" | "SETTLEMENTS" | "REFUNDS" | "FULL"
+  totalChecked       Int       @default(0)
+  matchedCount       Int       @default(0)
+  mismatchCount      Int       @default(0)
+  discrepancyPaise   Int       @default(0)
+  discrepancies      Json?     // Detailed list of mismatched records (orderId, expectedPaise, gatewayPaise, reason)
+  status             String    @default("COMPLETED") // "COMPLETED" | "DISCREPANCY_FOUND" | "RESOLVED"
+  resolvedByAdmin    String?
+  resolvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+}
+
+model Invoice {
+  id                   String   @id @default(uuid())
+  invoiceNumber        String   @unique // Sequential within series e.g. "HB/COM/26-27/000001"
+  series               String   // "HB/COM" | "HB/SVC" | "HB/95" | "HB/CN" | "HB/DN" | "HB/PAY"
+  sequenceNumber       Int
+  financialYear        String   @default("2026-27")
+  documentType         String   // "COMMISSION_TAX_INVOICE" | "CUSTOMER_SERVICE_INVOICE" | "SECTION_9_5_TAX_INVOICE" | "CREDIT_NOTE" | "DEBIT_NOTE" | "HELPER_PAYOUT_STATEMENT"
+  taskId               String
+  task                 Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  paymentId            String
+  payment              Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  issuerEntity         String   // "HIREBUDDY_PLATFORM" | "HELPER_SUPPLIER"
+  issuerName           String
+  issuerGstin          String?
+  issuerPan            String?
+  issuerStateCode      String   @default("UP")
+  recipientName        String
+  recipientGstin       String?
+  recipientStateCode   String   @default("UP")
+  placeOfSupply        String   @default("UP")
+  sacCode              String?
+  taxableValuePaise    Int
+  cgstRateBps          Int      @default(0)
+  cgstPaise            Int      @default(0)
+  sgstRateBps          Int      @default(0)
+  sgstPaise            Int      @default(0)
+  igstRateBps          Int      @default(0)
+  igstPaise            Int      @default(0)
+  totalTaxPaise        Int      @default(0)
+  totalInvoicePaise    Int
+  linkedInvoiceNumber  String?  // Populated for CREDIT_NOTE / DEBIT_NOTE
+  lineItems            Json?
+  issuedAt             DateTime @default(now())
+  createdAt            DateTime @default(now())
+
+  @@unique([series, financialYear, sequenceNumber])
+  @@index([taskId])
+  @@index([paymentId])
+}
+
+model Settlement {
+  id                  String    @id @default(uuid())
+  gatewaySettlementId String    @unique
+  provider            String    @default("RAZORPAY")
+  utrNumber           String?
+  grossAmountPaise    Int
+  gatewayFeePaise     Int       @default(0)
+  gatewayGstPaise     Int       @default(0)
+  tdsDeductedPaise    Int       @default(0)
+  netSettledPaise     Int
+  status              String    @default("PROCESSED") // "CREATED" | "PROCESSED" | "FAILED"
+  settledAt           DateTime?
+  rawPayload          Json?
+  createdAt           DateTime  @default(now())
+}
+
+model FinancialAuditLog {
+  id            String   @id @default(uuid())
+  actorId       String
+  actorRole     String
+  action        String   // "TAX_RULE_CREATED" | "TAX_RULE_CA_APPROVED" | "COMMISSION_RULE_UPDATED" | "PAYOUT_INITIATED" | "REFUND_PROCESSED" | "WEBHOOK_VERIFIED"
+  entityType    String
+  entityId      String
+  previousState Json?
+  newState      Json?
+  ipAddress     String?
+  notes         String?  @db.VarChar(500)
+  createdAt     DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// TECHNICAL SEO, LOCATIONS, SERVICE-LOCATION LANDING PAGES, CMS, BLOG & AUDITS
+// ============================================================================
+
+model ServiceLocation {
+  id                  String   @id @default(uuid())
+  name                String   @unique
+  slug                String   @unique
+  stateName           String   @default("Uttar Pradesh")
+  stateCode           String   @default("UP")
+  latitude            Float?
+  longitude           Float?
+  serviceAreas        Json?    // Array of supported neighborhoods/sectors
+  introContent        String?  @db.Text
+  coverageDescription String?  @db.Text
+  seoTitle            String?  @db.VarChar(255)
+  metaDescription     String?  @db.VarChar(500)
+  canonicalUrl        String?  @db.VarChar(500)
+  h1Heading           String?  @db.VarChar(255)
+  faqs                Json?
+  ogImage             String?  @db.VarChar(500)
+  activeHelpersCount  Int      @default(0)
+  isSupported         Boolean  @default(true)
+  isIndexable         Boolean  @default(true)
+  publicationStatus   String   @default("PUBLISHED") // "DRAFT" | "PUBLISHED" | "ARCHIVED"
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([slug])
+  @@index([isSupported, isIndexable])
+}
+
+model ServiceLocationPage {
+  id                    String   @id @default(uuid())
+  serviceSlug           String
+  locationSlug          String
+  serviceName           String
+  locationName          String
+  seoTitle              String   @db.VarChar(255)
+  metaDescription       String   @db.VarChar(500)
+  canonicalUrl          String?  @db.VarChar(500)
+  h1Heading             String   @db.VarChar(255)
+  introContent          String   @db.Text
+  localGuideContent     String   @db.Text
+  localServiceAreas     Json?
+  benefits              Json?
+  faqs                  Json?
+  startingPricePaise    Int      @default(19900)
+  availableHelpersCount Int      @default(0)
+  completedJobsCount    Int      @default(0)
+  ogImage               String?  @db.VarChar(500)
+  isActive              Boolean  @default(true)
+  isIndexable           Boolean  @default(true)
+  publicationStatus     String   @default("PUBLISHED") // "DRAFT" | "PUBLISHED" | "ARCHIVED"
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([serviceSlug, locationSlug])
+  @@index([serviceSlug])
+  @@index([locationSlug])
+}
+
+model SeoPageConfig {
+  id                String   @id @default(uuid())
+  path              String   @unique // e.g., "/", "/about", "/contact", "/pricing", "/safety", "/faq"
+  slug              String
+  pageType          String   @default("STATIC") // "STATIC" | "SERVICE" | "LOCATION" | "CUSTOM"
+  seoTitle          String   @db.VarChar(255)
+  metaDescription   String   @db.VarChar(500)
+  canonicalUrl      String?  @db.VarChar(500)
+  metaRobots        String   @default("index,follow") // "index,follow" | "noindex,nofollow"
+  h1Heading         String   @db.VarChar(255)
+  introContent      String?  @db.Text
+  mainContent       String?  @db.Text
+  faqs              Json?
+  ogImage           String?  @db.VarChar(500)
+  schemaType        String   @default("WebPage") // "WebPage" | "AboutPage" | "ContactPage" | "FAQPage"
+  isIndexable       Boolean  @default(true)
+  publicationStatus String   @default("PUBLISHED") // "DRAFT" | "PUBLISHED" | "ARCHIVED"
+  redirectToUrl     String?  @db.VarChar(500)
+  httpStatusCode    Int      @default(200) // 200 | 301 | 410
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([slug])
+  @@index([publicationStatus])
+}
+
+model BlogPost {
+  id                   String    @id @default(uuid())
+  title                String    @db.VarChar(255)
+  slug                 String    @unique
+  excerpt              String    @db.VarChar(500)
+  content              String    @db.LongText
+  category             String    @default("Home Services Guide")
+  tags                 Json?
+  authorName           String    @default("HireBuddy Editorial Team")
+  authorRole           String    @default("Home Services & Safety Specialist")
+  featuredImage        String?   @db.VarChar(500)
+  featuredImageAlt     String?   @db.VarChar(255)
+  readingTimeMinutes   Int       @default(5)
+  seoTitle             String    @db.VarChar(255)
+  metaDescription      String    @db.VarChar(500)
+  canonicalUrl         String?   @db.VarChar(500)
+  relatedServiceSlugs  Json?
+  relatedLocationSlugs Json?
+  faqs                 Json?
+  isIndexable          Boolean   @default(true)
+  publicationStatus    String    @default("PUBLISHED") // "DRAFT" | "PUBLISHED" | "ARCHIVED"
+  publishedAt          DateTime? @default(now())
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([category])
+  @@index([publicationStatus, isIndexable])
+}
+
+model SeoAuditReport {
+  id                         String   @id @default(uuid())
+  auditScore                 Int      @default(100)
+  totalIndexablePages        Int      @default(0)
+  totalNoindexPages          Int      @default(0)
+  missingMetadataCount       Int      @default(0)
+  duplicateTitlesCount       Int      @default(0)
+  duplicateDescriptionsCount Int      @default(0)
+  missingH1Count             Int      @default(0)
+  missingCanonicalCount      Int      @default(0)
+  missingAltCount            Int      @default(0)
+  thinContentCount           Int      @default(0)
+  brokenLinksCount           Int      @default(0)
+  invalidSchemaCount         Int      @default(0)
+  sitemapStatus              String   @default("VALID")
+  structuredDataStatus       String   @default("VALID")
+  pageFindings               Json?
+  summary                    Json?
+  triggeredBy                String   @default("SYSTEM")
+  createdAt                  DateTime @default(now())
+
+  @@index([createdAt])
+}
+

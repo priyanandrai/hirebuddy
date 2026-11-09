@@ -11,6 +11,7 @@ import {
     getPendingIdSubmissionsService,
     getAllUsersService,
     updateUserRoleService,
+    toggleBlockUserService,
     deleteUserService,
     createHelperService,
   } from "../services/user.service.js";
@@ -216,6 +217,26 @@ import {
     } catch (error) {
       console.error('Update user role error', error);
       res.status(500).json({ message: 'Failed to update user role' });
+    }
+  };
+
+  export const blockUser = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { isBlocked = true, reason, blockedReason } = req.body;
+      const user = await toggleBlockUserService(
+        id,
+        Boolean(isBlocked),
+        reason || blockedReason || null
+      );
+      res.json({
+        success: true,
+        message: user.isBlocked ? "User profile blocked successfully" : "User profile unblocked successfully",
+        user,
+      });
+    } catch (error) {
+      console.error("Block user error", error);
+      res.status(500).json({ message: error.message || "Failed to update block status" });
     }
   };
 

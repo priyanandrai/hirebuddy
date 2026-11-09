@@ -146,11 +146,20 @@ export default function TaskerEarningsPage() {
             : ""
         }`}
       >
-        <section className="mb-6 mx-auto max-w-4xl">
-          <h1 className="text-2xl font-bold text-white">My Buddy Earnings & Active Pass</h1>
-          <p className="text-sm text-slate-300">
-            100% of customer task payments go directly to you (0% task commission). Keep your Buddy account active with a ₹5/day or ₹99/month pass.
-          </p>
+        <section className="mb-6 mx-auto max-w-4xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-white">My Buddy Earnings & Active Pass</h1>
+            <p className="text-sm text-slate-300">
+              100% of customer task payments go directly to you (0% task commission). Keep your Buddy account active with a ₹5/day or ₹99/month pass.
+            </p>
+          </div>
+          <Link
+            href="/dashboard-tasker/wallet"
+            className="inline-flex items-center gap-2 self-start sm:self-auto rounded-2xl bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/25 transition shrink-0"
+          >
+            <span>💳 Open Buddy Wallet & Withdraw</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </section>
 
         <section className="mx-auto mb-6 grid max-w-4xl grid-cols-1 sm:grid-cols-3 gap-4">

@@ -9,6 +9,8 @@ import {
   placeMarketplaceOrder,
   getCustomerMarketplaceOrders,
 } from "../components/services/marketplace.service";
+import { createPaymentOrder } from "../components/services/payment.service";
+import { openRazorpayCheckout } from "../components/lib/razorpayCheckout";
 import { getUserProfile } from "../components/services/user.service";
 import { TaskCardShimmer } from "../components/ui/Shimmer";
 
@@ -141,10 +143,31 @@ export default function MeerutMarketplacePage() {
     setOrderError("");
 
     try {
+      let paymentOrderData = {};
+      try {
+        paymentOrderData = await createPaymentOrder(null, grandTotalRupees);
+      } catch {
+        // Proceed with client-side checkout fallback if payment order endpoint is unavailable
+      }
+
+      const rzpResponse = await openRazorpayCheckout({
+        amountRupees: grandTotalRupees,
+        orderId: paymentOrderData?.orderId,
+        keyId: paymentOrderData?.keyId,
+        title: "HireBuddy Meerut Marketplace",
+        description: `${checkoutProduct.title} (Qty: ${quantity})`,
+        prefill: {
+          name: shippingForm.customerName,
+          contact: shippingForm.customerPhone,
+        },
+      });
+
       const res = await placeMarketplaceOrder({
         items: [{ productId: checkoutProduct.id, quantity }],
         deliveryMode,
         ...shippingForm,
+        razorpayPaymentId: rzpResponse?.razorpay_payment_id,
+        razorpayOrderId: rzpResponse?.razorpay_order_id,
       });
       setOrderResult(res);
       fetchCatalog(searchQuery, selectedCategory);
@@ -414,6 +437,11 @@ export default function MeerutMarketplacePage() {
                               ? "🚚 HireBuddy Partner Delivery (+2%)"
                               : "🏭 Seller Self-Delivery"}
                           </span>
+                          {ord.deliveryOtp && ord.orderStatus !== "DELIVERED" && (
+                            <span className="rounded-full border border-indigo-500/40 bg-indigo-500/20 px-2.5 py-0.5 text-[11px] font-bold text-indigo-300">
+                              🔐 Your 4-Digit Delivery PIN: {ord.deliveryOtp}
+                            </span>
+                          )}
                         </div>
                         <p className="mt-1 text-xs text-slate-300">
                           Seller: <strong>{ord.seller?.businessName}</strong> • Deliver to: {ord.shippingAddress}

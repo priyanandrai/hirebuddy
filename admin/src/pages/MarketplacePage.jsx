@@ -529,6 +529,16 @@ export default function MarketplacePage() {
                       >
                         Seller Payout: {order.settlementStatus}
                       </span>
+                      {order.pickupOtp && (
+                        <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold text-amber-300">
+                          Pickup OTP: {order.pickupOtp}
+                        </span>
+                      )}
+                      {order.deliveryOtp && (
+                        <span className="rounded-full bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-0.5 text-[10px] font-bold text-indigo-300">
+                          Delivery OTP: {order.deliveryOtp}
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm font-bold text-white">
                       Seller: {order.seller?.businessName} → Customer: {order.shippingName} ({order.shippingPhone})
@@ -544,7 +554,7 @@ export default function MarketplacePage() {
                     )}
                   </div>
 
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-3.5 text-xs space-y-1 min-w-[270px]">
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/80 p-3.5 text-xs space-y-1 min-w-[295px]">
                     <div className="flex justify-between text-slate-400">
                       <span>Subtotal:</span>
                       <span className="text-white font-semibold">₹{order.subtotal}</span>
@@ -553,8 +563,23 @@ export default function MarketplacePage() {
                       <span>Platform Commission:</span>
                       <span className="font-bold">₹{order.platformCommissionTotal}</span>
                     </div>
+                    <div className="flex justify-between text-purple-300">
+                      <span>18% GST on Comm. (SAC 998599):</span>
+                      <span className="font-semibold">
+                        ₹{order.taxBreakdown?.gstOnCommission18PctRupees ?? Number(((order.platformCommissionTotal || 0) * 0.18).toFixed(2))}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-cyan-300">
+                      <span>TCS (0.5%) + TDS 194-O (0.1%):</span>
+                      <span className="font-semibold">
+                        ₹{(
+                          (order.taxBreakdown?.gstTcs0_5PctRupees ?? Number(((order.subtotal || 0) * 0.005).toFixed(2))) +
+                          (order.taxBreakdown?.tds194O_0_1PctRupees ?? Number(((order.subtotal || 0) * 0.001).toFixed(2)))
+                        ).toFixed(2)}
+                      </span>
+                    </div>
                     <div className="flex justify-between text-blue-400">
-                      <span>Seller Portion (NEFT):</span>
+                      <span>Gross Seller Share (NEFT):</span>
                       <span className="font-bold">₹{order.sellerPayoutTotal}</span>
                     </div>
                     <div className="flex justify-between text-amber-300">

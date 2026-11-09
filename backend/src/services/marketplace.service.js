@@ -261,6 +261,15 @@ const normalizeProduct = (p) => {
   };
 };
 
+const deriveOrderOtp = (id, salt = "pickup") => {
+  const str = `${id || "order"}_${salt}`;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 31 + str.charCodeAt(i)) % 9000;
+  }
+  return String(1000 + Math.abs(hash));
+};
+
 const normalizeOrder = (o) => {
   if (!o) return null;
   const productSubtotalRupees = Math.round((o.productSubtotalPaise || 0) / 100);
@@ -268,6 +277,18 @@ const normalizeOrder = (o) => {
   const platformCommissionRupees = Math.round((o.platformCommissionPaise || 0) / 100);
   const deliveryFeeRupees = Math.round((o.deliveryFeePaise || 0) / 100);
   const totalPaidRupees = Math.round((o.totalPaidPaise || 0) / 100);
+
+  // Indian E-Commerce Tax & Statutory Deductions Breakdown (SAC 998599, Sec 52 GST TCS, Sec 194-O TDS)
+  const gstOnCommissionRupees = Number((platformCommissionRupees * 0.18).toFixed(2));
+  const gstTcsRupees = Number((productSubtotalRupees * 0.005).toFixed(2)); // 0.5% TCS
+  const incomeTaxTdsRupees = Number((productSubtotalRupees * 0.001).toFixed(2)); // 0.1% TDS u/s 194-O
+  const netSellerAfterTaxesRupees = Number(
+    Math.max(0, sellerPayableRupees - gstOnCommissionRupees - gstTcsRupees - incomeTaxTdsRupees).toFixed(2)
+  );
+
+  const pickupOtp = deriveOrderOtp(o.deliveryTaskId || o.id, "pickup");
+  const deliveryOtp = deriveOrderOtp(o.deliveryTaskId || o.id, "complete");
+
   return {
     ...o,
     shippingAddress: o.shippingAddress || o.deliveryAddress,
@@ -279,6 +300,20 @@ const normalizeOrder = (o) => {
     deliveryFeeRupees,
     totalPaidRupees,
     neftUtrNumber: o.settlementUtr,
+    pickupOtp,
+    deliveryOtp,
+    taxBreakdown: {
+      sacCode: "998599",
+      grossProductValueRupees: productSubtotalRupees,
+      platformCommissionRupees,
+      gstOnCommission18PctRupees: gstOnCommissionRupees,
+      gstTcs0_5PctRupees: gstTcsRupees,
+      tds194O_0_1PctRupees: incomeTaxTdsRupees,
+      grossSellerShareRupees: sellerPayableRupees,
+      netSellerBankPayoutRupees: netSellerAfterTaxesRupees,
+      deliveryFee2PctRupees: deliveryFeeRupees,
+      customerTotalPaidRupees: totalPaidRupees,
+    },
     // Admin MarketplacePage Rupee aliases
     subtotal: productSubtotalRupees,
     platformCommissionTotal: platformCommissionRupees,
