@@ -18,13 +18,48 @@ const DEFAULT_CATEGORIES = [
   { name: "Others", slug: "others", count: 1, iconType: "others" },
 ];
 
+const resolveServiceImage = (service = {}) => {
+  const key = `${service.slug || ""} ${service.title || ""} ${service.category || ""}`.toLowerCase();
+  if (key.includes("carpentr") || key.includes("carpenter") || key.includes("wood")) {
+    return "/images/service_carpenter.png";
+  }
+  if (key.includes("furnit") || key.includes("assembly")) {
+    return "/images/service_furniture.png";
+  }
+  if (key.includes("clean") || key.includes("laundry") || key.includes("maid")) {
+    return "/images/service_home_cleaning.png";
+  }
+  if (key.includes("driver") || key.includes("car") || key.includes("chauffeur")) {
+    return "/images/service_driver.png";
+  }
+  if (key.includes("deliver") || key.includes("pickup") || key.includes("courier") || key.includes("parcel")) {
+    return "/images/service_delivery.png";
+  }
+  if (key.includes("plumb") || key.includes("pipe") || key.includes("water") || key.includes("leak")) {
+    return "/images/service_plumbing.png";
+  }
+  if (key.includes("electr") || key.includes("wiring") || key.includes("appliance")) {
+    return "/images/service_electrical.png";
+  }
+  if (key.includes("cook") || key.includes("chef") || key.includes("food") || key.includes("meal")) {
+    return "/images/service_cooking.png";
+  }
+  if (key.includes("care") || key.includes("elder") || key.includes("medical")) {
+    return "/images/service_personal_care.png";
+  }
+  if (key.includes("other") || key.includes("garden") || key.includes("errand")) {
+    return "/images/service_others.png";
+  }
+  return service.image || "/images/service_others.png";
+};
+
 const FALLBACK_SERVICES = [
   {
     id: "svc-home-cleaning",
     title: "Home Cleaning",
     category: "Home Cleaning",
     slug: "home-cleaning",
-    taskCategory: "Cleaning",
+    taskCategory: "Home Cleaning",
     image: "/images/service_home_cleaning.png",
     iconType: "cleaning",
     verified: true,
@@ -36,8 +71,6 @@ const FALLBACK_SERVICES = [
     priceUnit: "day",
     relevanceOrder: 1,
     availableHelpers: 12,
-    helperId: "042e3ad6-3a36-4386-8016-ffa35f030b79",
-    helperName: "prreto G",
     subServices: [
       "Full Home Deep Cleaning",
       "Kitchen & Bathroom Sanitization",
@@ -50,7 +83,7 @@ const FALLBACK_SERVICES = [
     title: "Driver Services",
     category: "Driver Services",
     slug: "driver-services",
-    taskCategory: "Driver",
+    taskCategory: "Driver Services",
     image: "/images/service_driver.png",
     iconType: "driver",
     verified: true,
@@ -62,8 +95,6 @@ const FALLBACK_SERVICES = [
     priceUnit: "day",
     relevanceOrder: 2,
     availableHelpers: 8,
-    helperId: "d88cade8-a950-44f8-8aa2-2eac273500f2",
-    helperName: "Ravinder Gurjar",
     subServices: [
       "Local City Chauffeur",
       "Outstation Round Trips",
@@ -76,7 +107,7 @@ const FALLBACK_SERVICES = [
     title: "Delivery & Pickup",
     category: "Delivery & Pickup",
     slug: "delivery-pickup",
-    taskCategory: "Delivery",
+    taskCategory: "Delivery & Pickup",
     image: "/images/service_delivery.png",
     iconType: "delivery",
     verified: true,
@@ -88,8 +119,6 @@ const FALLBACK_SERVICES = [
     priceUnit: "day",
     relevanceOrder: 3,
     availableHelpers: 6,
-    helperId: "f2cbe879-532f-4f3c-b383-bbbc98b05cb1",
-    helperName: "Aman Sharma",
     subServices: [
       "Same-Day Parcel Delivery",
       "Grocery & Medicine Pickup",
@@ -114,8 +143,6 @@ const FALLBACK_SERVICES = [
     priceUnit: "day",
     relevanceOrder: 4,
     availableHelpers: 5,
-    helperId: "1c7cdd17-ef8d-4e2d-b3f5-edefa13ccc00",
-    helperName: "Sanjay Prajapati",
     subServices: [
       "Tap & Pipe Leak Repair",
       "Drain Blockage Clearing",
@@ -140,8 +167,6 @@ const FALLBACK_SERVICES = [
     priceUnit: "day",
     relevanceOrder: 5,
     availableHelpers: 4,
-    helperId: "1c7cdd17-ef8d-4e2d-b3f5-edefa13ccc00",
-    helperName: "Sanjay Prajapati",
     subServices: [
       "Switchboard & Wiring Repair",
       "Ceiling Fan & Light Installation",
@@ -166,8 +191,6 @@ const FALLBACK_SERVICES = [
     priceUnit: "day",
     relevanceOrder: 6,
     availableHelpers: 3,
-    helperId: "2071c799-df78-4236-a92c-f8241b4e5681",
-    helperName: "Vikram Chauhan",
     subServices: [
       "Bed & Wardrobe Assembly",
       "Modular Study Table Setup",
@@ -181,7 +204,7 @@ const FALLBACK_SERVICES = [
     category: "Cooking",
     slug: "cooking",
     taskCategory: "Cooking",
-    image: "/images/service_home_cleaning.png",
+    image: "/images/service_cooking.png",
     iconType: "cooking",
     verified: true,
     rating: 4.6,
@@ -193,8 +216,6 @@ const FALLBACK_SERVICES = [
     relevanceOrder: 7,
     availableHelpers: 3,
     isExtended: true,
-    helperId: "eb01ff8a-efb2-45f4-97cf-3d0fe1f6c583",
-    helperName: "Shanti Devi",
     subServices: [
       "Daily Home Meal Prep",
       "North & South Indian Cooking",
@@ -207,8 +228,8 @@ const FALLBACK_SERVICES = [
     title: "Personal Care",
     category: "Personal Care",
     slug: "personal-care",
-    taskCategory: "Elder Care",
-    image: "/images/service_driver.png",
+    taskCategory: "Personal Care",
+    image: "/images/service_personal_care.png",
     iconType: "personal-care",
     verified: true,
     rating: 4.5,
@@ -220,8 +241,6 @@ const FALLBACK_SERVICES = [
     relevanceOrder: 8,
     availableHelpers: 2,
     isExtended: true,
-    helperId: "03221d71-cc13-4a71-886e-fbe8fa01b1cd",
-    helperName: "Kamal Kishor",
     subServices: [
       "Elder Companionship",
       "Doctor Visit Escort",
@@ -234,8 +253,8 @@ const FALLBACK_SERVICES = [
     title: "Others",
     category: "Others",
     slug: "others",
-    taskCategory: "Home Support",
-    image: "/images/service_delivery.png",
+    taskCategory: "Others",
+    image: "/images/service_others.png",
     iconType: "others",
     verified: true,
     rating: 4.1,
@@ -247,8 +266,6 @@ const FALLBACK_SERVICES = [
     relevanceOrder: 9,
     availableHelpers: 4,
     isExtended: true,
-    helperId: "159e903f-783d-4bc4-b02b-11377444e546",
-    helperName: "Babita Rani",
     subServices: [
       "Gardening & Plant Care",
       "Event Help & Setup",
@@ -518,60 +535,6 @@ export default function UserHomePage() {
   return (
     <div className="min-h-screen bg-[#060d1d] bg-[radial-gradient(ellipse_80%_60%_at_50%_-15%,rgba(29,78,216,0.18),transparent)] text-slate-100">
       <div className="mx-auto max-w-[1360px] px-4 pb-16 pt-6 sm:px-6">
-        {/* Top Hero Banner */}
-        <section className="mb-6 flex flex-col justify-between gap-6 pt-1 lg:flex-row lg:items-center">
-          <div className="max-w-xl">
-            <h1 className="text-[28px] font-extrabold leading-[1.18] tracking-tight text-white sm:text-[34px]">
-              Find trusted help for
-              <span className="block text-[#22c58b]">everyday tasks</span>
-            </h1>
-            <p className="mt-2.5 text-[13.5px] text-slate-300/90">
-              From home cleaning to driver services, get reliable help from verified local helpers.
-            </p>
-          </div>
-
-          {/* 4 Circular Feature Highlights */}
-          <div className="grid grid-cols-2 gap-6 sm:flex sm:items-center sm:gap-10 lg:gap-12">
-            <HeroFeatureBadge
-              icon={
-                <svg className="h-4 w-4 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              }
-              line1="Verified"
-              line2="Helpers"
-            />
-            <HeroFeatureBadge
-              icon={
-                <svg className="h-4 w-4 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-              }
-              line1="Safe & Secure"
-              line2="Payments"
-            />
-            <HeroFeatureBadge
-              icon={
-                <svg className="h-4 w-4 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              }
-              line1="Local"
-              line2="Support"
-            />
-            <HeroFeatureBadge
-              icon={
-                <svg className="h-4 w-4 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              }
-              line1="Fast"
-              line2="Booking"
-            />
-          </div>
-        </section>
-
         {/* Main 2-Column Layout: Left Sidebar + Right Services Grid */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[255px_1fr]">
           {/* Left Sidebar */}
@@ -935,7 +898,7 @@ export default function UserHomePage() {
           >
             <div className="relative h-44 w-full">
               <img
-                src={detailService.image}
+                src={resolveServiceImage(detailService)}
                 alt={detailService.title}
                 className="h-full w-full object-cover"
               />
@@ -971,14 +934,10 @@ export default function UserHomePage() {
                 </span>
                 <span>•</span>
                 <span>📍 {detailService.location}</span>
-                {detailService.helperName && (
-                  <>
-                    <span>•</span>
-                    <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
-                      👤 Buddy: {detailService.helperName}
-                    </span>
-                  </>
-                )}
+                <span>•</span>
+                <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
+                  👥 {detailService.availableHelpers || 5}+ Verified Buddies Available
+                </span>
               </div>
 
               <p className="mt-3 text-xs leading-relaxed text-slate-300">
@@ -1016,16 +975,10 @@ export default function UserHomePage() {
                     detailService.taskCategory || detailService.title
                   )}&service=${encodeURIComponent(
                     detailService.title
-                  )}&price=${encodeURIComponent(
-                    detailService.price || ""
-                  )}&helper=${encodeURIComponent(
-                    detailService.helperId || ""
-                  )}&helperName=${encodeURIComponent(
-                    detailService.helperName || ""
-                  )}&bookNow=1`}
+                  )}&price=${encodeURIComponent(detailService.price || "")}`}
                   className="flex-1 rounded-lg bg-[#2fa97c] py-2.5 text-center text-xs font-semibold text-white hover:bg-[#27946b]"
                 >
-                  Book Now
+                  Post Task for Buddies
                 </Link>
               </div>
             </div>
@@ -1038,29 +991,13 @@ export default function UserHomePage() {
 
 /* ---------- Subcomponents ---------- */
 
-function HeroFeatureBadge({ icon, line1, line2 }) {
-  return (
-    <div className="flex flex-col items-center text-center">
-      <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full border border-[#1e3152] bg-[#0c172c] shadow-inner">
-        {icon}
-      </div>
-      <span className="text-[11.5px] font-medium leading-tight text-slate-200">
-        {line1}
-      </span>
-      <span className="text-[11.5px] font-medium leading-tight text-slate-300">
-        {line2}
-      </span>
-    </div>
-  );
-}
-
 function ServiceCard({ service, isFavorite, onToggleFavorite, onViewDetails }) {
   return (
     <div className="group flex flex-col overflow-hidden rounded-2xl border border-[#162645] bg-[#0b1528]/95 shadow-lg transition duration-200 hover:-translate-y-0.5 hover:border-[#254175]">
       {/* Top Image Banner */}
       <div className="relative h-[126px] w-full overflow-hidden">
         <img
-          src={service.image}
+          src={resolveServiceImage(service)}
           alt={service.title}
           className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
         />
@@ -1109,16 +1046,14 @@ function ServiceCard({ service, isFavorite, onToggleFavorite, onViewDetails }) {
           )}
         </div>
 
-        {/* Rating & Matched Buddy */}
+        {/* Rating & Available Buddies */}
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
           <span className="text-amber-400 text-sm leading-none">★</span>
           <span className="font-bold text-white">{service.rating}</span>
           <span className="text-slate-400">({service.reviewsCount} reviews)</span>
-          {service.helperName && (
-            <span className="ml-auto rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
-              👤 {service.helperName}
-            </span>
-          )}
+          <span className="ml-auto rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+            👥 {service.availableHelpers || 5}+ Buddies
+          </span>
         </div>
 
         {/* Location */}
@@ -1164,13 +1099,7 @@ function ServiceCard({ service, isFavorite, onToggleFavorite, onViewDetails }) {
               service.taskCategory || service.title
             )}&service=${encodeURIComponent(
               service.title
-            )}&price=${encodeURIComponent(
-              service.price || ""
-            )}&helper=${encodeURIComponent(
-              service.helperId || ""
-            )}&helperName=${encodeURIComponent(
-              service.helperName || ""
-            )}&bookNow=1`}
+            )}&price=${encodeURIComponent(service.price || "")}`}
             className="rounded-lg bg-[#34b27b] py-2 text-center text-xs font-bold text-white shadow-md shadow-emerald-950/30 transition hover:bg-[#2ca16d]"
           >
             Book Now
@@ -1233,9 +1162,25 @@ function ServiceCategoryBadge({ type }) {
           </svg>
         </div>
       );
+    case "cooking":
+      return (
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f97316] text-white shadow-md border-2 border-[#0b1528]">
+          <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z" />
+          </svg>
+        </div>
+      );
+    case "personal-care":
+      return (
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#14b8a6] text-white shadow-md border-2 border-[#0b1528]">
+          <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+          </svg>
+        </div>
+      );
     default:
       return (
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#2563eb] text-white shadow-md border-2 border-[#0b1528]">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#8b5cf6] text-white shadow-md border-2 border-[#0b1528]">
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>

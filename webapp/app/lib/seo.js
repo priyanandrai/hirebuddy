@@ -258,7 +258,8 @@ export function generateNoIndexMetadata(title, description, path = '/') {
  */
 export async function fetchSeoApi(endpoint, { revalidate = 300 } = {}) {
   try {
-    const res = await fetch(`${BACKEND_API_BASE}${endpoint}`, {
+    const cleanEndpoint = String(endpoint || '').replace(/^\/api(?=\/)/, '');
+    const res = await fetch(`${BACKEND_API_BASE}${cleanEndpoint}`, {
       next: { revalidate },
     });
     if (!res.ok) return null;

@@ -235,10 +235,19 @@ router.get('/admin/overview', async (req, res) => {
 
     res.json({
       latestAudit,
+      healthSummary: {
+        auditScore: latestAudit?.auditScore ?? 100,
+        totalIndexablePages: latestAudit?.totalIndexablePages ?? 0,
+        nonIndexedPages: latestAudit?.totalNoindexPages ?? 0,
+        missingDescriptions: latestAudit?.missingMetadataCount ?? 0,
+        duplicateTitles: latestAudit?.duplicateTitlesCount ?? 0,
+        thinContentPages: latestAudit?.thinContentCount ?? 0,
+      },
       services,
       locations,
       serviceLocationPages,
       staticPages,
+      pageConfigs: staticPages,
       blogPosts,
     });
   } catch (error) {
@@ -247,18 +256,20 @@ router.get('/admin/overview', async (req, res) => {
 });
 
 /**
- * POST /api/seo/admin/audit/run - Run Automated SEO Audit on demand
+ * POST /api/seo/admin/audit/run (and /api/seo/admin/audit) - Run Automated SEO Audit on demand
  */
-router.post('/admin/audit/run', async (req, res) => {
+const handleRunAudit = async (req, res) => {
   try {
     const report = await runAutomatedSeoAudit({
       triggeredBy: req.user?.id || 'ADMIN_MANUAL',
     });
-    res.json({ success: true, report });
+    res.json({ success: true, report, audit: report });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
+};
+router.post('/admin/audit/run', handleRunAudit);
+router.post('/admin/audit', handleRunAudit);
 
 /**
  * POST /api/seo/admin/pages - Create or Update Static / Custom SEO Page Config (with validation & auto-audit)
@@ -267,11 +278,13 @@ router.post('/admin/pages', async (req, res) => {
   try {
     const {
       id,
-      path,
+      path: rawPath,
+      pagePath,
       slug,
       pageType = 'STATIC',
       seoTitle,
-      metaDescription,
+      metaDescription: rawMetaDesc,
+      seoDescription,
       canonicalUrl,
       metaRobots = 'index,follow',
       h1Heading,
@@ -285,6 +298,9 @@ router.post('/admin/pages', async (req, res) => {
       redirectToUrl = null,
       httpStatusCode = 200,
     } = req.body;
+
+    const path = rawPath || pagePath;
+    const metaDescription = rawMetaDesc || seoDescription;
 
     if (!path || !seoTitle || !metaDescription || !h1Heading) {
       return res.status(400).json({
@@ -343,7 +359,7 @@ router.post('/admin/pages', async (req, res) => {
 /**
  * POST /api/seo/admin/service-locations - Create or Update Service + Location Landing Page
  */
-router.post('/admin/service-locations', async (req, res) => {
+const handleSaveServiceLocation = async (req, res) => {
   try {
     const {
       serviceSlug,
@@ -351,7 +367,8 @@ router.post('/admin/service-locations', async (req, res) => {
       serviceName,
       locationName,
       seoTitle,
-      metaDescription,
+      metaDescription: rawMetaDesc,
+      seoDescription,
       h1Heading,
       introContent,
       localGuideContent,
@@ -363,6 +380,8 @@ router.post('/admin/service-locations', async (req, res) => {
       isIndexable = true,
       publicationStatus = 'PUBLISHED',
     } = req.body;
+
+    const metaDescription = rawMetaDesc || seoDescription;
 
     if (!serviceSlug || !locationSlug || !seoTitle || !metaDescription || !h1Heading) {
       return res.status(400).json({
@@ -410,12 +429,14 @@ router.post('/admin/service-locations', async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
-});
+};
+router.post('/admin/service-locations', handleSaveServiceLocation);
+router.post('/admin/service-location', handleSaveServiceLocation);
 
 /**
- * POST /api/seo/admin/blog - Create or Update SEO Blog Post
+ * POST /api/seo/admin/blog (and /api/seo/admin/blogs) - Create or Update SEO Blog Post
  */
-router.post('/admin/blog', async (req, res) => {
+const handleSaveBlogPost = async (req, res) => {
   try {
     const {
       id,
@@ -428,13 +449,17 @@ router.post('/admin/blog', async (req, res) => {
       authorName = 'HireBuddy Editorial Team',
       featuredImage = '/images/blog/trusted-home-cleaning-guide.webp',
       featuredImageAlt,
-      seoTitle,
-      metaDescription,
+      seoTitle: rawSeoTitle,
+      metaDescription: rawMetaDesc,
+      seoDescription,
       relatedServiceSlugs = ['home-cleaning'],
       relatedLocationSlugs = ['noida', 'meerut'],
       isIndexable = true,
       publicationStatus = 'PUBLISHED',
     } = req.body;
+
+    const seoTitle = rawSeoTitle || `${title} | HireBuddy Blog`;
+    const metaDescription = rawMetaDesc || seoDescription || excerpt;
 
     if (!title || !content || !seoTitle || !metaDescription) {
       return res.status(400).json({
@@ -490,6 +515,8 @@ router.post('/admin/blog', async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
-});
+};
+router.post('/admin/blog', handleSaveBlogPost);
+router.post('/admin/blogs', handleSaveBlogPost);
 
 export default router;

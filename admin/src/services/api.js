@@ -242,6 +242,17 @@ export const adminApi = {
     });
   },
 
+  getPromotionalPopupAd: async () => {
+    return apiRequest('/marketplace/promo-popup');
+  },
+
+  updatePromotionalPopupAd: async (payload = {}) => {
+    return apiRequest('/marketplace/admin/promo-popup', {
+      method: 'PUT',
+      body: payload,
+    });
+  },
+
   // Customer Support Tickets
   getSupportTickets: async () => {
     return apiRequest('/support/admin/tickets');

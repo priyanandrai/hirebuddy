@@ -22,6 +22,8 @@ import {
 
 const DEFAULT_AVAILABLE_SERVICES = [
   "Home Cleaning",
+  "Car Wash",
+  "Dry Cleaning",
   "Driver Services",
   "Delivery & Pickup",
   "Plumbing",
@@ -30,6 +32,159 @@ const DEFAULT_AVAILABLE_SERVICES = [
   "Cooking",
   "Personal Care",
   "Others",
+];
+
+const PRESET_SERVICE_OPTIONS_BY_CATEGORY = {
+  "Car Wash": [
+    {
+      category: "Car Wash",
+      title: "Exterior Foam Wash & Tyre Dressing (Hatchback / Sedan)",
+      description: "Snow foam pressure wash, alloy cleaning & tyre shine",
+      priceRupees: 299,
+      unit: "per car",
+    },
+    {
+      category: "Car Wash",
+      title: "Complete Interior Vacuum + Foam Wash (SUV / MUV)",
+      description: "Full vacuuming, dashboard polish, mat wash & exterior foam wash",
+      priceRupees: 499,
+      unit: "per car",
+    },
+    {
+      category: "Car Wash",
+      title: "Deep Interior Dry-Cleaning & Seat Shampooing",
+      description: "Stain removal for seats, roof lining & floor carpets",
+      priceRupees: 799,
+      unit: "per car",
+    },
+    {
+      category: "Car Wash",
+      title: "3M Machine Rubbing, Wax Polishing & Detailing",
+      description: "Swirl mark removal, paint gloss restoration & wax protection",
+      priceRupees: 1199,
+      unit: "per car",
+    },
+  ],
+  "Dry Cleaning": [
+    {
+      category: "Dry Cleaning",
+      title: "Shirt / Trouser / Kurta Dry Clean & Steam Press",
+      description: "Solvent dry cleaning, stain treatment & crisp steam press",
+      priceRupees: 99,
+      unit: "per piece",
+    },
+    {
+      category: "Dry Cleaning",
+      title: "2-Piece / 3-Piece Suit, Blazer or Sherwani Dry Clean",
+      description: "Premium garment care for formal suits, blazers & ethnic wear",
+      priceRupees: 349,
+      unit: "per set",
+    },
+    {
+      category: "Dry Cleaning",
+      title: "Silk Saree / Embroidered Designer Lehenga Dry Clean",
+      description: "Delicate zari-safe dry cleaning & roll polishing",
+      priceRupees: 299,
+      unit: "per piece",
+    },
+    {
+      category: "Dry Cleaning",
+      title: "Double Blanket / Heavy Quilt / Curtain Dry Clean",
+      description: "Hygienic deep sanitization & odour-free dry cleaning",
+      priceRupees: 399,
+      unit: "per item",
+    },
+  ],
+  "Home Cleaning": [
+    {
+      category: "Home Cleaning",
+      title: "Standard Home Cleaning (Sweeping, Mopping & Dusting)",
+      description: "General room-by-room floor cleaning & surface wiping",
+      priceRupees: 249,
+      unit: "per hour",
+    },
+    {
+      category: "Home Cleaning",
+      title: "Bathroom Deep Cleaning & Hard-Water Descaling",
+      description: "Tile scrubbing, tap/shower descaling & sanitization",
+      priceRupees: 399,
+      unit: "per bathroom",
+    },
+    {
+      category: "Home Cleaning",
+      title: "Kitchen Deep Degreasing (Slabs, Tiles & Chimney)",
+      description: "Oil & grease removal from cabinets, tiles & stove area",
+      priceRupees: 699,
+      unit: "per kitchen",
+    },
+    {
+      category: "Home Cleaning",
+      title: "Full 2BHK / 3BHK Apartment Deep Cleaning",
+      description: "Complete house deep cleaning package",
+      priceRupees: 1799,
+      unit: "per package",
+    },
+  ],
+  Plumbing: [
+    {
+      category: "Plumbing",
+      title: "Tap, Mixer or Angle Valve Repair / Replacement",
+      description: "Fixing dripping faucets or installing new tap fittings",
+      priceRupees: 199,
+      unit: "per visit",
+    },
+    {
+      category: "Plumbing",
+      title: "Kitchen Sink or Bathroom Drain Unblocking",
+      description: "Clearing choked floor traps, washbasins & sink pipes",
+      priceRupees: 299,
+      unit: "per drain",
+    },
+    {
+      category: "Plumbing",
+      title: "Water Tank & Motor Pump Fitting",
+      description: "Overhead tank plumbing & pressure motor setup",
+      priceRupees: 599,
+      unit: "per service",
+    },
+  ],
+  Electrical: [
+    {
+      category: "Electrical",
+      title: "Switchboard, Socket or MCB Tripping Repair",
+      description: "Fault diagnosis, socket replacement & MCB fixing",
+      priceRupees: 199,
+      unit: "per visit",
+    },
+    {
+      category: "Electrical",
+      title: "Ceiling Fan / Exhaust Fan / Light Installation",
+      description: "Safe mounting, capacitor change & wiring connection",
+      priceRupees: 249,
+      unit: "per unit",
+    },
+    {
+      category: "Electrical",
+      title: "Inverter & Battery Wiring Setup",
+      description: "Single/double battery inverter setup with backup line",
+      priceRupees: 449,
+      unit: "per service",
+    },
+  ],
+};
+
+const PRICING_UNITS = [
+  "per service",
+  "per hour",
+  "per visit",
+  "per car",
+  "per piece",
+  "per set",
+  "per item",
+  "per package",
+  "per bathroom",
+  "per kitchen",
+  "per day",
 ];
 
 export default function EditTaskerProfilePage() {
@@ -49,6 +204,7 @@ export default function EditTaskerProfilePage() {
     experience: "",
     hourlyRate: "",
     services: [],
+    serviceOfferings: [],
   });
 
   useEffect(() => {
@@ -121,6 +277,17 @@ export default function EditTaskerProfilePage() {
       return [];
     })();
 
+    const existingOfferings = Array.isArray(u.serviceOfferings)
+      ? u.serviceOfferings.map((item, idx) => ({
+          id: item.id || `opt-${idx}`,
+          category: item.category || skills[0] || "Home Cleaning",
+          title: item.title || "",
+          description: item.description || "",
+          priceRupees: Number(item.priceRupees ?? item.price ?? 249),
+          unit: item.unit || "per service",
+        }))
+      : [];
+
     setForm({
       name: u.name || "",
       phone: u.phone ? u.phone.replace(/^\+91/, "").trim() : "",
@@ -129,7 +296,78 @@ export default function EditTaskerProfilePage() {
       experience: u.experience !== null && u.experience !== undefined ? String(u.experience) : "",
       hourlyRate: u.hourlyRate ? String(u.hourlyRate / 100) : "",
       services: skills.length > 0 ? skills : ["Home Cleaning", "Delivery & Pickup"],
+      serviceOfferings: existingOfferings,
     });
+  }
+
+  function handleLoadPresetsForSelectedServices() {
+    const selected = form.services.length > 0 ? form.services : ["Home Cleaning"];
+    const nextOfferings = [...(form.serviceOfferings || [])];
+    const existingTitles = new Set(nextOfferings.map((o) => o.title.toLowerCase()));
+
+    for (const cat of selected) {
+      const presets = PRESET_SERVICE_OPTIONS_BY_CATEGORY[cat] || [
+        {
+          category: cat,
+          title: `Standard ${cat} Service`,
+          description: `Verified ${cat.toLowerCase()} service with transparent pricing`,
+          priceRupees: Number(form.hourlyRate) || 249,
+          unit: "per visit",
+        },
+        {
+          category: cat,
+          title: `Complete ${cat} Package`,
+          description: `Full ${cat.toLowerCase()} package including inspection & completion`,
+          priceRupees: Math.round((Number(form.hourlyRate) || 249) * 1.6),
+          unit: "per package",
+        },
+      ];
+      for (const p of presets) {
+        if (!existingTitles.has(p.title.toLowerCase())) {
+          nextOfferings.push({
+            ...p,
+            id: `${cat.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now()}-${Math.random()
+              .toString(36)
+              .slice(2, 6)}`,
+          });
+          existingTitles.add(p.title.toLowerCase());
+        }
+      }
+    }
+    setForm((prev) => ({ ...prev, serviceOfferings: nextOfferings }));
+  }
+
+  function handleAddServiceOffering() {
+    const defaultCat = form.services[0] || "Car Wash";
+    setForm((prev) => ({
+      ...prev,
+      serviceOfferings: [
+        ...(prev.serviceOfferings || []),
+        {
+          id: `custom-${Date.now()}`,
+          category: defaultCat,
+          title: "",
+          description: "",
+          priceRupees: Number(prev.hourlyRate) || 299,
+          unit: defaultCat === "Car Wash" ? "per car" : defaultCat === "Dry Cleaning" ? "per piece" : "per service",
+        },
+      ],
+    }));
+  }
+
+  function handleOfferingChange(idx, field, value) {
+    setForm((prev) => {
+      const updated = [...(prev.serviceOfferings || [])];
+      updated[idx] = { ...updated[idx], [field]: value };
+      return { ...prev, serviceOfferings: updated };
+    });
+  }
+
+  function handleRemoveOffering(idx) {
+    setForm((prev) => ({
+      ...prev,
+      serviceOfferings: (prev.serviceOfferings || []).filter((_, i) => i !== idx),
+    }));
   }
 
   function handleChange(e) {
@@ -164,12 +402,25 @@ export default function EditTaskerProfilePage() {
 
     setLoading(true);
     try {
+      const validOfferings = (form.serviceOfferings || [])
+        .filter((o) => o && String(o.title || "").trim())
+        .map((o) => ({
+          ...o,
+          title: String(o.title).trim(),
+          category: String(o.category || form.services[0] || "General").trim(),
+          description: String(o.description || "").trim(),
+          priceRupees: Math.max(1, Number(o.priceRupees || 199)),
+          pricePaise: Math.max(100, Math.round(Number(o.priceRupees || 199) * 100)),
+          unit: o.unit || "per service",
+        }));
+
       const payload = {
         name: form.name.trim(),
         phone: cleanPhone || undefined,
         city: form.city.trim() || undefined,
         address: form.address.trim() || undefined,
         skills: form.services,
+        serviceOfferings: validOfferings,
         experience: form.experience ? Number(form.experience) : undefined,
         hourlyRate: form.hourlyRate ? Math.round(Number(form.hourlyRate) * 100) : undefined,
       };
@@ -373,6 +624,134 @@ export default function EditTaskerProfilePage() {
                 );
               })}
             </div>
+          </div>
+
+          {/* Multi-Service & Multi-Option Rate Card (Car Wash, Dry Cleaning, Home Cleaning, etc.) */}
+          <div className="rounded-3xl border border-slate-800 bg-slate-950/70 p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  Multi-Service Menu & Package Pricing (Rate Card)
+                </label>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Offer multiple options with different prices (e.g., Car Wash: Hatchback Foam Wash ₹299, SUV Deep Clean ₹499; Dry Cleaning: Shirt ₹99, Suit ₹349).
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleLoadPresetsForSelectedServices}
+                  className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition"
+                >
+                  ✨ Load Preset Options
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddServiceOffering}
+                  className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-500 transition"
+                >
+                  + Add Custom Option
+                </button>
+              </div>
+            </div>
+
+            {(!form.serviceOfferings || form.serviceOfferings.length === 0) ? (
+              <div className="rounded-2xl border border-dashed border-slate-800 p-6 text-center text-xs text-slate-400">
+                No custom service packages added yet. Click <strong>"✨ Load Preset Options"</strong> to auto-populate multi-price options for your selected categories ({form.services.join(", ") || "Car Wash, Dry Cleaning, etc."}) or click <strong>"+ Add Custom Option"</strong>.
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                {form.serviceOfferings.map((opt, idx) => (
+                  <div
+                    key={opt.id || idx}
+                    className="rounded-2xl border border-slate-800 bg-slate-900/90 p-3.5 space-y-2.5"
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                      <div className="sm:col-span-3">
+                        <label className="block text-[10px] font-semibold uppercase text-slate-400">
+                          Category
+                        </label>
+                        <select
+                          value={opt.category}
+                          onChange={(e) => handleOfferingChange(idx, "category", e.target.value)}
+                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white"
+                        >
+                          {Array.from(
+                            new Set([...availableServices, ...(form.services || []), opt.category])
+                          )
+                            .filter(Boolean)
+                            .map((cat) => (
+                              <option key={cat} value={cat}>
+                                {cat}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-5">
+                        <label className="block text-[10px] font-semibold uppercase text-slate-400">
+                          Service / Option Name
+                        </label>
+                        <input
+                          type="text"
+                          value={opt.title}
+                          onChange={(e) => handleOfferingChange(idx, "title", e.target.value)}
+                          placeholder="e.g. SUV Interior + Foam Wash / Suit Dry Clean"
+                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-[10px] font-semibold uppercase text-slate-400">
+                          Price (₹)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={opt.priceRupees}
+                          onChange={(e) => handleOfferingChange(idx, "priceRupees", e.target.value)}
+                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs font-bold text-emerald-400"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-[10px] font-semibold uppercase text-slate-400">
+                          Unit
+                        </label>
+                        <select
+                          value={opt.unit || "per service"}
+                          onChange={(e) => handleOfferingChange(idx, "unit", e.target.value)}
+                          className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-2 py-2 text-xs text-white"
+                        >
+                          {PRICING_UNITS.map((u) => (
+                            <option key={u} value={u}>
+                              {u}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={opt.description || ""}
+                        onChange={(e) => handleOfferingChange(idx, "description", e.target.value)}
+                        placeholder="Short description of what is included in this option..."
+                        className="flex-1 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-1.5 text-xs text-slate-300"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveOffering(idx)}
+                        className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-rose-300 hover:bg-rose-500/20"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Document Verification Callout */}

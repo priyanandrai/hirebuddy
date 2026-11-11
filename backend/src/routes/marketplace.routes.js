@@ -6,9 +6,13 @@ const router = express.Router();
 
 // Public storefront endpoints
 router.get("/products", marketplaceController.getPublishedProducts);
+router.get("/products/:slug", marketplaceController.getPublishedProductDetail);
+router.get("/promo-popup", marketplaceController.getPromotionalPopupAd);
 
 // Admin overview & actions (accessible from Admin Panel)
 router.get("/admin/overview", marketplaceController.getAdminOverview);
+router.put("/admin/promo-popup", marketplaceController.adminUpdatePromotionalPopupAd);
+router.patch("/admin/promo-popup", marketplaceController.adminUpdatePromotionalPopupAd);
 router.patch("/admin/sellers/:sellerId/verify", marketplaceController.adminVerifySeller);
 router.patch("/admin/seller/:sellerId/verify", marketplaceController.adminVerifySeller);
 router.patch("/admin/products/:productId/verify", marketplaceController.adminVerifyProduct);
@@ -24,5 +28,6 @@ router.post("/seller/products", authMiddleware, marketplaceController.addSellerP
 router.post("/orders", authMiddleware, marketplaceController.placeOrder);
 router.get("/orders/my", authMiddleware, marketplaceController.getCustomerOrders);
 router.patch("/orders/:orderId/status", authMiddleware, marketplaceController.updateOrderStatus);
+router.post("/orders/:orderId/rate", authMiddleware, marketplaceController.rateOrder);
 
 export default router;

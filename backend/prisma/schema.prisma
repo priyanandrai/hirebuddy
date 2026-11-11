@@ -25,10 +25,11 @@ model User {
   slug                    String?   // SEO-friendly helper profile slug (e.g. "ramesh-kumar-electrician-meerut")
   bio                     String?   @db.Text
   isPublicProfileApproved Boolean   @default(false)
-  skills      String?   // e.g. "Plumbing, Electrician"
-  experience  Int?      // years
-  hourlyRate  Int?      // in paise
-  isAvailable Boolean   @default(true)
+  skills                  String?   // e.g. "Plumbing, Electrician, Car Wash, Dry Cleaning"
+  serviceOfferings        Json?     // Array of { id, category, title, description, pricePaise, priceRupees, unit }
+  experience              Int?      // years
+  hourlyRate              Int?      // starting rate in paise
+  isAvailable             Boolean   @default(true)
   
   // Ratings & Reviews
   averageRating Float?   @default(0)
@@ -109,6 +110,7 @@ model Task {
   timeSlot    String?
   image       String?  @db.VarChar(1000)
   attachments Json?
+  selectedServices Json? // Array of selected helper service options [{ id, title, category, pricePaise, unit, quantity }]
   status      TaskStatus @default(OPEN)
   
   // Payment tracking & Immutable Pricing/Tax Snapshot (all monetary values in integer paise)
@@ -446,6 +448,9 @@ model SellerProfile {
   razorpayAccountId   String?  // For Razorpay Route direct portion split
   bankVerified        Boolean  @default(false)
 
+  // Dynamic Platform Commission Rate per Seller (Configured by Admin, default 15%)
+  commissionRate      Float    @default(15.0)
+
   verificationStatus  String   @default("PENDING") // "PENDING" | "VERIFIED" | "REJECTED"
   verificationNotes   String?  @db.Text
   verifiedAt          DateTime?
@@ -468,6 +473,10 @@ model Product {
   description         String   @db.Text
   category            String
   images              Json?    // Array of image URLs
+  variants            Json?    // Array of { label, pricePaise, priceRupees, mrpRupees, stock } for Sarees/Gifts/Apparel
+  highlights          Json?    // Array of bullet point strings
+  avgRating           Float    @default(4.8)
+  reviewCount         Int      @default(12)
   pricePaise          Int      // Selling price in paise
   mrpPaise            Int?
   stock               Int      @default(50)
@@ -536,12 +545,18 @@ model MarketplaceOrder {
   settlementBatchId       String?
 
   orderStatus             String   @default("PLACED")      // "PLACED" | "CONFIRMED" | "PACKED" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELLED"
+  cartGroupId             String?                          // Groups multi-seller cart orders checked out in a single payment
+  pickupOtp               String?                          // 4-digit OTP for Helper pickup at Seller shop
+  deliveryOtp             String?                          // 4-digit OTP for Helper drop-off at Customer doorstep
+  buyerRating             Int?                             // 1-5 Star rating from buyer
+  buyerReview             String?  @db.Text
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
   @@index([customerId])
   @@index([sellerId])
   @@index([settlementStatus])
+  @@index([cartGroupId])
 }
 
 model MarketplaceOrderItem {
@@ -549,6 +564,7 @@ model MarketplaceOrderItem {
   orderId             String
   productId           String
   productName         String
+  selectedVariant     String?          // e.g. "Crimson Red Zari", "1 Kg Festive Pack", "Size XL"
   quantity            Int
   unitPricePaise      Int
   commissionRate      Float
@@ -1268,5 +1284,29 @@ model SeoAuditReport {
   createdAt                  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+model PromotionalPopupAd {
+  id                String   @id @default(uuid())
+  adType            String   @default("PRODUCT") // "PRODUCT" | "SERVICE"
+  targetProductId   String?
+  targetServiceSlug String?
+  badgeText         String   @default("✨ Featured Deal of the Day")
+  title             String
+  subtitle          String?  @db.Text
+  imageUrl          String?  @db.VarChar(1000)
+  offerPriceRupees  Int?
+  mrpRupees         Int?
+  discountText      String?
+  ctaText           String   @default("Explore Offer →")
+  ctaUrl            String   @default("/marketplace")
+  delaySeconds      Int      @default(6)         // Appears smoothly after N seconds (default 6s)
+  frequency         String   @default("ONCE_PER_DAY")
+  isActive          Boolean  @default(true)
+  updatedByAdmin    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([isActive])
 }
 

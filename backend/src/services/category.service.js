@@ -53,6 +53,38 @@ export const inferEmojiIcon = (slugOrName = "") => {
   }
 };
 
+export const inferServiceImage = (slugOrName = "") => {
+  const s = slugify(slugOrName);
+  if (s.includes("carpentr") || s.includes("carpenter") || s.includes("wood")) {
+    return "/images/service_carpenter.png";
+  }
+  if (s.includes("furnit") || s.includes("assembly")) {
+    return "/images/service_furniture.png";
+  }
+  if (s.includes("clean") || s.includes("laundry") || s.includes("maid")) {
+    return "/images/service_home_cleaning.png";
+  }
+  if (s.includes("driver") || s.includes("car") || s.includes("chauffeur") || s.includes("travel")) {
+    return "/images/service_driver.png";
+  }
+  if (s.includes("deliver") || s.includes("pickup") || s.includes("courier") || s.includes("parcel")) {
+    return "/images/service_delivery.png";
+  }
+  if (s.includes("plumb") || s.includes("pipe") || s.includes("water") || s.includes("leak")) {
+    return "/images/service_plumbing.png";
+  }
+  if (s.includes("electr") || s.includes("wiring") || s.includes("appliance")) {
+    return "/images/service_electrical.png";
+  }
+  if (s.includes("cook") || s.includes("chef") || s.includes("food") || s.includes("meal") || s.includes("tiffin")) {
+    return "/images/service_cooking.png";
+  }
+  if (s.includes("care") || s.includes("elder") || s.includes("medical") || s.includes("nurse")) {
+    return "/images/service_personal_care.png";
+  }
+  return "/images/service_others.png";
+};
+
 /**
  * Fetch all categories from the database.
  * If database is empty, automatically seeds from CATEGORIES_DATA.
@@ -258,7 +290,7 @@ export const HOME_SERVICES_TEMPLATES = {
   cooking: {
     id: "svc-cooking",
     taskCategory: "Cooking",
-    image: "/images/service_home_cleaning.png",
+    image: "/images/service_cooking.png",
     iconType: "cooking",
     verified: true,
     rating: 4.6,
@@ -273,7 +305,7 @@ export const HOME_SERVICES_TEMPLATES = {
   "personal-care": {
     id: "svc-personal-care",
     taskCategory: "Personal Care",
-    image: "/images/service_driver.png",
+    image: "/images/service_personal_care.png",
     iconType: "personal-care",
     verified: true,
     rating: 4.5,
@@ -285,10 +317,80 @@ export const HOME_SERVICES_TEMPLATES = {
     availableHelpers: 2,
     isExtended: true,
   },
+  carpenter: {
+    id: "svc-carpenter",
+    taskCategory: "Carpenter",
+    image: "/images/service_carpenter.png",
+    iconType: "furniture",
+    verified: true,
+    rating: 4.5,
+    reviewsCount: 44,
+    location: "Meerut, UP",
+    price: 300,
+    priceUnit: "day",
+    relevanceOrder: 6,
+    availableHelpers: 5,
+  },
+  plumber: {
+    id: "svc-plumber",
+    taskCategory: "Plumbing",
+    image: "/images/service_plumbing.png",
+    iconType: "plumbing",
+    verified: true,
+    rating: 4.4,
+    reviewsCount: 62,
+    location: "Meerut, UP",
+    price: 350,
+    priceUnit: "day",
+    relevanceOrder: 4,
+    availableHelpers: 5,
+  },
+  electrician: {
+    id: "svc-electrician",
+    taskCategory: "Electrical",
+    image: "/images/service_electrical.png",
+    iconType: "electrical",
+    verified: true,
+    rating: 4.3,
+    reviewsCount: 48,
+    location: "Modipuram, Meerut",
+    price: 300,
+    priceUnit: "day",
+    relevanceOrder: 5,
+    availableHelpers: 4,
+  },
+  driver: {
+    id: "svc-driver",
+    taskCategory: "Driver Services",
+    image: "/images/service_driver.png",
+    iconType: "driver",
+    verified: true,
+    rating: 4.6,
+    reviewsCount: 96,
+    location: "Meerut, UP",
+    price: 400,
+    priceUnit: "day",
+    relevanceOrder: 2,
+    availableHelpers: 8,
+  },
+  cleaning: {
+    id: "svc-cleaning",
+    taskCategory: "Home Cleaning",
+    image: "/images/service_home_cleaning.png",
+    iconType: "cleaning",
+    verified: true,
+    rating: 4.7,
+    reviewsCount: 128,
+    location: "Modipuram, Meerut",
+    price: 300,
+    priceUnit: "day",
+    relevanceOrder: 1,
+    availableHelpers: 12,
+  },
   others: {
     id: "svc-others",
     taskCategory: "Others",
-    image: "/images/service_delivery.png",
+    image: "/images/service_others.png",
     iconType: "others",
     verified: true,
     rating: 4.1,
@@ -385,7 +487,7 @@ export const getFilteredServices = async (filters = {}) => {
       category: dbCat.name,
       slug: dbCat.slug,
       taskCategory: dbCat.name,
-      image: template?.image || "/images/service_delivery.png",
+      image: template?.image || inferServiceImage(dbCat.slug || dbCat.name),
       icon: dbCat.icon || inferEmojiIcon(dbCat.name),
       iconType: template?.iconType || inferIconType(dbCat.slug || dbCat.name),
       verified: true,
@@ -398,13 +500,13 @@ export const getFilteredServices = async (filters = {}) => {
       price: template?.price || 300,
       priceUnit: template?.priceUnit || "day",
       relevanceOrder: template?.relevanceOrder || 10 + index,
-      availableHelpers: template?.availableHelpers || 4,
+      availableHelpers: Math.max(template?.availableHelpers || 4, helperPool.length || 4),
       isExtended: template ? Boolean(template.isExtended) : index >= 6,
       subServices,
-      helperId: matchedBuddy?.id || null,
-      helperName: matchedBuddy?.name || "Verified Buddy",
-      helperPhone: matchedBuddy?.phone || null,
-      helperImage: matchedBuddy?.image || null,
+      helperId: null,
+      helperName: null,
+      helperPhone: null,
+      helperImage: null,
     };
   });
 

@@ -1,59 +1,54 @@
 # HireBuddy — Active Context
 
 ## Current Status & Focus
-HireBuddy has completed the full category browsing system and helper catalog across all 8 service categories:
-1. **Helper Seeding & Indexing**: 32 rich, realistic helpers created across all 8 categories in MariaDB and fully indexed in Elasticsearch with locations, skills, images, ratings, and verification.
-2. **Robust Multi-Filter Helper Search**: `/api/search/helpers` supports keyword search, location, availability, verification, minimum rating, price range, and multi-field sorting with automatic MariaDB fallback.
-3. **Interactive Category Catalog (`/categories/[slug]`)**: Fully responsive with real-time text search, location input with quick city chips, dynamic category sub-specialties, availability/verification filters, rating radio pills, and sorting.
-4. **Public Helper Profile (`/helpers/[id]`)**: Full public helper profile page featuring trust badges, reviews, field experience, skills, and direct hire request modal.
-5. **Elasticsearch geospatial search** for open tasks and local helpers.
-6. **Admin ID verification workflow** enabling trust validation of local helpers.
+HireBuddy has evolved into a full-featured hyperlocal services + regional manufacturers marketplace platform with four client surfaces (`webapp/`, `admin/`, `mobile/`, and `backend/`):
+1. **Meerut Manufacturers Marketplace & Product Detail Pages**:
+   - Full marketplace catalog (`/marketplace`) and individual product detail pages (`/marketplace/[slug]`) with product variants, highlights, ratings, seller badges, multi-seller cart checkout, and `SELLER_SELF` vs. `PLATFORM_HELPER` (+2% auto-task delivery with pickup/delivery OTPs).
+   - Dedicated Seller onboarding (`/become-a-seller`), Seller dashboard (`/dashboard-seller`), and Admin Marketplace management (`admin/src/pages/MarketplacePage.jsx`).
+2. **CA-Grade Financial, GST, TDS/TCS, Payout & Double-Entry Ledger Engine**:
+   - Complete tax engines (`gstTaxEngine.service.js`, `tdsWithholdingEngine.service.js`, `pricingBreakdown.service.js`, `commission.service.js`), double-entry accounting (`ledger.service.js`), automated sequential GST invoicing (`invoice.service.js`), helper payouts (`payout.service.js`), refund recovery (`refundEngine.service.js`), and reconciliation (`reconciliation.service.js`).
+   - Pluggable payment gateways (`RazorpayRouteProvider.js`, `CashfreeSplitProvider.js`) and AES-256-GCM encrypted PAN/bank vault (`cryptoVault.js`).
+3. **Technical SEO, CMS & Daily Promotional Popup System**:
+   - Database-backed SEO metadata, dynamic Service pages (`/services/[serviceSlug]`), Location & Service-Location matrix pages (`/locations/[locationSlug]`), Blog CMS (`/blog`), dynamic XML sitemap (`/sitemap.xml`), `robots.txt`, and automated SEO health auditor (`seoAudit.service.js`).
+   - Admin-configurable `PromotionalPopupAd` model & frontend `DailyPromotionalPopup.js` component supporting featured product/service deals with configurable delay and once-per-day frequency.
+4. **Expanded Service Categories & Custom Helper Service Offerings**:
+   - Expanded service categories including Carpenter, Cooking, Personal Care, and Others (with dedicated service assets in `webapp/public/images/`).
+   - Helpers can define custom `serviceOfferings` (structured pricing menu per sub-service) and SEO-friendly profile slugs (`/helpers/[id]`).
 
 ---
 
-## Recent Development History (Git Log Analysis)
+## Recent Git Commit History
 
-| Commit / Step | Summary | Key Impact |
+| Commit | Summary | Key Impact |
 |---|---|---|
-| `Current Session` | Database Categories & Dynamic Dropdowns | Created `Category` Prisma model, seeded 8 categories in MariaDB, built `GET /api/tasks/categories` and `/api/categories` DB endpoints, connected `create-task`, `hire-buddy`, `services`, and `homepage` |
-| `Previous Step` | Categories & Helpers Completion | Seeded 32 helpers, enhanced `/api/search/helpers`, created `/helpers/[id]`, refactored `/categories/[slug]` |
-| `9c46bee` | `added detail category page` | Added initial `/categories/[slug]` route with `CategoryListingsClient.js` |
-| `9430f58` | `added hire flow` | Added `/api/hire` endpoint, `hire.service.js`, and `HireButton.js` modal |
-| `8ae12e5` | `verify user added` | Added ID document upload, verification status fields, and admin UI |
-| `fff0e86` | `verify user added` | Prisma migration for `IDVerificationStatus` and document URLs |
-| `4c17d59` | `added elastic search` | Added Elasticsearch client, search routes, geo-point mappings, and reindexing scripts |
+| `Working Tree` | Marketplace Product Details, Promotional Popup Ads, Expanded Categories & SEO Enhancements | Added `/marketplace/[slug]`, `PromotionalPopupAd` model + `DailyPromotionalPopup.js`, new service category images, helper `serviceOfferings`, and Admin CMS controls |
+| `bcc237b` | `added some chnages` | Incremental refinements across backend and frontend |
+| `64b8a36` | `added more flows` | Marketplace, seller, wallet, and financial/tax flows |
+| `52878c9` | `addded notification` | Real-time & push notification enhancements |
+| `3dd002c` | `modify category` | Dynamic category & sub-services expansion |
+| `d4c8603` | `added helper verificication flow` | Multi-document KYC & address proof verification |
+| `007ba8f` | `added admin app` | Standalone Vite + React 19 Admin Portal (`admin/`) |
+| `4220253` | `added helper view page` | Public helper profile (`/helpers/[id]`) |
 
 ---
 
-## Working Tree (Active Changes)
+## Active Working Tree Changes (`git status`)
 
-### Modified Files
-1. **`backend/scripts/seed-helpers.js`**:
-   - Seeded 32 realistic helpers across 8 categories (4 per category) with coordinates in Modipuram/Meerut, ratings, reviews, avatar images, and verification.
-2. **`backend/src/services/es.client.js`**:
-   - Updated `indexHelper` to index `hourlyRate`, `totalReviews`, `experience`, `image`, and `phone` into Elasticsearch.
-3. **`backend/src/services/user.service.js`**:
-   - Added `searchHelpersDbService` with comprehensive Prisma filtering (keywords, city, availability, rating, price, sorting).
-   - Updated `getHelper` to return full profile data for public profile views.
-4. **`backend/src/routes/search.routes.js`**:
-   - Enhanced `/helpers` endpoint to support all query filters, sorting, and seamless fallback to MariaDB.
-5. **`webapp/app/components/category/categories.js`**:
-   - Added `CATEGORY_DETAILS` mapping with descriptions, icons, and dynamic sub-services for all 8 categories.
-6. **`webapp/app/components/ui/HelperCard.js`**:
-   - Added rupee conversion, rating display, review counts, avatar fallback, and responsive action triggers.
-7. **`webapp/app/categories/[slug]/page.js`**:
-   - Revamped with breadcrumb navigation, category banner, trust badges, and prev/next category switcher.
-8. **`webapp/app/categories/[slug]/CategoryListingsClient.js`**:
-   - Complete interactive layout: dynamic sub-service checkboxes, availability/verification toggles, customer rating pills, price range, quick location chips, active filter chips, and empty state.
-9. **`webapp/app/helpers/[id]/page.js`** (New File):
-   - Created full public helper profile page with direct booking action and trust indicators.
-10. **`webapp/app/page.js`**:
-    - Fixed casing in import `./components/reuseable/CustomDropdown`.
+### Backend (`backend/`)
+- **`prisma/schema.prisma`**: Added `PromotionalPopupAd`, product `variants` & `highlights`, helper `serviceOfferings` & `slug`, `cartGroupId` & OTP fields on `MarketplaceOrder`, and complete Phase 2 Finance/Tax/Ledger & SEO/CMS models.
+- **`src/controllers/marketplace.controller.js`**, **`src/routes/marketplace.routes.js`**, **`src/services/marketplace.service.js`**: Product slug lookup, variant support, multi-seller cart checkout, and promotional popup ad integration.
+- **`src/routes/seo.routes.js`**, **`src/services/seo.service.js`**: Endpoints and service methods for `PromotionalPopupAd` and dynamic SEO page configs.
+- **`src/services/category.service.js`**, **`src/services/task.service.js`**, **`src/services/user.service.js`**: Support for expanded categories, helper `serviceOfferings`, and slug-based helper lookup.
+- **`tests/seo-and-e2e.test.js`**: Updated automated tests covering SEO, CMS, and marketplace flows.
 
+### Webapp (`webapp/`)
+- **`app/marketplace/page.js`** & **`app/marketplace/[slug]/`** (Untracked): Full marketplace catalog & dedicated product detail page with variants, reviews, and cart integration.
+- **`app/components/ui/DailyPromotionalPopup.js`** (Untracked): Timed promotional popup component driven by `/api/seo/popup-ad`.
+- **`app/services/page.js`**, **`app/services/[serviceSlug]/page.js`**, **`app/public/images/service_*.png`**: New service visuals (`service_carpenter.png`, `service_cooking.png`, `service_others.png`, `service_personal_care.png`) and rich service landing pages.
+- **`app/helpers/[id]/page.js` & `layout.js`**, **`app/dashboard-tasker/profile/edit/page.js`**: Helper custom `serviceOfferings` editor and interactive service selection on public helper profiles.
+- **`app/become-a-seller/page.js`**, **`app/dashboard/create-task/page.js`**, **`app/dashboard/page.js`**, **`app/components/layout/HeaderAfterlogin.js`**: UI and workflow polish across customer, tasker, and seller views.
 
----
-
-## Active Architectural Decisions & Considerations
-- **Search Strategy**: Keep Elasticsearch as primary search engine with automatic DB fallback, ensuring local dev does not break when an Elasticsearch instance is not running.
-- **Role Switching**: Support both Poster (`USER`) and Tasker (`HELPER`) experiences within a single account, allowing a user to request tasks as well as offer services.
-- **Location Geocoding**: Currently using manual city selection and coordinate points; future phase will integrate a map/places picker (e.g., OpenStreetMap or Google Places).
+### Admin Portal (`admin/`)
+- **`src/pages/MarketplacePage.jsx`**: Variant & product approval controls, seller KYC management, and order settlement views.
+- **`src/pages/SeoCmsDashboardPage.jsx`**: Added Promotional Popup Ad management alongside SEO page configs, blog editor, and SEO audit runner.
+- **`src/services/api.js`**: Added API bindings for popup ads and marketplace updates.

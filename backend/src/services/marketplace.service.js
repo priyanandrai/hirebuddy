@@ -41,7 +41,7 @@ export const ensureInitialMeerutMarketplace = async () => {
   if (seededCheckDone) return;
   try {
     const existingCount = await prisma.product.count();
-    if (existingCount > 0) {
+    if (existingCount >= 8) {
       seededCheckDone = true;
       return;
     }
@@ -207,12 +207,74 @@ export const ensureInitialMeerutMarketplace = async () => {
         approvedAt: new Date(),
         approvedByAdmin: "HireBuddy Admin",
       },
+      {
+        name: "Royal Banarasi Pure Silk Zari Border Saree (With Blouse Piece)",
+        slug: "royal-banarasi-pure-silk-zari-saree",
+        description:
+          "Handwoven pure Katan silk festive & wedding saree with intricate gold zari pallu and matching unstitched blouse piece. Direct from verified weaver collection.",
+        category: "Sarees & Ethnic Wear",
+        images: ["/images/helper_task_cleaning.png", "/images/service_furniture.png"],
+        variants: [
+          { label: "Crimson Red Zari", priceRupees: 2499, mrpRupees: 3999, stock: 15 },
+          { label: "Royal Blue Zari", priceRupees: 2599, mrpRupees: 3999, stock: 12 },
+          { label: "Emerald Green Zari", priceRupees: 2499, mrpRupees: 3999, stock: 8 },
+        ],
+        highlights: [
+          "100% Pure Handwoven Katan Silk with Rich Zari Border",
+          "Includes 0.8m Matching Unstitched Silk Blouse Piece",
+          "Ideal for Weddings, Festivals & Gifting",
+        ],
+        avgRating: 4.9,
+        reviewCount: 34,
+        pricePaise: 249900, // ₹2,499
+        mrpPaise: 399900,
+        stock: 35,
+        unit: "saree",
+        minOrderQty: 1,
+        commissionRate: 15.0,
+        status: "PUBLISHED",
+        defaultDeliveryMode: "PLATFORM_HELPER",
+        approvedAt: new Date(),
+        approvedByAdmin: "HireBuddy Admin",
+      },
+      {
+        name: "Luxury Festive Dry-Fruit, Brass Diya & Sweet Gift Hamper Box",
+        slug: "luxury-festive-dry-fruit-brass-gift-hamper",
+        description:
+          "Curated premium gift box for weddings, birthdays, and festivals — includes roasted almonds, cashews, pistachios, handcrafted brass diya, and greeting card.",
+        category: "Gifts & Hampers",
+        images: ["/images/helper_task_cooking.png", "/images/helper_task_plumbing.png"],
+        variants: [
+          { label: "Standard Hamper (750g + 1 Brass Diya)", priceRupees: 1199, mrpRupees: 1699, stock: 45 },
+          { label: "Royal Grand Box (1.5 Kg + 2 Brass Diyas)", priceRupees: 1999, mrpRupees: 2799, stock: 30 },
+        ],
+        highlights: [
+          "Premium California Almonds, Cashews & Roasted Pistachios",
+          "Includes Handcrafted Meerut Virgin Brass Akhand Diya",
+          " Velvet-Lined Magnetic Gift Box with Custom Greeting Card",
+        ],
+        avgRating: 4.8,
+        reviewCount: 27,
+        pricePaise: 119900, // ₹1,199
+        mrpPaise: 169900,
+        stock: 75,
+        unit: "gift box",
+        minOrderQty: 1,
+        commissionRate: 15.0,
+        status: "PUBLISHED",
+        defaultDeliveryMode: "PLATFORM_HELPER",
+        approvedAt: new Date(),
+        approvedByAdmin: "HireBuddy Admin",
+      },
     ];
 
     for (const prod of sampleProducts) {
       await prisma.product.upsert({
         where: { slug: prod.slug },
-        update: {},
+        update: {
+          ...(prod.variants ? { variants: prod.variants } : {}),
+          ...(prod.highlights ? { highlights: prod.highlights } : {}),
+        },
         create: {
           ...prod,
           sellerId: sellerProfile.id,
@@ -228,8 +290,11 @@ export const ensureInitialMeerutMarketplace = async () => {
 
 const normalizeSellerProfile = (s) => {
   if (!s) return null;
+  const commissionPct = Number(s.commissionRate ?? 15.0);
   return {
     ...s,
+    commissionRate: commissionPct,
+    commissionPct,
     contactPhone: s.contactPersonPhone,
     gstin: s.gstNumber,
     bankAccountName: s.bankAccountHolder,
@@ -239,11 +304,38 @@ const normalizeSellerProfile = (s) => {
   };
 };
 
+const normalizeVariants = (rawVariants, fallbackPriceRupees, fallbackMrpRupees) => {
+  if (!Array.isArray(rawVariants)) return [];
+  return rawVariants
+    .filter((v) => v && typeof v === "object" && (v.label || v.name))
+    .map((v) => {
+      const label = String(v.label || v.name).trim();
+      const priceRupees = Number(
+        v.priceRupees ?? v.price ?? (v.pricePaise ? Math.round(v.pricePaise / 100) : fallbackPriceRupees)
+      );
+      const mrpRupees = Number(
+        v.mrpRupees ?? v.mrp ?? (v.mrpPaise ? Math.round(v.mrpPaise / 100) : Math.max(priceRupees, fallbackMrpRupees))
+      );
+      return {
+        label,
+        priceRupees,
+        pricePaise: Math.round(priceRupees * 100),
+        mrpRupees,
+        mrpPaise: Math.round(mrpRupees * 100),
+        stock: Number(v.stock ?? 20),
+      };
+    });
+};
+
 const normalizeProduct = (p) => {
   if (!p) return null;
   const priceRupees = Math.round((p.pricePaise || 0) / 100);
   const mrpRupees = p.mrpPaise ? Math.round(p.mrpPaise / 100) : priceRupees;
-  const imagesArr = Array.isArray(p.images) ? p.images : [];
+  const imagesArr = Array.isArray(p.images) && p.images.length > 0 ? p.images : ["/images/service_delivery.png"];
+  const variantsArr = normalizeVariants(p.variants, priceRupees, mrpRupees);
+  const highlightsArr = Array.isArray(p.highlights) ? p.highlights.filter(Boolean) : [];
+  const effectiveCommission = Number(p.seller?.commissionRate ?? p.commissionRate ?? 15.0);
+  const isPlatformDelivery = p.defaultDeliveryMode === "PLATFORM_HELPER";
   return {
     ...p,
     title: p.name,
@@ -252,11 +344,18 @@ const normalizeProduct = (p) => {
     mrp: mrpRupees,
     mrpRupees,
     image: imagesArr[0] || "/images/service_delivery.png",
-    commissionPct: p.commissionRate,
+    images: imagesArr,
+    variants: variantsArr,
+    highlights: highlightsArr,
+    avgRating: Number(p.avgRating ?? 4.8),
+    reviewCount: Number(p.reviewCount ?? 12),
+    expressDeliveryEta: isPlatformDelivery ? "⚡ 35–45 Min Local Buddy Delivery" : "📦 Direct Seller Dispatch",
+    commissionRate: effectiveCommission,
+    commissionPct: effectiveCommission,
     approvalStatus: p.status,
     isPublished: p.status === "PUBLISHED",
-    deliveryByPlatform: p.defaultDeliveryMode === "PLATFORM_HELPER",
-    allowPlatformDelivery: p.defaultDeliveryMode === "PLATFORM_HELPER",
+    deliveryByPlatform: isPlatformDelivery,
+    allowPlatformDelivery: isPlatformDelivery,
     seller: p.seller ? normalizeSellerProfile(p.seller) : undefined,
   };
 };
@@ -286,8 +385,8 @@ const normalizeOrder = (o) => {
     Math.max(0, sellerPayableRupees - gstOnCommissionRupees - gstTcsRupees - incomeTaxTdsRupees).toFixed(2)
   );
 
-  const pickupOtp = deriveOrderOtp(o.deliveryTaskId || o.id, "pickup");
-  const deliveryOtp = deriveOrderOtp(o.deliveryTaskId || o.id, "complete");
+  const pickupOtp = o.pickupOtp || deriveOrderOtp(o.deliveryTaskId || o.id, "pickup");
+  const deliveryOtp = o.deliveryOtp || deriveOrderOtp(o.deliveryTaskId || o.id, "complete");
 
   return {
     ...o,
@@ -572,6 +671,8 @@ export const createSellerProduct = async (userId, data) => {
     category = "Meerut Specialties",
     images = [],
     image,
+    variants = [],
+    highlights = [],
     priceRupees,
     price,
     pricePaise,
@@ -606,10 +707,27 @@ export const createSellerProduct = async (userId, data) => {
 
   const resolvedImages =
     Array.isArray(images) && images.length > 0
-      ? images
+      ? images.filter(Boolean)
       : image
         ? [image]
         : ["/images/service_delivery.png"];
+
+  const resolvedVariants = Array.isArray(variants)
+    ? normalizeVariants(
+        variants,
+        Math.round(resolvedPricePaise / 100),
+        Math.round(resolvedMrpPaise / 100)
+      )
+    : [];
+
+  const resolvedHighlights = Array.isArray(highlights)
+    ? highlights.map((h) => String(h).trim()).filter(Boolean)
+    : typeof highlights === "string"
+      ? highlights
+          .split(/\r?\n|,/)
+          .map((h) => h.trim())
+          .filter(Boolean)
+      : [];
 
   const resolvedDeliveryMode =
     deliveryByPlatform === true ||
@@ -626,6 +744,8 @@ export const createSellerProduct = async (userId, data) => {
     .replace(/^-|-$/g, "");
   const slug = `${baseSlug}-${Date.now().toString(36)}`;
 
+  const sellerCommissionRate = Number(seller.commissionRate ?? proposedCommissionRate ?? 15.0);
+
   const product = await prisma.product.create({
     data: {
       sellerId: seller.id,
@@ -634,12 +754,14 @@ export const createSellerProduct = async (userId, data) => {
       description: String(description || "").trim(),
       category: String(category).trim(),
       images: resolvedImages,
+      variants: resolvedVariants.length > 0 ? resolvedVariants : undefined,
+      highlights: resolvedHighlights.length > 0 ? resolvedHighlights : undefined,
       pricePaise: resolvedPricePaise,
       mrpPaise: resolvedMrpPaise,
       stock: Number(stock || 50),
       unit: String(unit || "piece"),
       minOrderQty: Number(minOrderQty || 1),
-      commissionRate: Math.min(20, Math.max(10, Number(proposedCommissionRate || 15))),
+      commissionRate: sellerCommissionRate,
       defaultDeliveryMode: resolvedDeliveryMode,
       status: "PENDING_APPROVAL", // Must be verified & published by Admin only
     },
@@ -695,6 +817,7 @@ export const searchPublishedProducts = async (filters = {}) => {
           pickupAddress: true,
           fssaiNumber: true,
           gstNumber: true,
+          commissionRate: true,
           verificationStatus: true,
         },
       },
@@ -732,20 +855,101 @@ export const searchPublishedProducts = async (filters = {}) => {
 };
 
 /**
- * Place Marketplace Order:
- * 1. Portion-wise split calculation (e.g. 15% to Platform Account, 85% to Seller Account).
- * 2. Delivery calculation:
- *    - SELLER_SELF: ₹0 platform delivery charge; Seller handles delivery directly.
- *    - PLATFORM_HELPER: Auto-calculates +2% delivery charge (`Math.round(productSubtotalPaise * 0.02)`)
- *      and auto-creates a Delivery Task on behalf of Admin so available Buddies can accept & deliver it!
- * 3. Sends real-time + DB notifications to Seller, Admin, and (if PLATFORM_HELPER) online Buddies.
+ * Get a single Published Product by slug or ID (for Amazon-style dedicated Product Page `/marketplace/[slug]`)
+ */
+export const getPublishedProductBySlug = async (slugOrId) => {
+  await ensureInitialMeerutMarketplace();
+
+  const product = await prisma.product.findFirst({
+    where: {
+      OR: [{ slug: String(slugOrId) }, { id: String(slugOrId) }],
+      status: "PUBLISHED",
+    },
+    include: {
+      seller: {
+        select: {
+          id: true,
+          businessName: true,
+          businessCategory: true,
+          pickupCity: true,
+          pickupAddress: true,
+          fssaiNumber: true,
+          gstNumber: true,
+          commissionRate: true,
+          verificationStatus: true,
+        },
+      },
+    },
+  });
+
+  if (!product) {
+    return null;
+  }
+
+  const [relatedProductsRaw, reviewOrdersRaw] = await Promise.all([
+    prisma.product.findMany({
+      where: {
+        status: "PUBLISHED",
+        category: product.category,
+        id: { not: product.id },
+      },
+      include: {
+        seller: {
+          select: {
+            id: true,
+            businessName: true,
+            pickupCity: true,
+            fssaiNumber: true,
+            commissionRate: true,
+            verificationStatus: true,
+          },
+        },
+      },
+      take: 4,
+    }),
+    prisma.marketplaceOrder.findMany({
+      where: {
+        buyerRating: { not: null },
+        items: { some: { productId: product.id } },
+      },
+      include: {
+        customer: { select: { name: true, city: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 10,
+    }),
+  ]);
+
+  const reviews = reviewOrdersRaw.map((ord) => ({
+    id: ord.id,
+    orderNumber: ord.orderNumber,
+    buyerName: ord.shippingName || ord.customer?.name || "Verified Buyer",
+    buyerCity: ord.shippingCity || ord.customer?.city || "Meerut",
+    rating: ord.buyerRating,
+    review: ord.buyerReview || "Great quality product, fast delivery!",
+    createdAt: ord.updatedAt,
+  }));
+
+  return {
+    product: normalizeProduct(product),
+    relatedProducts: relatedProductsRaw.map(normalizeProduct),
+    reviews,
+  };
+};
+
+/**
+ * Place Marketplace Order (Supports both 1-Click Single "Buy" AND Multi-Seller Unified Cart Checkout):
+ * 1. Automatically picks Name, Phone, and Address from Customer's User Profile by default.
+ * 2. Supports product variants (`selectedVariant`) and dynamic per-seller commission (`SellerProfile.commissionRate`).
+ * 3. Automatically splits multi-seller carts into per-seller orders linked by `cartGroupId`.
+ * 4. Auto-creates a +2% Buddy Delivery Task on behalf of Admin for every `PLATFORM_HELPER` order.
  */
 export const placeMarketplaceOrder = async (customerId, data) => {
   const {
     productId: rawProductId,
     quantity: rawQuantity,
+    selectedVariant: rawSelectedVariant,
     items,
-    deliveryMode: requestedDeliveryMode,
     shippingName: rawShippingName,
     customerName,
     shippingPhone: rawShippingPhone,
@@ -763,21 +967,47 @@ export const placeMarketplaceOrder = async (customerId, data) => {
     razorpayPaymentId,
   } = data;
 
-  const firstItem = Array.isArray(items) && items.length > 0 ? items[0] : null;
-  const productId = rawProductId || firstItem?.productId;
-  const quantity = rawQuantity ?? firstItem?.quantity ?? 1;
-  const shippingName = rawShippingName || customerName || "HireBuddy Customer";
-  const shippingPhone = rawShippingPhone || customerPhone;
-  const shippingAddress = rawShippingAddress || deliveryAddress;
-  const shippingCity = rawShippingCity || deliveryCity || "Meerut";
-  const shippingPincode = rawShippingPincode || deliveryPincode || "250001";
+  const requestedItems =
+    Array.isArray(items) && items.length > 0
+      ? items
+      : rawProductId
+        ? [
+            {
+              productId: rawProductId,
+              quantity: rawQuantity ?? 1,
+              selectedVariant: rawSelectedVariant || null,
+            },
+          ]
+        : [];
 
-  if (!productId || !shippingPhone || !shippingAddress) {
-    throw new Error("Product, customer phone, and delivery address are required.");
+  if (requestedItems.length === 0) {
+    throw new Error("Product is required to place an order.");
   }
 
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
+  // Automatically pick Name, Phone, and Address from the logged-in Customer's User Profile by default
+  const customerProfile = customerId
+    ? await prisma.user.findUnique({
+        where: { id: customerId },
+        select: { name: true, phone: true, address: true, city: true },
+      })
+    : null;
+
+  const shippingName =
+    rawShippingName || customerName || customerProfile?.name || "HireBuddy Customer";
+  const shippingPhone =
+    rawShippingPhone || customerPhone || customerProfile?.phone || "9897000000";
+  const shippingAddress =
+    rawShippingAddress ||
+    deliveryAddress ||
+    customerProfile?.address ||
+    (customerProfile?.city ? `${customerProfile.city}, UP` : "Modipuram, Meerut, UP");
+  const shippingCity =
+    rawShippingCity || deliveryCity || customerProfile?.city || "Meerut";
+  const shippingPincode = rawShippingPincode || deliveryPincode || "250001";
+
+  const productIds = [...new Set(requestedItems.map((i) => i.productId).filter(Boolean))];
+  const dbProducts = await prisma.product.findMany({
+    where: { id: { in: productIds } },
     include: {
       seller: {
         include: {
@@ -787,254 +1017,338 @@ export const placeMarketplaceOrder = async (customerId, data) => {
     },
   });
 
-  if (!product || product.status !== "PUBLISHED") {
-    throw new Error("This product is not available for purchase.");
+  const productMap = new Map(dbProducts.map((p) => [p.id, p]));
+
+  // Validate all items and group by Seller + DeliveryMode so multi-seller carts split cleanly
+  const sellerGroups = new Map();
+
+  for (const reqItem of requestedItems) {
+    const product = productMap.get(reqItem.productId);
+    if (!product || product.status !== "PUBLISHED") {
+      throw new Error("One or more products in your cart are not available for purchase.");
+    }
+    const qty = Math.max(1, Number(reqItem.quantity || 1));
+    if (product.stock < qty) {
+      throw new Error(`Only ${product.stock} ${product.unit}(s) available in stock for ${product.name}.`);
+    }
+
+    // Check if customer picked a specific variant (e.g. "Royal Blue Zari" or "1.5 Kg Box")
+    const normalizedVars = normalizeVariants(
+      product.variants,
+      Math.round(product.pricePaise / 100),
+      Math.round((product.mrpPaise || product.pricePaise) / 100)
+    );
+    const chosenVariantLabel = reqItem.selectedVariant ? String(reqItem.selectedVariant).trim() : null;
+    const matchedVariant = chosenVariantLabel
+      ? normalizedVars.find((v) => v.label.toLowerCase() === chosenVariantLabel.toLowerCase())
+      : null;
+
+    const unitPricePaise = matchedVariant ? matchedVariant.pricePaise : product.pricePaise;
+    const resolvedDeliveryMode =
+      product.defaultDeliveryMode === "PLATFORM_HELPER" ||
+      product.defaultDeliveryMode === "PLATFORM_DELIVERY"
+        ? "PLATFORM_HELPER"
+        : "SELLER_SELF";
+
+    const groupKey = `${product.seller.id}::${resolvedDeliveryMode}`;
+    if (!sellerGroups.has(groupKey)) {
+      sellerGroups.set(groupKey, {
+        seller: product.seller,
+        deliveryMode: resolvedDeliveryMode,
+        lineItems: [],
+      });
+    }
+    sellerGroups.get(groupKey).lineItems.push({
+      product,
+      qty,
+      unitPricePaise,
+      selectedVariant: matchedVariant?.label || chosenVariantLabel || null,
+    });
   }
 
-  const qty = Math.max(1, Number(quantity || 1));
-  if (product.stock < qty) {
-    throw new Error(`Only ${product.stock} ${product.unit}(s) available in stock.`);
-  }
-
-  // Delivery mode defaults to Seller's product setting, or customer/seller opt-in for Platform Delivery (+2%)
-  const normalizedRequestedDelivery =
-    requestedDeliveryMode === "PLATFORM_DELIVERY" ? "PLATFORM_HELPER" : requestedDeliveryMode;
-  const resolvedDeliveryMode =
-    normalizedRequestedDelivery === "PLATFORM_HELPER" || normalizedRequestedDelivery === "SELLER_SELF"
-      ? normalizedRequestedDelivery
-      : product.defaultDeliveryMode || "SELLER_SELF";
-
-  // 1. Portion-wise split calculation (e.g. 15% Platform Commission, 85% Seller Share)
-  const productSubtotalPaise = product.pricePaise * qty;
-  const commissionRate = Number(product.commissionRate || 15.0);
-  const platformCommissionPaise = Math.round(productSubtotalPaise * (commissionRate / 100));
-  const sellerPayablePaise = productSubtotalPaise - platformCommissionPaise;
-
-  // 2. Delivery charge calculation:
-  // If seller/order opts for our platform delivery (PLATFORM_HELPER), add 2% extra charge
-  const deliveryFeePaise =
-    resolvedDeliveryMode === "PLATFORM_HELPER"
-      ? Math.round(productSubtotalPaise * 0.02)
-      : 0;
-
-  const totalPaidPaise = productSubtotalPaise + deliveryFeePaise;
-  const orderNumber = `HB-MRT-${Date.now().toString().slice(-6)}`;
+  const cartGroupId =
+    sellerGroups.size > 1 || requestedItems.length > 1
+      ? `CART-MRT-${Date.now().toString().slice(-6)}`
+      : null;
 
   const adminUser = await getOrCreatePlatformAdminUser();
+  const createdOrders = [];
+  const createdDeliveryTasks = [];
 
-  let createdDeliveryTask = null;
+  let groupIdx = 0;
+  for (const [, group] of sellerGroups.entries()) {
+    groupIdx += 1;
+    const { seller, deliveryMode: resolvedDeliveryMode, lineItems } = group;
+    const commissionRate = Number(
+      seller?.commissionRate ?? lineItems[0]?.product?.commissionRate ?? 15.0
+    );
 
-  // 3. If PLATFORM_HELPER is opted, auto-create a Delivery Task on behalf of Admin
-  if (resolvedDeliveryMode === "PLATFORM_HELPER") {
-    const taskBudgetRupees = Math.max(1, Math.round(deliveryFeePaise / 100));
-    const taskTitle = `Marketplace Delivery: ${product.name} (${orderNumber})`;
-    const taskDescription = [
-      ` Auto-Created Platform Delivery Task (2% Delivery Option) on behalf of HireBuddy Admin.`,
-      `• Order: #${orderNumber} (${qty} × ${product.name})`,
-      `• Pickup Point (Manufacturer): ${product.seller.businessName}, ${product.seller.pickupAddress}, ${product.seller.pickupCity} - ${product.seller.pickupPincode} (Contact: ${product.seller.contactPersonName} - ${product.seller.contactPersonPhone})`,
-      `• Drop Address (Customer): ${shippingName}, ${shippingAddress}, ${shippingCity} - ${shippingPincode} (Phone: ${shippingPhone})`,
-      `• Delivery Payout: ₹${(deliveryFeePaise / 100).toFixed(2)} (100% goes to Buddy upon delivery)`,
-    ].join("\n");
+    const productSubtotalPaise = lineItems.reduce(
+      (sum, li) => sum + li.unitPricePaise * li.qty,
+      0
+    );
+    const platformCommissionPaise = Math.round(
+      productSubtotalPaise * (commissionRate / 100)
+    );
+    const deliveryFeePaise =
+      resolvedDeliveryMode === "PLATFORM_HELPER"
+        ? Math.round(productSubtotalPaise * 0.02)
+        : 0;
+    const sellerPayablePaise = Math.max(
+      0,
+      productSubtotalPaise - platformCommissionPaise - deliveryFeePaise
+    );
+    const totalPaidPaise = productSubtotalPaise;
 
-    createdDeliveryTask = await prisma.task.create({
-      data: {
-        title: taskTitle.slice(0, 190),
-        description: taskDescription,
-        category: "Delivery & Pickup",
-        location: `${product.seller.pickupAddress}, ${product.seller.pickupCity} → ${shippingAddress}, ${shippingCity}`.slice(0, 190),
-        latitude: product.seller.pickupLatitude || 28.9845,
-        longitude: product.seller.pickupLongitude || 77.7064,
-        budget: taskBudgetRupees,
-        preferredAt: new Date(),
-        status: "OPEN",
-        paymentStatus: "HELD_IN_ESCROW",
-        createdById: adminUser.id,
-      },
-      include: {
-        createdBy: { select: { id: true, name: true, image: true, phone: true } },
-      },
-    });
-  }
+    const suffix = sellerGroups.size > 1 ? `-${groupIdx}` : "";
+    const orderNumber = `HB-MRT-${Date.now().toString().slice(-6)}${suffix}`;
 
-  // Settlement status: Direct split vs Daily NEFT queue
-  const settlementStatus =
-    paymentMethod === "RAZORPAY_SPLIT" && product.seller.razorpayAccountId
-      ? "SETTLED_DIRECT_SPLIT"
-      : "QUEUED_FOR_NEFT";
+    let createdDeliveryTask = null;
+    if (resolvedDeliveryMode === "PLATFORM_HELPER") {
+      const taskBudgetRupees = Math.max(1, Math.round(deliveryFeePaise / 100));
+      const itemsSummary = lineItems
+        .map(
+          (li) =>
+            `${li.qty} × ${li.product.name}${li.selectedVariant ? ` [${li.selectedVariant}]` : ""}`
+        )
+        .join(", ");
+      const taskTitle = `Marketplace Delivery: ${lineItems[0].product.name} (${orderNumber})`;
+      const taskDescription = [
+        `Auto-Created Platform Delivery Task (2% Delivery Option) on behalf of HireBuddy Admin.`,
+        `• Order: #${orderNumber} (${itemsSummary})`,
+        `• Pickup Point (Manufacturer): ${seller.businessName}, ${seller.pickupAddress}, ${seller.pickupCity} - ${seller.pickupPincode} (Contact: ${seller.contactPersonName} - ${seller.contactPersonPhone})`,
+        `• Drop Address (Customer): ${shippingName}, ${shippingAddress}, ${shippingCity} - ${shippingPincode} (Phone: ${shippingPhone})`,
+        `• Delivery Payout: ₹${(deliveryFeePaise / 100).toFixed(2)} (100% goes to Buddy upon delivery)`,
+      ].join("\n");
 
-  // 4. Create the MarketplaceOrder & MarketplaceOrderItem and decrement stock
-  const order = await prisma.$transaction(async (tx) => {
-    await tx.product.update({
-      where: { id: product.id },
-      data: { stock: { decrement: qty } },
-    });
-
-    const createdOrder = await tx.marketplaceOrder.create({
-      data: {
-        orderNumber,
-        customerId,
-        sellerId: product.seller.id,
-        shippingName: String(shippingName).trim(),
-        shippingPhone: String(shippingPhone).trim(),
-        shippingAddress: String(shippingAddress).trim(),
-        shippingCity: String(shippingCity).trim(),
-        shippingPincode: String(shippingPincode).trim(),
-        shippingLatitude: shippingLatitude ? parseFloat(shippingLatitude) : null,
-        shippingLongitude: shippingLongitude ? parseFloat(shippingLongitude) : null,
-        deliveryMode: resolvedDeliveryMode,
-        deliveryFeePaise,
-        deliveryTaskId: createdDeliveryTask?.id || null,
-        productSubtotalPaise,
-        platformCommissionRate: commissionRate,
-        platformCommissionPaise,
-        sellerPayablePaise,
-        totalPaidPaise,
-        paymentStatus: "PAID",
-        paymentMethod,
-        razorpayOrderId: razorpayOrderId || `order_mkt_${Date.now()}`,
-        razorpayPaymentId: razorpayPaymentId || `pay_mkt_${Date.now()}`,
-        settlementStatus,
-        orderStatus: "CONFIRMED",
-        items: {
-          create: [
-            {
-              productId: product.id,
-              productName: product.name,
-              quantity: qty,
-              unitPricePaise: product.pricePaise,
-              commissionRate,
-              platformSharePaise: platformCommissionPaise,
-              sellerSharePaise: sellerPayablePaise,
-            },
-          ],
+      createdDeliveryTask = await prisma.task.create({
+        data: {
+          title: taskTitle.slice(0, 190),
+          description: taskDescription,
+          category: "Delivery & Pickup",
+          location: `${seller.pickupAddress}, ${seller.pickupCity} → ${shippingAddress}, ${shippingCity}`.slice(
+            0,
+            190
+          ),
+          latitude: seller.pickupLatitude || 28.9845,
+          longitude: seller.pickupLongitude || 77.7064,
+          budget: taskBudgetRupees,
+          preferredAt: new Date(),
+          status: "OPEN",
+          paymentStatus: "HELD_IN_ESCROW",
+          createdById: adminUser.id,
         },
-      },
-      include: {
-        items: true,
-        seller: {
-          select: {
-            id: true,
-            userId: true,
-            businessName: true,
-            pickupAddress: true,
-            pickupCity: true,
-            contactPersonName: true,
-            contactPersonPhone: true,
+        include: {
+          createdBy: { select: { id: true, name: true, image: true, phone: true } },
+        },
+      });
+      createdDeliveryTasks.push(createdDeliveryTask);
+    }
+
+    const settlementStatus =
+      paymentMethod === "RAZORPAY_SPLIT" && seller.razorpayAccountId
+        ? "SETTLED_DIRECT_SPLIT"
+        : "QUEUED_FOR_NEFT";
+
+    const pickupOtp = deriveOrderOtp(createdDeliveryTask?.id || orderNumber, "pickup");
+    const deliveryOtp = deriveOrderOtp(createdDeliveryTask?.id || orderNumber, "complete");
+
+    const order = await prisma.$transaction(async (tx) => {
+      for (const li of lineItems) {
+        await tx.product.update({
+          where: { id: li.product.id },
+          data: { stock: { decrement: li.qty } },
+        });
+      }
+
+      const createdOrder = await tx.marketplaceOrder.create({
+        data: {
+          orderNumber,
+          cartGroupId,
+          customerId,
+          sellerId: seller.id,
+          shippingName: String(shippingName).trim(),
+          shippingPhone: String(shippingPhone).trim(),
+          shippingAddress: String(shippingAddress).trim(),
+          shippingCity: String(shippingCity).trim(),
+          shippingPincode: String(shippingPincode).trim(),
+          shippingLatitude: shippingLatitude ? parseFloat(shippingLatitude) : null,
+          shippingLongitude: shippingLongitude ? parseFloat(shippingLongitude) : null,
+          deliveryMode: resolvedDeliveryMode,
+          deliveryFeePaise,
+          deliveryTaskId: createdDeliveryTask?.id || null,
+          pickupOtp,
+          deliveryOtp,
+          productSubtotalPaise,
+          platformCommissionRate: commissionRate,
+          platformCommissionPaise,
+          sellerPayablePaise,
+          totalPaidPaise,
+          paymentStatus: "PAID",
+          paymentMethod,
+          razorpayOrderId: razorpayOrderId || `order_mkt_${Date.now()}`,
+          razorpayPaymentId: razorpayPaymentId || `pay_mkt_${Date.now()}`,
+          settlementStatus,
+          orderStatus: "CONFIRMED",
+          items: {
+            create: lineItems.map((li) => {
+              const liSub = li.unitPricePaise * li.qty;
+              const liPlat = Math.round(liSub * (commissionRate / 100));
+              const liDeliv =
+                resolvedDeliveryMode === "PLATFORM_HELPER" ? Math.round(liSub * 0.02) : 0;
+              return {
+                productId: li.product.id,
+                productName: li.product.name,
+                selectedVariant: li.selectedVariant,
+                quantity: li.qty,
+                unitPricePaise: li.unitPricePaise,
+                commissionRate,
+                platformSharePaise: liPlat,
+                sellerSharePaise: Math.max(0, liSub - liPlat - liDeliv),
+              };
+            }),
           },
         },
-      },
+        include: {
+          items: true,
+          seller: {
+            select: {
+              id: true,
+              userId: true,
+              businessName: true,
+              pickupAddress: true,
+              pickupCity: true,
+              contactPersonName: true,
+              contactPersonPhone: true,
+            },
+          },
+        },
+      });
+
+      return createdOrder;
     });
 
-    return createdOrder;
-  });
+    createdOrders.push(order);
 
-  // 5. Broadcast auto-created 2% Delivery Task to all online Buddies if PLATFORM_HELPER was chosen
-  if (createdDeliveryTask) {
-    try {
-      const formattedLiveTask = {
-        ...createdDeliveryTask,
-        image: "/images/helper_task_medicine.png",
-        isNew: true,
-        dateLabel: new Date().toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }),
-        timeSlot: "Immediate Pickup & Delivery",
-      };
-      emitBroadcast("new_task_available", {
-        taskId: createdDeliveryTask.id,
-        task: formattedLiveTask,
-        category: createdDeliveryTask.category,
-        customerName: "HireBuddy Admin (Marketplace Delivery)",
-      });
-      notificationEvents.newTaskPosted(createdDeliveryTask, adminUser).catch(() => {});
-    } catch (e) {
-      console.warn("Delivery task broadcast warning:", e?.message);
+    if (createdDeliveryTask) {
+      try {
+        const formattedLiveTask = {
+          ...createdDeliveryTask,
+          image: "/images/helper_task_medicine.png",
+          isNew: true,
+          dateLabel: new Date().toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          }),
+          timeSlot: "Immediate Pickup & Delivery",
+        };
+        emitBroadcast("new_task_available", {
+          taskId: createdDeliveryTask.id,
+          task: formattedLiveTask,
+          category: createdDeliveryTask.category,
+          customerName: "HireBuddy Admin (Marketplace Delivery)",
+        });
+        notificationEvents.newTaskPosted(createdDeliveryTask, adminUser).catch(() => {});
+      } catch (e) {
+        console.warn("Delivery task broadcast warning:", e?.message);
+      }
     }
-  }
 
-  // 6. Send notifications to Seller & Admin & Customer
-  const sellerShareRupees = (sellerPayablePaise / 100).toFixed(2);
-  const platformShareRupees = (platformCommissionPaise / 100).toFixed(2);
-  const deliveryFeeRupees = (deliveryFeePaise / 100).toFixed(2);
-  const totalPaidRupees = (totalPaidPaise / 100).toFixed(2);
+    const sellerShareRupees = (sellerPayablePaise / 100).toFixed(2);
+    const platformShareRupees = (platformCommissionPaise / 100).toFixed(2);
+    const deliveryFeeRupees = (deliveryFeePaise / 100).toFixed(2);
+    const totalPaidRupees = (totalPaidPaise / 100).toFixed(2);
+    const firstProdName = lineItems[0].product.name;
+    const totalQty = lineItems.reduce((s, l) => s + l.qty, 0);
 
-  try {
-    // Notify Seller
-    if (product.seller?.userId) {
+    try {
+      if (seller?.userId) {
+        await sendNotification(
+          createdDeliveryTask?.id || null,
+          customerId,
+          seller.userId,
+          "marketplace_order_received",
+          `New Order #${orderNumber}: ${firstProdName} (×${totalQty})`,
+          `Total Paid: ₹${totalPaidRupees} | Your Share (${100 - commissionRate}%): ₹${sellerShareRupees} | Platform Commission (${commissionRate}%): ₹${platformShareRupees} | Delivery: ${
+            resolvedDeliveryMode === "PLATFORM_HELPER"
+              ? `HireBuddy Delivery (+2% = ₹${deliveryFeeRupees} task created)`
+              : "Self Delivery by Seller"
+          }`
+        );
+        emitToUser(seller.userId, "marketplace_order_received", {
+          order,
+          deliveryTask: createdDeliveryTask,
+        });
+      }
+
       await sendNotification(
         createdDeliveryTask?.id || null,
         customerId,
-        product.seller.userId,
-        "marketplace_order_received",
-        `New Order #${orderNumber}: ${product.name} (×${qty})`,
-        `Total Paid: ₹${totalPaidRupees} | Your Share (${100 - commissionRate}%): ₹${sellerShareRupees} | Platform Commission (${commissionRate}%): ₹${platformShareRupees} | Delivery: ${
-          resolvedDeliveryMode === "PLATFORM_HELPER"
-            ? `HireBuddy Delivery (+2% = ₹${deliveryFeeRupees} task created)`
-            : "Self Delivery by Seller"
+        adminUser.id,
+        "marketplace_order_admin_alert",
+        `Marketplace Order #${orderNumber} Placed`,
+        `${totalQty} item(s) from ${seller.businessName}. Platform ${commissionRate}% = ₹${platformShareRupees}, Seller = ₹${sellerShareRupees}.${
+          createdDeliveryTask
+            ? ` Auto-created 2% Delivery Task (₹${deliveryFeeRupees}) on behalf of Admin.`
+            : " Seller handling self-delivery."
         }`
       );
-      emitToUser(product.seller.userId, "marketplace_order_received", {
-        order,
-        deliveryTask: createdDeliveryTask,
-      });
+
+      await sendNotification(
+        createdDeliveryTask?.id || null,
+        adminUser.id,
+        customerId,
+        "marketplace_order_confirmed",
+        `Order #${orderNumber} Confirmed!`,
+        `Your order for "${firstProdName}" (₹${totalPaidRupees}) is confirmed.${
+          createdDeliveryTask
+            ? " A HireBuddy delivery task has been created and assigned to nearby Buddies."
+            : ` ${seller.businessName} will dispatch your order directly.`
+        }`
+      );
+    } catch (notifErr) {
+      console.warn("Order notification warning:", notifErr?.message);
     }
-
-    // Notify Admin
-    await sendNotification(
-      createdDeliveryTask?.id || null,
-      customerId,
-      adminUser.id,
-      "marketplace_order_admin_alert",
-      `Marketplace Order #${orderNumber} Placed`,
-      `${qty} × "${product.name}" from ${product.seller.businessName}. Platform ${commissionRate}% = ₹${platformShareRupees}, Seller ${100 - commissionRate}% = ₹${sellerShareRupees}.${
-        createdDeliveryTask
-          ? ` Auto-created 2% Delivery Task (₹${deliveryFeeRupees}) on behalf of Admin.`
-          : " Seller handling self-delivery."
-      }`
-    );
-
-    // Notify Customer
-    await sendNotification(
-      createdDeliveryTask?.id || null,
-      adminUser.id,
-      customerId,
-      "marketplace_order_confirmed",
-      `Order #${orderNumber} Confirmed!`,
-      `Your order for ${qty} × "${product.name}" (₹${totalPaidRupees}) is confirmed.${
-        createdDeliveryTask
-          ? " A HireBuddy delivery task has been created and assigned to nearby Buddies."
-          : ` ${product.seller.businessName} will dispatch your order directly.`
-      }`
-    );
-  } catch (notifErr) {
-    console.warn("Order notification warning:", notifErr?.message);
   }
 
+  const primaryOrder = createdOrders[0];
+  const normalizedOrders = createdOrders.map(normalizeOrder);
+  const totalCustomerPaidPaise = createdOrders.reduce((s, o) => s + o.totalPaidPaise, 0);
+  const totalSellerSharePaise = createdOrders.reduce((s, o) => s + o.sellerPayablePaise, 0);
+  const totalPlatformCommissionPaise = createdOrders.reduce(
+    (s, o) => s + o.platformCommissionPaise,
+    0
+  );
+  const totalDeliveryFeePaise = createdOrders.reduce((s, o) => s + o.deliveryFeePaise, 0);
+
   return {
-    message: createdDeliveryTask
-      ? `Order #${orderNumber} placed! +2% HireBuddy Delivery Task created on behalf of Admin.`
-      : `Order #${orderNumber} placed! Seller (${product.seller.businessName}) & Admin have been notified.`,
-    order: normalizeOrder(order),
-    deliveryTask: createdDeliveryTask,
+    message:
+      createdDeliveryTasks.length > 0
+        ? `Order #${primaryOrder.orderNumber} placed! +2% HireBuddy Delivery Task created on behalf of Admin.`
+        : `Order #${primaryOrder.orderNumber} placed! Seller & Admin have been notified.`,
+    order: normalizedOrders[0],
+    orders: normalizedOrders,
+    cartGroupId,
+    deliveryTask: createdDeliveryTasks[0] || null,
+    deliveryTasks: createdDeliveryTasks,
     splitSummary: {
-      totalCustomerPaidRupees: Math.round(totalPaidPaise / 100),
-      sellerShareRupees: Math.round(sellerPayablePaise / 100),
-      platformCommissionRupees: Math.round(platformCommissionPaise / 100),
-      deliveryCharge2PctRupees: Math.round(deliveryFeePaise / 100),
-      autoCreatedDeliveryTaskId: createdDeliveryTask?.id || null,
+      totalCustomerPaidRupees: Math.round(totalCustomerPaidPaise / 100),
+      sellerShareRupees: Math.round(totalSellerSharePaise / 100),
+      platformCommissionRupees: Math.round(totalPlatformCommissionPaise / 100),
+      deliveryCharge2PctRupees: Math.round(totalDeliveryFeePaise / 100),
+      autoCreatedDeliveryTaskId: createdDeliveryTasks[0]?.id || null,
     },
     splitBreakdown: {
-      productSubtotalPaise,
-      commissionRate,
-      platformCommissionPaise,
-      sellerShareRate: 100 - commissionRate,
-      sellerPayablePaise,
-      deliveryMode: resolvedDeliveryMode,
-      deliveryFeePaise,
-      totalPaidPaise,
-      settlementStatus,
+      productSubtotalPaise: totalCustomerPaidPaise,
+      commissionRate: primaryOrder.platformCommissionRate,
+      platformCommissionPaise: totalPlatformCommissionPaise,
+      sellerShareRate: 100 - primaryOrder.platformCommissionRate,
+      sellerPayablePaise: totalSellerSharePaise,
+      deliveryMode: primaryOrder.deliveryMode,
+      deliveryFeePaise: totalDeliveryFeePaise,
+      totalPaidPaise: totalCustomerPaidPaise,
+      settlementStatus: primaryOrder.settlementStatus,
     },
   };
 };
@@ -1067,14 +1381,236 @@ export const getCustomerMarketplaceOrders = async (customerId) => {
 };
 
 /**
- * Update Order Status by Seller or Admin
+ * Update Order Status by Seller, Helper, or Admin (with optional Pickup/Delivery OTP Handshake)
  */
-export const updateMarketplaceOrderStatus = async (orderId, newStatus) => {
+export const updateMarketplaceOrderStatus = async (orderId, newStatus, options = {}) => {
+  const existing = await prisma.marketplaceOrder.findUnique({
+    where: { id: orderId },
+  });
+  if (!existing) {
+    throw new Error("Order not found");
+  }
+
+  const expectedPickupOtp =
+    existing.pickupOtp || deriveOrderOtp(existing.deliveryTaskId || existing.id, "pickup");
+  const expectedDeliveryOtp =
+    existing.deliveryOtp || deriveOrderOtp(existing.deliveryTaskId || existing.id, "complete");
+
+  if (options?.otp) {
+    const providedOtp = String(options.otp).trim();
+    if (newStatus === "OUT_FOR_DELIVERY" && providedOtp !== expectedPickupOtp) {
+      throw new Error("Invalid 4-digit Store Pickup OTP.");
+    }
+    if (newStatus === "DELIVERED" && providedOtp !== expectedDeliveryOtp) {
+      throw new Error("Invalid 4-digit Customer Delivery OTP.");
+    }
+  }
+
   const updated = await prisma.marketplaceOrder.update({
     where: { id: orderId },
     data: { orderStatus: newStatus },
   });
+
+  if (newStatus === "DELIVERED" && existing.deliveryTaskId) {
+    try {
+      await prisma.task.update({
+        where: { id: existing.deliveryTaskId },
+        data: { status: "COMPLETED" },
+      });
+    } catch (e) {
+      // Task may have already been completed
+    }
+  }
+
   return normalizeOrder(updated);
+};
+
+/**
+ * Rate a Marketplace Order (1–5 Stars + Review) & Update Product Rating Average
+ */
+export const rateMarketplaceOrder = async (customerId, orderId, { rating, review }) => {
+  const parsedRating = Math.min(5, Math.max(1, Math.round(Number(rating || 5))));
+  const existing = await prisma.marketplaceOrder.findUnique({
+    where: { id: orderId },
+    include: { items: true },
+  });
+
+  if (!existing) {
+    throw new Error("Marketplace order not found.");
+  }
+
+  if (customerId && existing.customerId !== customerId) {
+    throw new Error("You can only rate your own marketplace order.");
+  }
+
+  const updatedOrder = await prisma.marketplaceOrder.update({
+    where: { id: orderId },
+    data: {
+      buyerRating: parsedRating,
+      buyerReview: review ? String(review).trim() : null,
+    },
+    include: {
+      items: true,
+      seller: true,
+    },
+  });
+
+  for (const item of existing.items || []) {
+    try {
+      const prod = await prisma.product.findUnique({ where: { id: item.productId } });
+      if (prod) {
+        const oldCount = Number(prod.reviewCount || 10);
+        const oldAvg = Number(prod.avgRating || 4.8);
+        const newCount = oldCount + 1;
+        const newAvg = Number(((oldAvg * oldCount + parsedRating) / newCount).toFixed(1));
+        await prisma.product.update({
+          where: { id: prod.id },
+          data: { avgRating: newAvg, reviewCount: newCount },
+        });
+      }
+    } catch (e) {}
+  }
+
+  return normalizeOrder(updatedOrder);
+};
+
+// ============================================================================
+// ADMIN PROMOTIONAL POPUP AD (Product / Service Spotlight — Once Per Day After Login)
+// ============================================================================
+
+export const getOrCreatePromotionalPopupAd = async () => {
+  await ensureInitialMeerutMarketplace();
+
+  let existing = await prisma.promotionalPopupAd.findFirst({
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (!existing) {
+    const featuredProduct = await prisma.product.findFirst({
+      where: { status: "PUBLISHED" },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const priceRupees = featuredProduct
+      ? Math.round((featuredProduct.pricePaise || 249900) / 100)
+      : 2499;
+    const mrpRupees = featuredProduct?.mrpPaise
+      ? Math.round(featuredProduct.mrpPaise / 100)
+      : 3999;
+    const discountPct =
+      mrpRupees > priceRupees
+        ? Math.round(((mrpRupees - priceRupees) / mrpRupees) * 100)
+        : 38;
+    const imgArr = Array.isArray(featuredProduct?.images) ? featuredProduct.images : [];
+
+    existing = await prisma.promotionalPopupAd.create({
+      data: {
+        adType: "PRODUCT",
+        targetProductId: featuredProduct?.id || null,
+        badgeText: "✨ Featured Deal of the Day",
+        title:
+          featuredProduct?.name ||
+          "Royal Banarasi Pure Silk Zari Border Saree",
+        subtitle:
+          featuredProduct?.description ||
+          "Handwoven pure Katan silk saree with gold zari border • ⚡ 35–45 Min Local Buddy Delivery across Meerut",
+        imageUrl: imgArr[0] || "/images/helper_task_cleaning.png",
+        offerPriceRupees: priceRupees,
+        mrpRupees,
+        discountText: `${discountPct}% OFF Today`,
+        ctaText: "Explore Offer →",
+        ctaUrl: featuredProduct?.slug
+          ? `/marketplace/${featuredProduct.slug}`
+          : "/marketplace",
+        delaySeconds: 6,
+        frequency: "ONCE_PER_DAY",
+        isActive: true,
+        updatedByAdmin: "HireBuddy Admin",
+      },
+    });
+  }
+
+  return existing;
+};
+
+export const getActivePromotionalPopupAd = async () => {
+  const ad = await getOrCreatePromotionalPopupAd();
+  return {
+    ...(ad || {}),
+    ad: ad?.isActive ? ad : null,
+    promoAd: ad?.isActive ? ad : null,
+    config: ad,
+  };
+};
+
+export const adminUpdatePromotionalPopupAd = async (payload = {}) => {
+  const current = await getOrCreatePromotionalPopupAd();
+
+  let resolvedTitle = payload.title ?? current.title;
+  let resolvedSubtitle = payload.subtitle ?? current.subtitle;
+  let resolvedImageUrl = payload.imageUrl ?? current.imageUrl;
+  let resolvedOfferPrice =
+    payload.offerPriceRupees !== undefined
+      ? Number(payload.offerPriceRupees)
+      : current.offerPriceRupees;
+  let resolvedMrp =
+    payload.mrpRupees !== undefined ? Number(payload.mrpRupees) : current.mrpRupees;
+  let resolvedCtaUrl = payload.ctaUrl ?? current.ctaUrl;
+  let resolvedCtaText = payload.ctaText ?? current.ctaText;
+  let resolvedDiscountText = payload.discountText ?? current.discountText;
+
+  const adType = payload.adType || current.adType || "PRODUCT";
+
+  // If Admin selected a target Product and asked to auto-fill or didn't supply custom title
+  if (adType === "PRODUCT" && payload.targetProductId && payload.autoFillFromTarget) {
+    const prod = await prisma.product.findUnique({
+      where: { id: payload.targetProductId },
+    });
+    if (prod) {
+      const pRs = Math.round((prod.pricePaise || 0) / 100);
+      const mRs = prod.mrpPaise ? Math.round(prod.mrpPaise / 100) : pRs;
+      const dPct = mRs > pRs ? Math.round(((mRs - pRs) / mRs) * 100) : 0;
+      const imgs = Array.isArray(prod.images) ? prod.images : [];
+      resolvedTitle = prod.name;
+      resolvedSubtitle = prod.description;
+      resolvedImageUrl = imgs[0] || "/images/helper_task_cleaning.png";
+      resolvedOfferPrice = pRs;
+      resolvedMrp = mRs;
+      resolvedDiscountText = dPct > 0 ? `${dPct}% OFF Today` : "Special Factory Price";
+      resolvedCtaUrl = `/marketplace/${prod.slug || prod.id}`;
+      resolvedCtaText = "Buy Now →";
+    }
+  }
+
+  const updated = await prisma.promotionalPopupAd.update({
+    where: { id: current.id },
+    data: {
+      adType,
+      targetProductId: payload.targetProductId ?? current.targetProductId,
+      targetServiceSlug: payload.targetServiceSlug ?? current.targetServiceSlug,
+      badgeText: String(payload.badgeText ?? current.badgeText ?? "✨ Featured Deal").trim(),
+      title: String(resolvedTitle || "Special Offer").trim(),
+      subtitle: resolvedSubtitle ? String(resolvedSubtitle).trim() : null,
+      imageUrl: resolvedImageUrl || "/images/service_home_cleaning.png",
+      offerPriceRupees:
+        resolvedOfferPrice !== null && resolvedOfferPrice !== undefined && !Number.isNaN(resolvedOfferPrice)
+          ? Math.round(Number(resolvedOfferPrice))
+          : null,
+      mrpRupees:
+        resolvedMrp !== null && resolvedMrp !== undefined && !Number.isNaN(resolvedMrp)
+          ? Math.round(Number(resolvedMrp))
+          : null,
+      discountText: resolvedDiscountText ? String(resolvedDiscountText).trim() : null,
+      ctaText: String(resolvedCtaText || "Explore Offer →").trim(),
+      ctaUrl: String(resolvedCtaUrl || "/marketplace").trim(),
+      delaySeconds: Math.min(60, Math.max(1, Number(payload.delaySeconds ?? current.delaySeconds ?? 6))),
+      frequency: String(payload.frequency || current.frequency || "ONCE_PER_DAY"),
+      isActive: payload.isActive !== undefined ? Boolean(payload.isActive) : current.isActive,
+      updatedByAdmin: "HireBuddy Admin",
+    },
+  });
+
+  return updated;
 };
 
 // ============================================================================
@@ -1084,7 +1620,7 @@ export const updateMarketplaceOrderStatus = async (orderId, newStatus) => {
 export const getAdminMarketplaceOverview = async () => {
   await ensureInitialMeerutMarketplace();
 
-  const [sellersRaw, productsRaw, ordersRaw, settlementsRaw] = await Promise.all([
+  const [sellersRaw, productsRaw, ordersRaw, settlementsRaw, promoAd] = await Promise.all([
     prisma.sellerProfile.findMany({
       include: {
         user: { select: { id: true, name: true, email: true, phone: true } },
@@ -1099,6 +1635,7 @@ export const getAdminMarketplaceOverview = async () => {
             id: true,
             businessName: true,
             pickupCity: true,
+            commissionRate: true,
             verificationStatus: true,
             fssaiNumber: true,
             gstNumber: true,
@@ -1139,6 +1676,7 @@ export const getAdminMarketplaceOverview = async () => {
       },
       orderBy: { createdAt: "desc" },
     }),
+    getOrCreatePromotionalPopupAd(),
   ]);
 
   const sellers = sellersRaw.map(normalizeSellerProfile);
@@ -1166,7 +1704,7 @@ export const getAdminMarketplaceOverview = async () => {
     ),
   };
 
-  return { sellers, products, orders, settlements, stats };
+  return { sellers, products, orders, settlements, stats, promoAd };
 };
 
 /**
@@ -1174,20 +1712,33 @@ export const getAdminMarketplaceOverview = async () => {
  */
 export const adminVerifySeller = async (
   sellerId,
-  { status: rawStatus, verificationStatus, bankVerified, notes }
+  { status: rawStatus, verificationStatus, bankVerified, commissionRate, commissionPct, notes }
 ) => {
   const incomingStatus = rawStatus || verificationStatus || "VERIFIED";
   const status = incomingStatus === "APPROVED" ? "VERIFIED" : incomingStatus;
+  const rawComm = commissionRate ?? commissionPct;
+  const parsedCommission =
+    rawComm !== undefined && rawComm !== null
+      ? Math.min(50, Math.max(0, Number(rawComm)))
+      : undefined;
 
   const updated = await prisma.sellerProfile.update({
     where: { id: sellerId },
     data: {
       verificationStatus: status, // "VERIFIED" | "REJECTED" | "PENDING"
       bankVerified: bankVerified !== undefined ? Boolean(bankVerified) : status === "VERIFIED",
+      ...(parsedCommission !== undefined ? { commissionRate: parsedCommission } : {}),
       verificationNotes: notes || null,
       verifiedAt: status === "VERIFIED" ? new Date() : null,
     },
   });
+
+  if (parsedCommission !== undefined) {
+    await prisma.product.updateMany({
+      where: { sellerId },
+      data: { commissionRate: parsedCommission },
+    });
+  }
 
   try {
     const adminUser = await getOrCreatePlatformAdminUser();

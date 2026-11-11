@@ -166,13 +166,37 @@ const CATEGORY_TEMPLATES = {
     ctaTitle: "Need Quick & Reliable Repairs?",
     ctaSub: "Book certified professionals for electrical, plumbing, and appliance fixes.",
     services: [
-      { title: "Electrical Repair", price: 250, description: "Wiring and fixture fix", theme: "green" },
-      { title: "Plumbing Service", price: 220, description: "Leakage & pipe fittings", theme: "blue" },
-      { title: "Appliance Fix", price: 300, description: "Geyser, AC & motors", theme: "orange" },
-      { title: "Odd Jobs & Fitting", price: 200, description: "Wall mount & hardware", theme: "cyan" },
+      { title: "Electrical Repair", price: 250, unit: "per visit", description: "Wiring and fixture fix", theme: "green" },
+      { title: "Plumbing Service", price: 220, unit: "per visit", description: "Leakage & pipe fittings", theme: "blue" },
+      { title: "Appliance Fix", price: 300, unit: "per service", description: "Geyser, AC & motors", theme: "orange" },
+      { title: "Odd Jobs & Fitting", price: 200, unit: "per visit", description: "Wall mount & hardware", theme: "cyan" },
+    ],
+  },
+  "Car Wash": {
+    specialty: "Doorstep Car Detailing & Foam Wash Specialist",
+    ctaTitle: "Need a Doorstep Car Wash or Interior Detailing?",
+    ctaSub: "Select single or multiple car wash packages for Hatchbacks, Sedans, and SUVs.",
+    services: [
+      { title: "Hatchback Exterior Foam Wash", category: "Car Wash", price: 299, unit: "per car", description: "Pressure foam wash, tyre dressing & exterior wipe", theme: "green" },
+      { title: "Sedan Interior + Foam Wash", category: "Car Wash", price: 449, unit: "per car", description: "Full interior vacuuming, dashboard polish & exterior foam wash", theme: "blue" },
+      { title: "SUV / MUV Deep Cleaning Package", category: "Car Wash", price: 599, unit: "per car", description: "Complete interior + exterior wash for 7-seater SUVs", theme: "orange" },
+      { title: "Deep Seat & Roof Dry Shampooing", category: "Car Wash", price: 899, unit: "per car", description: "Stain removal for car seats, floor mats & roof liner", theme: "cyan" },
+    ],
+  },
+  "Dry Cleaning": {
+    specialty: "Garment Care, Steam Press & Dry Cleaning Specialist",
+    ctaTitle: "Need Doorstep Dry Cleaning or Steam Ironing?",
+    ctaSub: "Choose multiple garment types & packages with transparent per-piece pricing.",
+    services: [
+      { title: "Shirt / Trouser Dry Clean", category: "Dry Cleaning", price: 99, unit: "per piece", description: "Gentle solvent dry clean & steam press", theme: "green" },
+      { title: "2-Piece Business Suit / Blazer", category: "Dry Cleaning", price: 349, unit: "per set", description: "Premium suit dry cleaning with protective cover", theme: "blue" },
+      { title: "Silk Saree / Designer Lehenga", category: "Dry Cleaning", price: 299, unit: "per piece", description: "Delicate fabric care & zari-safe polishing", theme: "orange" },
+      { title: "Winter Blanket / Heavy Quilt", category: "Dry Cleaning", price: 399, unit: "per item", description: "Deep sanitization & odor removal for heavy blankets", theme: "cyan" },
     ],
   },
 };
+
+const SERVICE_THEMES = ["green", "blue", "orange", "cyan"];
 
 export default function PublicHelperProfilePage() {
   const { id } = useParams();
@@ -187,6 +211,7 @@ export default function PublicHelperProfilePage() {
   const [calendarModalOpen, setCalendarModalOpen] = useState(false);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [messageText, setMessageText] = useState("");
+  const [selectedOptionIds, setSelectedOptionIds] = useState([]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -211,6 +236,18 @@ export default function PublicHelperProfilePage() {
         if (!isMounted) return;
         const data = res?.data || res;
 
+        const apiOfferings = Array.isArray(data?.serviceOfferings) && data.serviceOfferings.length > 0
+          ? data.serviceOfferings.map((item, idx) => ({
+              id: item.id || `service-${idx}`,
+              category: item.category || "General Service",
+              title: item.title || item.name || "Service Option",
+              price: Number(item.priceRupees) || (item.pricePaise ? Math.round(Number(item.pricePaise) / 100) : 200),
+              unit: item.unit || "per service",
+              description: item.description || `${item.title || "Service"} by ${data?.name || "Verified Helper"}`,
+              theme: SERVICE_THEMES[idx % SERVICE_THEMES.length],
+            }))
+          : null;
+
         // If the helper fetched is Priya Sharma, merge with full preset for pixel-perfection
         if (data?.name?.toLowerCase().includes("priya")) {
           setHelper({
@@ -218,6 +255,7 @@ export default function PublicHelperProfilePage() {
             ...data,
             id: data.id || id,
             image: data.image || "/images/priya_sharma.png",
+            services: apiOfferings || PRIYA_SHARMA_PRESET.services,
           });
         } else {
           // Normalize generic DB helper into our rich profile structure
@@ -270,11 +308,15 @@ export default function PublicHelperProfilePage() {
             topBadges: PRIYA_SHARMA_PRESET.topBadges,
             skills: skillsArr.length > 0 ? skillsArr : PRIYA_SHARMA_PRESET.skills,
             whyHireMe: PRIYA_SHARMA_PRESET.whyHireMe,
-            services: template.services.map((s, idx) => ({
-              ...s,
-              id: `service-${idx}`,
-              price: Math.round(displayPrice * (1 + idx * 0.1)),
-            })),
+            services:
+              apiOfferings ||
+              template.services.map((s, idx) => ({
+                ...s,
+                id: `service-${idx}`,
+                category: s.category || primaryCategory,
+                unit: s.unit || "per hour",
+                price: s.price || Math.round(displayPrice * (1 + idx * 0.1)),
+              })),
             reviews: PRIYA_SHARMA_PRESET.reviews,
             availability: PRIYA_SHARMA_PRESET.availability,
             ctaBanner: {
@@ -299,10 +341,67 @@ export default function PublicHelperProfilePage() {
     };
   }, [id]);
 
-  const handleHireMe = (serviceName) => {
+  const toggleServiceOption = (optionId) => {
+    setSelectedOptionIds((prev) =>
+      prev.includes(optionId) ? prev.filter((item) => item !== optionId) : [...prev, optionId]
+    );
+  };
+
+  const selectedServicesList = (helper?.services || []).filter((svc) =>
+    selectedOptionIds.includes(svc.id || svc.title)
+  );
+  const selectedTotalRupees = selectedServicesList.reduce(
+    (sum, svc) => sum + (Number(svc.price) || 0),
+    0
+  );
+
+  const handleHireMe = (singleService) => {
     const helperId = helper?.id || id;
-    const cat = serviceName || helper?.category || "Cleaning";
-    router.push(`/dashboard/create-task?helper=${helperId}&category=${encodeURIComponent(cat)}`);
+    const chosenList =
+      singleService && typeof singleService === "object"
+        ? [singleService]
+        : selectedServicesList.length > 0
+        ? selectedServicesList
+        : singleService && typeof singleService === "string"
+        ? (helper?.services || []).filter((s) => s.title === singleService)
+        : [];
+
+    const cat =
+      chosenList[0]?.category ||
+      (typeof singleService === "string" ? singleService : null) ||
+      helper?.category ||
+      "Cleaning";
+
+    const params = new URLSearchParams();
+    params.set("helper", String(helperId));
+    params.set("category", cat);
+    if (helper?.name) params.set("helperName", helper.name);
+
+    if (chosenList.length > 0) {
+      const total = chosenList.reduce((acc, s) => acc + (Number(s.price) || 0), 0);
+      const summaryTitle =
+        chosenList.length === 1
+          ? chosenList[0].title
+          : `${chosenList[0].title} + ${chosenList.length - 1} more (${cat})`;
+      params.set("service", summaryTitle);
+      params.set("price", String(total));
+      params.set(
+        "selectedServices",
+        JSON.stringify(
+          chosenList.map((s) => ({
+            id: s.id || s.title,
+            category: s.category || cat,
+            title: s.title,
+            priceRupees: Number(s.price) || 0,
+            pricePaise: Math.round((Number(s.price) || 0) * 100),
+            unit: s.unit || "per service",
+            quantity: 1,
+          }))
+        )
+      );
+    }
+
+    router.push(`/dashboard/create-task?${params.toString()}`);
   };
 
   const handleMessage = () => {
@@ -697,64 +796,151 @@ export default function PublicHelperProfilePage() {
                   </p>
                 </div>
 
-                {/* 2. Services I Offer Card */}
+                {/* 2. Services I Offer Card (Multi-Service & Multi-Option Rate Card) */}
                 <div id="section-services" className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm">
-                  <div className="flex items-center justify-between mb-5">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                      Services I Offer
-                    </h3>
-                    <button
-                      onClick={() => handleHireMe()}
-                      className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
-                    >
-                      View All
-                    </button>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                        Services & Rate Card Options ({helper.services.length})
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Select one or multiple service options below to combine packages into a single booking.
+                      </p>
+                    </div>
+                    {selectedServicesList.length > 0 ? (
+                      <button
+                        onClick={() => handleHireMe()}
+                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-xs font-bold shadow-sm transition"
+                      >
+                        <span>
+                          Book {selectedServicesList.length} Selected · ₹{selectedTotalRupees}
+                        </span>
+                        <span>→</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleHireMe()}
+                        className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                      >
+                        Book Custom Task →
+                      </button>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {helper.services.map((svc) => (
-                      <div
-                        key={svc.id || svc.title}
-                        onClick={() => handleHireMe(svc.title)}
-                        className="group cursor-pointer rounded-2xl border border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-800/40 p-4 transition-all duration-150 hover:border-emerald-500/50 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm"
-                      >
-                        <div className="flex items-start gap-3.5">
-                          {/* Service Icon Container */}
-                          <div
-                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg ${
-                              svc.theme === "green"
-                                ? "bg-emerald-100/70 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400"
-                                : svc.theme === "blue"
-                                ? "bg-blue-100/70 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400"
-                                : svc.theme === "orange"
-                                ? "bg-rose-100/70 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400"
-                                : "bg-cyan-100/70 text-cyan-600 dark:bg-cyan-950/60 dark:text-cyan-400"
-                            }`}
-                          >
-                            {svc.theme === "green" && "🏠"}
-                            {svc.theme === "blue" && "🏢"}
-                            {svc.theme === "orange" && "🧰"}
-                            {svc.theme === "cyan" && "🛁"}
-                          </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    {helper.services.map((svc) => {
+                      const optId = svc.id || svc.title;
+                      const isSelected = selectedOptionIds.includes(optId);
+                      return (
+                        <div
+                          key={optId}
+                          onClick={() => toggleServiceOption(optId)}
+                          className={`group cursor-pointer rounded-2xl border p-4 transition-all duration-150 ${
+                            isSelected
+                              ? "border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/30 shadow-sm ring-1 ring-emerald-500/40"
+                              : "border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-800/40 hover:border-emerald-500/50 hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3.5">
+                            {/* Service Icon Container */}
+                            <div
+                              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg ${
+                                svc.theme === "green"
+                                  ? "bg-emerald-100/70 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400"
+                                  : svc.theme === "blue"
+                                  ? "bg-blue-100/70 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400"
+                                  : svc.theme === "orange"
+                                  ? "bg-rose-100/70 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400"
+                                  : "bg-cyan-100/70 text-cyan-600 dark:bg-cyan-950/60 dark:text-cyan-400"
+                              }`}
+                            >
+                              {svc.theme === "green" && "🏠"}
+                              {svc.theme === "blue" && "🏢"}
+                              {svc.theme === "orange" && "🧰"}
+                              {svc.theme === "cyan" && "🛁"}
+                            </div>
 
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
-                              {svc.title}
-                            </h4>
-                            <p className="text-xs font-bold text-slate-900 dark:text-white mt-1">
-                              ₹{svc.price}{" "}
-                              <span className="font-normal text-slate-500 dark:text-slate-400">
-                                / hour
-                              </span>
-                            </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 truncate">
-                              {svc.description}
-                            </p>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  {svc.category && (
+                                    <span className="inline-block text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-0.5">
+                                      {svc.category}
+                                    </span>
+                                  )}
+                                  <h4 className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors truncate">
+                                    {svc.title}
+                                  </h4>
+                                </div>
+                                <span
+                                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs font-bold transition ${
+                                    isSelected
+                                      ? "border-emerald-600 bg-emerald-600 text-white"
+                                      : "border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-transparent"
+                                  }`}
+                                >
+                                  ✓
+                                </span>
+                              </div>
+                              <p className="text-xs font-bold text-slate-900 dark:text-white mt-1">
+                                ₹{svc.price}{" "}
+                                <span className="font-normal text-slate-500 dark:text-slate-400">
+                                  / {svc.unit || "per service"}
+                                </span>
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                                {svc.description}
+                              </p>
+                              <div className="mt-2.5 flex items-center justify-between">
+                                <span className="text-[11px] font-medium text-slate-400">
+                                  {isSelected ? "Selected for booking" : "Click to select"}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleHireMe(svc);
+                                  }}
+                                  className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                                >
+                                  Book Only This →
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
+
+                  {selectedServicesList.length > 0 && (
+                    <div className="mt-5 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+                      <div className="text-xs sm:text-sm">
+                        <p className="font-bold text-slate-900 dark:text-white">
+                          {selectedServicesList.length} Service Option{selectedServicesList.length > 1 ? "s" : ""} Selected · Total ₹{selectedTotalRupees}
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 truncate max-w-md">
+                          {selectedServicesList.map((s) => `${s.title} (₹${s.price})`).join(" + ")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOptionIds([])}
+                          className="rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800"
+                        >
+                          Clear
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleHireMe()}
+                          className="flex-1 sm:flex-initial rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-xs font-bold text-white shadow-sm"
+                        >
+                          Proceed to Book (₹{selectedTotalRupees}) →
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 3. Reviews Card */}

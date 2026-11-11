@@ -10,6 +10,20 @@ export const getPublishedProducts = async (req, res) => {
   }
 };
 
+export const getPublishedProductDetail = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const result = await marketplaceService.getPublishedProductBySlug(slug);
+    if (!result) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    res.json(result);
+  } catch (error) {
+    console.error("getPublishedProductDetail error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const onboardSeller = async (req, res) => {
   try {
     const profile = await marketplaceService.onboardOrUpdateSeller(req.user.id, req.body);
@@ -63,11 +77,24 @@ export const getCustomerOrders = async (req, res) => {
 export const updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { orderStatus } = req.body;
-    const updated = await marketplaceService.updateMarketplaceOrderStatus(orderId, orderStatus);
+    const { orderStatus, otp } = req.body;
+    const updated = await marketplaceService.updateMarketplaceOrderStatus(orderId, orderStatus, {
+      otp,
+    });
     res.json({ success: true, order: updated });
   } catch (error) {
     console.error("updateOrderStatus error:", error);
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const rateOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const updated = await marketplaceService.rateMarketplaceOrder(req.user.id, orderId, req.body);
+    res.json({ success: true, order: updated });
+  } catch (error) {
+    console.error("rateOrder error:", error);
     res.status(400).json({ error: error.message });
   }
 };
@@ -111,6 +138,26 @@ export const adminProcessNeftSettlement = async (req, res) => {
     res.json({ success: true, ...result });
   } catch (error) {
     console.error("adminProcessNeftSettlement error:", error);
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const getPromotionalPopupAd = async (req, res) => {
+  try {
+    const result = await marketplaceService.getActivePromotionalPopupAd();
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("getPromotionalPopupAd error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const adminUpdatePromotionalPopupAd = async (req, res) => {
+  try {
+    const updated = await marketplaceService.adminUpdatePromotionalPopupAd(req.body);
+    res.json({ success: true, promoAd: updated });
+  } catch (error) {
+    console.error("adminUpdatePromotionalPopupAd error:", error);
     res.status(400).json({ error: error.message });
   }
 };

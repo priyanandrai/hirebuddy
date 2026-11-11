@@ -51,10 +51,18 @@ function CreateTaskContent() {
   const prefilledService = searchParams.get("service") || "";
   const prefilledPrice = searchParams.get("price") || "";
   const prefilledHelperName = searchParams.get("helperName") || "";
-  const isBookNow =
-    searchParams.get("bookNow") === "1" ||
-    Boolean(helperId) ||
-    Boolean(prefilledService);
+  const rawSelectedServicesParam = searchParams.get("selectedServices") || "";
+  const initialSelectedServices = useMemo(() => {
+    if (!rawSelectedServicesParam) return [];
+    try {
+      const parsed = JSON.parse(rawSelectedServicesParam);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }, [rawSelectedServicesParam]);
+
+  const isBookNow = Boolean(helperId);
   const { data: session } = useSession();
   const router = useRouter();
 
@@ -69,6 +77,7 @@ function CreateTaskContent() {
   const [newCategoryInput, setNewCategoryInput] = useState("");
   const [profileLocation, setProfileLocation] = useState("");
   const [detectingGps, setDetectingGps] = useState(false);
+  const [selectedServices, setSelectedServices] = useState(initialSelectedServices);
 
   const [form, setForm] = useState({
     title: prefilledService || "",
@@ -250,10 +259,10 @@ function CreateTaskContent() {
 
   // Fetch available Buddies so customer can optionally pick a Buddy directly on Create Task
   const [selectedHelper, setSelectedHelper] = useState(
-    helperId || prefilledHelperName
+    helperId
       ? {
-          id: helperId || null,
-          name: prefilledHelperName || "Matched Service Buddy",
+          id: helperId,
+          name: prefilledHelperName || "Selected Service Buddy",
           averageRating: 4.8,
           skills: prefilledService || prefilledCategory || "Verified Service Partner",
           city: "Meerut",
@@ -262,7 +271,7 @@ function CreateTaskContent() {
   );
   const [availableBuddies, setAvailableBuddies] = useState([]);
   const [assignmentMode, setAssignmentMode] = useState(
-    isBookNow ? "DIRECT" : "MARKETPLACE"
+    helperId ? "DIRECT" : "MARKETPLACE"
   );
 
   useEffect(() => {
@@ -278,10 +287,12 @@ function CreateTaskContent() {
     if (helperId) {
       setAssignmentMode("DIRECT");
       fetchHelpers(helperId);
-    } else if (isBookNow) {
-      setAssignmentMode("DIRECT");
+    } else {
+      setAssignmentMode("MARKETPLACE");
+      setSelectedHelper(null);
+      setForm((prev) => ({ ...prev, helperId: null }));
     }
-  }, [helperId, isBookNow]);
+  }, [helperId]);
 
   const fetchHelpers = async (id) => {
     try {
@@ -308,19 +319,6 @@ function CreateTaskContent() {
     });
     return (matching.length > 0 ? matching : availableBuddies).slice(0, 6);
   }, [availableBuddies, form.category, prefilledCategory]);
-
-  // If user clicked "Book Now" and no specific helper UUID was resolved yet, auto-assign the top matched Buddy for that service
-  useEffect(() => {
-    if (
-      assignmentMode === "DIRECT" &&
-      !form.helperId &&
-      filteredBuddies.length > 0
-    ) {
-      const best = filteredBuddies[0];
-      setSelectedHelper(best);
-      setForm((prev) => ({ ...prev, helperId: best.id }));
-    }
-  }, [assignmentMode, form.helperId, filteredBuddies]);
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -385,7 +383,7 @@ function CreateTaskContent() {
 
     setLoading(true);
 
-    const isDirect = Boolean(form.helperId) || assignmentMode === "DIRECT";
+    const isDirect = Boolean(form.helperId) && assignmentMode === "DIRECT";
     const firstImage = files.find((f) => f?.url && String(f.url).length < 950)?.url || null;
     const payload = {
       title: form.title,
@@ -399,8 +397,9 @@ function CreateTaskContent() {
       timeSlot: form.timeSlot,
       image: firstImage,
       attachments: files.length > 0 ? files : null,
-      helperId: form.helperId,
+      helperId: isDirect ? form.helperId : null,
       bookNow: isDirect,
+      selectedServices: selectedServices.length > 0 ? selectedServices : null,
     };
 
     createTask(payload, token)
@@ -409,8 +408,8 @@ function CreateTaskContent() {
           isDirect
             ? `Task booked! ${
                 selectedHelper?.name || "Your selected Buddy"
-              } has been directly assigned to your task (not shown to other Helper Buddies).`
-            : "Task posted! Nearby verified Buddies have been notified."
+              } has been directly assigned to your task.`
+            : "Task posted! All verified Buddies can now see your task on their dashboard and apply/accept it."
         );
         router.push("/dashboard/my-tasks");
       })
@@ -422,7 +421,90 @@ function CreateTaskContent() {
         setLoading(false);
       });
   }
-  
+
+  const helperOfferings = useMemo(() => {
+    const raw = selectedHelper?.serviceOfferings;
+    if (Array.isArray(raw) && raw.length > 0) {
+      return raw.map((item, idx) => ({
+        id: item.id || `opt-${idx}`,
+        category: item.category || form.category || "Service",
+        title: item.title || item.name || "Service Option",
+        description: item.description || "",
+        priceRupees:
+          Number(item.priceRupees) ||
+          (item.pricePaise ? Math.round(Number(item.pricePaise) / 100) : 200),
+        pricePaise:
+          Number(item.pricePaise) ||
+          Math.round((Number(item.priceRupees) || 200) * 100),
+        unit: item.unit || "per service",
+      }));
+    }
+    return [];
+  }, [selectedHelper, form.category]);
+
+  const syncFormWithSelectedServices = (nextList) => {
+    setSelectedServices(nextList);
+    if (nextList.length === 0) return;
+
+    const totalRupees = nextList.reduce(
+      (sum, item) => sum + (Number(item.priceRupees) || 0) * (Number(item.quantity) || 1),
+      0
+    );
+    const primaryCat = nextList[0]?.category || form.category;
+    const summaryTitle =
+      nextList.length === 1
+        ? `${nextList[0].title}${nextList[0].quantity > 1 ? ` (x${nextList[0].quantity})` : ""}`
+        : `${nextList[0].title} + ${nextList.length - 1} more option${nextList.length > 2 ? "s" : ""}`;
+    const itemizedLines = nextList
+      .map(
+        (item) =>
+          `• ${item.title} [${item.category || primaryCat}] — ₹${item.priceRupees} ${
+            item.unit || "per service"
+          } × ${item.quantity || 1} = ₹${(Number(item.priceRupees) || 0) * (Number(item.quantity) || 1)}`
+      )
+      .join("\n");
+
+    setForm((prev) => ({
+      ...prev,
+      title: summaryTitle,
+      category: primaryCat || prev.category,
+      budget: String(totalRupees),
+      description: `Selected Service Options:\n${itemizedLines}`,
+    }));
+  };
+
+  const toggleHelperOffering = (offering) => {
+    const exists = selectedServices.find((s) => s.id === offering.id || s.title === offering.title);
+    if (exists) {
+      const next = selectedServices.filter((s) => s.id !== offering.id && s.title !== offering.title);
+      syncFormWithSelectedServices(next);
+    } else {
+      const next = [
+        ...selectedServices,
+        {
+          id: offering.id,
+          category: offering.category,
+          title: offering.title,
+          priceRupees: offering.priceRupees,
+          pricePaise: offering.pricePaise,
+          unit: offering.unit,
+          quantity: 1,
+        },
+      ];
+      syncFormWithSelectedServices(next);
+    }
+  };
+
+  const updateOfferingQuantity = (offeringId, delta) => {
+    const next = selectedServices
+      .map((item) => {
+        if (item.id !== offeringId && item.title !== offeringId) return item;
+        const nextQty = Math.max(1, Math.min(50, (Number(item.quantity) || 1) + delta));
+        return { ...item, quantity: nextQty };
+      });
+    syncFormWithSelectedServices(next);
+  };
+
 
   return (
     <main className="min-h-screen bg-white dark:bg-slate-950 px-6 py-8 text-slate-900 dark:text-slate-100">
@@ -433,6 +515,22 @@ function CreateTaskContent() {
             Add task details, use your profile location or GPS, and either broadcast to nearby Buddies or pick a specific Buddy.
           </p>
         </div>
+
+        {!selectedHelper && (
+          <div className="mb-6 flex items-center gap-3 rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 shadow-sm">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div className="text-xs sm:text-sm">
+              <p className="font-bold text-slate-900 dark:text-white">
+                📢 Open Task for All Buddies (Default)
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                Your task is not locked to a single Buddy by default — all verified Buddies will see your task on their Buddy Dashboard and can apply/accept it immediately.
+              </p>
+            </div>
+          </div>
+        )}
 
         {selectedHelper && (
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 shadow-sm">
@@ -461,6 +559,7 @@ function CreateTaskContent() {
               type="button"
               onClick={() => {
                 setSelectedHelper(null);
+                setSelectedServices([]);
                 setForm((prev) => ({ ...prev, helperId: null }));
                 setAssignmentMode("MARKETPLACE");
               }}
@@ -468,6 +567,91 @@ function CreateTaskContent() {
             >
               Change / Switch to Open Broadcast
             </button>
+          </div>
+        )}
+
+        {selectedHelper && helperOfferings.length > 0 && (
+          <div className="mb-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                  🧾 Select Service Options & Packages from {selectedHelper.name}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Pick one or multiple options (e.g., multiple car wash packages or dry cleaning items) and adjust quantities.
+                </p>
+              </div>
+              {selectedServices.length > 0 && (
+                <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white">
+                  {selectedServices.length} Selected · ₹{form.budget}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {helperOfferings.map((opt) => {
+                const picked = selectedServices.find(
+                  (s) => s.id === opt.id || s.title === opt.title
+                );
+                return (
+                  <div
+                    key={opt.id}
+                    onClick={() => toggleHelperOffering(opt)}
+                    className={`cursor-pointer rounded-xl border p-3 transition ${
+                      picked
+                        ? "border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500/30"
+                        : "border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-emerald-400"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                          {opt.category}
+                        </span>
+                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {opt.title}
+                        </p>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 mt-0.5">
+                          ₹{opt.priceRupees}{" "}
+                          <span className="font-normal text-slate-500 dark:text-slate-400">
+                            / {opt.unit}
+                          </span>
+                        </p>
+                      </div>
+
+                      {picked ? (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-white dark:bg-slate-900 px-1.5 py-0.5"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => updateOfferingQuantity(opt.id, -1)}
+                            className="px-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-emerald-600"
+                          >
+                            −
+                          </button>
+                          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 min-w-[16px] text-center">
+                            {picked.quantity || 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateOfferingQuantity(opt.id, 1)}
+                            className="px-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-emerald-600"
+                          >
+                            +
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="rounded-md border border-slate-300 dark:border-slate-600 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                          + Add
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -855,10 +1039,10 @@ function CreateTaskContent() {
                 className="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-emerald-900/30 transition hover:from-emerald-400 hover:to-emerald-500 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {loading
-                  ? "Booking & Assigning Buddy..."
-                  : form.helperId || assignmentMode === "DIRECT"
+                  ? "Posting Task..."
+                  : form.helperId && assignmentMode === "DIRECT"
                   ? `Book Now & Assign ${selectedHelper?.name || "Selected Buddy"}`
-                  : "Post Task to Nearby Buddies"}
+                  : "Post Open Task for All Buddies"}
               </button>
             </div>
           </div>

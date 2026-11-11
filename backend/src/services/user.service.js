@@ -2,6 +2,347 @@ import prisma from "../utils/prisma.js";
 import bcrypt from "bcrypt";
 import { indexHelper, deleteHelper } from "./es.client.js";
 
+export const DEFAULT_MULTI_SERVICE_TEMPLATES = {
+  "Car Wash": [
+    {
+      id: "car-wash-hatchback-foam",
+      category: "Car Wash",
+      title: "Exterior Foam Wash & Tyre Dressing (Hatchback / Sedan)",
+      description: "Snow foam pressure wash, alloy cleaning, and tyre shine at your doorstep",
+      priceRupees: 299,
+      unit: "per car",
+      theme: "blue",
+    },
+    {
+      id: "car-wash-suv-complete",
+      category: "Car Wash",
+      title: "Complete Interior Vacuum + Exterior Foam Wash (SUV / MUV)",
+      description: "Full vacuuming, dashboard polish, mat wash, and exterior snow foam wash",
+      priceRupees: 499,
+      unit: "per car",
+      theme: "green",
+    },
+    {
+      id: "car-wash-seat-shampoo",
+      category: "Car Wash",
+      title: "Deep Interior Dry-Cleaning & Seat Shampooing",
+      description: "Stain removal for fabric/leather seats, roof lining, and floor carpets",
+      priceRupees: 799,
+      unit: "per car",
+      theme: "orange",
+    },
+    {
+      id: "car-wash-rubbing-polish",
+      category: "Car Wash",
+      title: "3M Machine Rubbing, Wax Polishing & Detailing",
+      description: "Swirl mark removal, paint gloss restoration, and protective wax coat",
+      priceRupees: 1199,
+      unit: "per car",
+      theme: "cyan",
+    },
+  ],
+  "Dry Cleaning": [
+    {
+      id: "dry-clean-daily-wear",
+      category: "Dry Cleaning",
+      title: "Shirt / Trouser / Kurta Dry Clean & Steam Press",
+      description: "Gentle solvent dry cleaning, stain treatment, and crisp steam pressing",
+      priceRupees: 99,
+      unit: "per piece",
+      theme: "blue",
+    },
+    {
+      id: "dry-clean-suit-blazer",
+      category: "Dry Cleaning",
+      title: "2-Piece / 3-Piece Suit, Blazer or Sherwani Dry Clean",
+      description: "Premium garment care for formal suits, blazers, and ethnic wear",
+      priceRupees: 349,
+      unit: "per set",
+      theme: "green",
+    },
+    {
+      id: "dry-clean-saree-lehenga",
+      category: "Dry Cleaning",
+      title: "Silk Saree / Embroidered Designer Lehenga Dry Clean",
+      description: "Delicate zari-safe dry cleaning and roll polishing",
+      priceRupees: 299,
+      unit: "per piece",
+      theme: "orange",
+    },
+    {
+      id: "dry-clean-blanket-curtain",
+      category: "Dry Cleaning",
+      title: "Double Blanket / Heavy Quilt / Curtain Dry Clean",
+      description: "Hygienic deep sanitization and odour-free dry cleaning for heavy fabrics",
+      priceRupees: 399,
+      unit: "per item",
+      theme: "cyan",
+    },
+  ],
+  "Home Cleaning": [
+    {
+      id: "home-cleaning-hourly",
+      category: "Home Cleaning",
+      title: "Standard Home Cleaning (Sweeping, Mopping & Dusting)",
+      description: "General room-by-room floor cleaning, dusting, and surface wiping",
+      priceRupees: 249,
+      unit: "per hour",
+      theme: "green",
+    },
+    {
+      id: "home-cleaning-bathroom",
+      category: "Home Cleaning",
+      title: "Bathroom Deep Cleaning & Hard-Water Descaling",
+      description: "Tile scrubbing, tap/shower descaling, and complete sanitization",
+      priceRupees: 399,
+      unit: "per bathroom",
+      theme: "cyan",
+    },
+    {
+      id: "home-cleaning-kitchen",
+      category: "Home Cleaning",
+      title: "Kitchen Deep Degreasing (Slabs, Tiles & Chimney Exterior)",
+      description: "Oil & grease removal from cabinets, backsplash tiles, and stove area",
+      priceRupees: 699,
+      unit: "per kitchen",
+      theme: "orange",
+    },
+    {
+      id: "home-cleaning-full-2bhk",
+      category: "Home Cleaning",
+      title: "Full 2BHK / 3BHK Apartment Deep Cleaning Package",
+      description: "Complete house deep cleaning including rooms, kitchen, bathrooms & balcony",
+      priceRupees: 1799,
+      unit: "per package",
+      theme: "blue",
+    },
+  ],
+  Plumbing: [
+    {
+      id: "plumbing-tap-leak",
+      category: "Plumbing",
+      title: "Tap, Mixer or Angle Valve Repair / Replacement",
+      description: "Fixing dripping faucets, washer replacement, or new tap installation",
+      priceRupees: 199,
+      unit: "per visit",
+      theme: "blue",
+    },
+    {
+      id: "plumbing-drain-block",
+      category: "Plumbing",
+      title: "Kitchen Sink or Bathroom Drain Unblocking",
+      description: "Mechanical clearing of choked floor traps, washbasins, and sink pipes",
+      priceRupees: 299,
+      unit: "per drain",
+      theme: "orange",
+    },
+    {
+      id: "plumbing-flush-geyser",
+      category: "Plumbing",
+      title: "Flush Tank Repair / Geyser Pipe Connection",
+      description: "Cistern syphon/float valve repair or water heater inlet/outlet setup",
+      priceRupees: 349,
+      unit: "per unit",
+      theme: "green",
+    },
+    {
+      id: "plumbing-motor-tank",
+      category: "Plumbing",
+      title: "Water Tank Installation & Motor Pump Fitting",
+      description: "Overhead tank plumbing, ball valve setup, and pressure motor installation",
+      priceRupees: 599,
+      unit: "per service",
+      theme: "cyan",
+    },
+  ],
+  Electrical: [
+    {
+      id: "electrical-switchboard",
+      category: "Electrical",
+      title: "Switchboard, Socket or MCB Tripping Repair",
+      description: "Fault diagnosis, burnt socket replacement, and MCB fuse fixing",
+      priceRupees: 199,
+      unit: "per visit",
+      theme: "green",
+    },
+    {
+      id: "electrical-fan-light",
+      category: "Electrical",
+      title: "Ceiling Fan, Exhaust Fan or Chandelier Installation",
+      description: "Safe mounting, capacitor replacement, and wiring connection",
+      priceRupees: 249,
+      unit: "per unit",
+      theme: "blue",
+    },
+    {
+      id: "electrical-inverter-setup",
+      category: "Electrical",
+      title: "Single / Double Battery Inverter & UPS Wiring Setup",
+      description: "Complete inverter installation with backup line connection",
+      priceRupees: 449,
+      unit: "per service",
+      theme: "orange",
+    },
+  ],
+  "Driver Services": [
+    {
+      id: "driver-city-hourly",
+      category: "Driver Services",
+      title: "Local City Chauffeur (Manual / Automatic Car)",
+      description: "Hourly city driving for office commute, shopping, or hospital visits",
+      priceRupees: 249,
+      unit: "per hour",
+      theme: "green",
+    },
+    {
+      id: "driver-airport-drop",
+      category: "Driver Services",
+      title: "Airport Pickup / Drop Transfer",
+      description: "Punctual chauffeur drive to or from IGI Airport in your vehicle",
+      priceRupees: 599,
+      unit: "per trip",
+      theme: "blue",
+    },
+    {
+      id: "driver-outstation-day",
+      category: "Driver Services",
+      title: "Outstation Full-Day Highway Chauffeur",
+      description: "Experienced highway driver for family weekend and outstation trips",
+      priceRupees: 1199,
+      unit: "per day",
+      theme: "orange",
+    },
+  ],
+  "Furniture Assembly": [
+    {
+      id: "carpenter-door-lock",
+      category: "Furniture Assembly",
+      title: "Wooden Door Alignment, Lock & Hinge Repair",
+      description: "Fixing jammed doors, replacing mortise locks, handles, and hydraulic hinges",
+      priceRupees: 249,
+      unit: "per visit",
+      theme: "green",
+    },
+    {
+      id: "carpenter-bed-wardrobe",
+      category: "Furniture Assembly",
+      title: "Bed, Wardrobe or Study Table Assembly / Dismantling",
+      description: "Complete flat-pack or modular furniture dismantling and reassembly",
+      priceRupees: 599,
+      unit: "per unit",
+      theme: "blue",
+    },
+  ],
+};
+
+export function normalizeServiceOfferings(rawOfferings, skillsInput, hourlyRatePaise) {
+  const themes = ["green", "blue", "orange", "cyan"];
+  if (Array.isArray(rawOfferings) && rawOfferings.length > 0) {
+    return rawOfferings
+      .filter((item) => item && String(item.title || "").trim())
+      .map((item, idx) => {
+        const rawRupees =
+          item.priceRupees !== undefined
+            ? Number(item.priceRupees)
+            : item.price !== undefined
+            ? Number(item.price)
+            : item.pricePaise !== undefined
+            ? Math.round(Number(item.pricePaise) / 100)
+            : 200;
+        const priceRupees = Math.max(1, Math.round(rawRupees || 200));
+        const pricePaise = priceRupees * 100;
+        const title = String(item.title).trim();
+        const category = String(item.category || "General Service").trim();
+        return {
+          id:
+            item.id ||
+            `${category.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${idx + 1}`,
+          category,
+          title,
+          price: priceRupees,
+          priceRupees,
+          pricePaise,
+          unit: String(item.unit || "per service").trim(),
+          description: String(
+            item.description || `${title} (${category})`
+          ).trim(),
+          theme: item.theme || themes[idx % themes.length],
+          isAvailable: item.isAvailable !== false,
+        };
+      });
+  }
+
+  // Fallback: build multi-option offerings across all skills the helper has selected
+  const skillsList = Array.isArray(skillsInput)
+    ? skillsInput
+    : skillsInput
+    ? String(skillsInput)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : ["Home Cleaning"];
+
+  const baseRupees = hourlyRatePaise
+    ? hourlyRatePaise > 1000
+      ? Math.round(hourlyRatePaise / 100)
+      : hourlyRatePaise
+    : null;
+
+  const generated = [];
+  for (const skill of skillsList) {
+    const sLow = skill.toLowerCase();
+    let matchedTemplate = null;
+    if (sLow.includes("car") || sLow.includes("wash")) {
+      matchedTemplate = DEFAULT_MULTI_SERVICE_TEMPLATES["Car Wash"];
+    } else if (sLow.includes("dry") || sLow.includes("laundry") || sLow.includes("iron")) {
+      matchedTemplate = DEFAULT_MULTI_SERVICE_TEMPLATES["Dry Cleaning"];
+    } else if (sLow.includes("clean")) {
+      matchedTemplate = DEFAULT_MULTI_SERVICE_TEMPLATES["Home Cleaning"];
+    } else if (sLow.includes("plumb")) {
+      matchedTemplate = DEFAULT_MULTI_SERVICE_TEMPLATES.Plumbing;
+    } else if (sLow.includes("electr") || sLow.includes("ac") || sLow.includes("appliance")) {
+      matchedTemplate = DEFAULT_MULTI_SERVICE_TEMPLATES.Electrical;
+    } else if (sLow.includes("driv")) {
+      matchedTemplate = DEFAULT_MULTI_SERVICE_TEMPLATES["Driver Services"];
+    } else if (sLow.includes("carpent") || sLow.includes("furniture")) {
+      matchedTemplate = DEFAULT_MULTI_SERVICE_TEMPLATES["Furniture Assembly"];
+    } else {
+      const startPrice = baseRupees || 249;
+      matchedTemplate = [
+        {
+          id: `${sLow.replace(/[^a-z0-9]+/g, "-")}-standard`,
+          category: skill,
+          title: `Standard ${skill} Service`,
+          description: `Verified ${skill.toLowerCase()} service with transparent pricing`,
+          priceRupees: startPrice,
+          unit: "per visit",
+          theme: "green",
+        },
+        {
+          id: `${sLow.replace(/[^a-z0-9]+/g, "-")}-premium`,
+          category: skill,
+          title: `Complete ${skill} Package`,
+          description: `Comprehensive ${skill.toLowerCase()} package including full checkup`,
+          priceRupees: Math.round(startPrice * 1.6),
+          unit: "per package",
+          theme: "blue",
+        },
+      ];
+    }
+
+    for (const item of matchedTemplate) {
+      generated.push({
+        ...item,
+        price: item.priceRupees,
+        pricePaise: item.priceRupees * 100,
+        isAvailable: true,
+      });
+    }
+  }
+
+  return generated;
+}
+
 export const setRoleService = (userId, role) => {
   return prisma.user.update({
     where: { id: userId },
@@ -72,6 +413,13 @@ export const updateMyProfileService = async (userId, rawData = {}) => {
   if (rawData.skills !== undefined) {
     data.skills = Array.isArray(rawData.skills) ? rawData.skills.join(", ") : rawData.skills;
   }
+  if (rawData.serviceOfferings !== undefined && Array.isArray(rawData.serviceOfferings)) {
+    const normalized = normalizeServiceOfferings(rawData.serviceOfferings, data.skills, rawData.hourlyRate);
+    data.serviceOfferings = normalized;
+    if (!rawData.hourlyRate && normalized.length > 0) {
+      data.hourlyRate = Math.min(...normalized.map((s) => s.pricePaise));
+    }
+  }
   if (rawData.experience !== undefined && rawData.experience !== "") {
     data.experience = Number(rawData.experience) || 0;
   }
@@ -97,6 +445,7 @@ export const updateMyProfileService = async (userId, rawData = {}) => {
       latitude: true,
       longitude: true,
       skills: true,
+      serviceOfferings: true,
       experience: true,
       hourlyRate: true,
       isAvailable: true,
@@ -131,6 +480,7 @@ export const updateHelperProfileService = (userId, rawData) => {
   if (rawData.city !== undefined) data.city = rawData.city;
   if (rawData.address !== undefined) data.address = rawData.address;
   if (rawData.image !== undefined) data.image = rawData.image;
+  if (rawData.bio !== undefined) data.bio = rawData.bio;
   if (rawData.skills !== undefined) {
     data.skills = Array.isArray(rawData.skills) ? rawData.skills.join(", ") : rawData.skills;
   } else if (rawData.services !== undefined) {
@@ -138,6 +488,17 @@ export const updateHelperProfileService = (userId, rawData) => {
   }
   if (rawData.experience !== undefined) data.experience = Number(rawData.experience) || 0;
   if (rawData.hourlyRate !== undefined) data.hourlyRate = Number(rawData.hourlyRate) || 0;
+  if (rawData.serviceOfferings !== undefined && Array.isArray(rawData.serviceOfferings)) {
+    const normalized = normalizeServiceOfferings(
+      rawData.serviceOfferings,
+      data.skills,
+      data.hourlyRate
+    );
+    data.serviceOfferings = normalized;
+    if (!data.hourlyRate && normalized.length > 0) {
+      data.hourlyRate = Math.min(...normalized.map((s) => s.pricePaise));
+    }
+  }
   if (rawData.isAvailable !== undefined) data.isAvailable = Boolean(rawData.isAvailable);
   if (rawData.latitude !== undefined && rawData.latitude !== null) data.latitude = Number(rawData.latitude);
   if (rawData.longitude !== undefined && rawData.longitude !== null) data.longitude = Number(rawData.longitude);
@@ -219,7 +580,9 @@ export const getMyProfileService = async (userId) => {
       address: true,
       latitude: true,
       longitude: true,
+      bio: true,
       skills: true,
+      serviceOfferings: true,
       experience: true,
       hourlyRate: true,
       isAvailable: true,
@@ -250,6 +613,7 @@ export const getMyProfileService = async (userId) => {
 
   return {
     ...user,
+    serviceOfferings: normalizeServiceOfferings(user.serviceOfferings, user.skills, user.hourlyRate),
     tasksCompleted,
   };
 };
@@ -264,6 +628,7 @@ export const getHelper = async (id) => {
     city: true,
     bio: true,
     skills: true,
+    serviceOfferings: true,
     experience: true,
     hourlyRate: true,
     isAvailable: true,
@@ -310,10 +675,23 @@ export const getHelper = async (id) => {
   }
 
   if (!user) return null;
+  const skillsArr = Array.isArray(user.skills)
+    ? user.skills
+    : user.skills
+    ? String(user.skills)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
   return {
     ...user,
-    isVerified: user.idVerificationStatus === 'VERIFIED',
-    skills: Array.isArray(user.skills) ? user.skills : (user.skills ? String(user.skills).split(',').map(s => s.trim()).filter(Boolean) : []),
+    isVerified: user.idVerificationStatus === "VERIFIED",
+    skills: skillsArr,
+    serviceOfferings: normalizeServiceOfferings(
+      user.serviceOfferings,
+      skillsArr,
+      user.hourlyRate
+    ),
   };
 };
 export const getHelpersListService = async () => {
@@ -323,11 +701,13 @@ export const getHelpersListService = async () => {
     },
     select: {
       id: true,
+      slug: true,
       name: true,
       email: true,
       phone: true,
       image: true,
       skills: true,
+      serviceOfferings: true,
       city: true,
       address: true,
       experience: true,
@@ -350,19 +730,27 @@ export const getHelpersListService = async () => {
     },
   });
 
-  // normalize skills to array for frontend
-  return rows.map((r) => ({
-    ...r,
-    isVerified: r.idVerificationStatus === "VERIFIED",
-    skills: Array.isArray(r.skills)
+  // normalize skills & multi-service offerings for frontend
+  return rows.map((r) => {
+    const skillsArr = Array.isArray(r.skills)
       ? r.skills
       : r.skills
       ? String(r.skills)
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean)
-      : [],
-  }));
+      : [];
+    return {
+      ...r,
+      isVerified: r.idVerificationStatus === "VERIFIED",
+      skills: skillsArr,
+      serviceOfferings: normalizeServiceOfferings(
+        r.serviceOfferings,
+        skillsArr,
+        r.hourlyRate
+      ),
+    };
+  });
 };
 
 export const getPendingIdSubmissionsService = async () => {

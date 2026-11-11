@@ -150,6 +150,7 @@ export const createTask = async (data, userParam) => {
     timeSlot,
     image,
     attachments,
+    selectedServices,
     helperId: rawHelperId,
     preferredHelperId,
     assignedToId,
@@ -172,9 +173,9 @@ export const createTask = async (data, userParam) => {
     console.warn("Could not ensure category in DB:", catErr?.message);
   }
 
-  // Resolve specific Buddy if helperId or bookNow is provided
+  // Only assign a specific Buddy if an explicit helperId was selected; otherwise create an OPEN task so all Buddies can see & apply
   let resolvedHelperId = null;
-  if (helperId || bookNow) {
+  if (helperId && String(helperId).trim() !== "") {
     resolvedHelperId = await resolveHelperIdForTask(
       helperId,
       resolvedCategoryName,
@@ -185,6 +186,26 @@ export const createTask = async (data, userParam) => {
 
   const isDirectAssignment = Boolean(resolvedHelperId);
   const normalizedAttachments = Array.isArray(attachments) && attachments.length > 0 ? attachments : null;
+  const normalizedSelectedServices =
+    Array.isArray(selectedServices) && selectedServices.length > 0
+      ? selectedServices.map((s) => ({
+          id: s.id || s.title,
+          title: String(s.title || "Service Option").trim(),
+          category: String(s.category || resolvedCategoryName).trim(),
+          priceRupees: Number(s.priceRupees ?? s.price ?? 0),
+          pricePaise: Number(s.pricePaise ?? Math.round(Number(s.priceRupees ?? s.price ?? 0) * 100)),
+          unit: String(s.unit || "per service"),
+          quantity: Math.max(1, Number(s.quantity || 1)),
+        }))
+      : null;
+
+  const computedBudgetPaise =
+    budget !== undefined && budget !== null && Number(budget) > 0
+      ? Number(budget)
+      : normalizedSelectedServices
+      ? normalizedSelectedServices.reduce((sum, s) => sum + s.pricePaise * s.quantity, 0)
+      : 0;
+
   const primaryImage =
     image ||
     (normalizedAttachments && normalizedAttachments[0]?.url ? normalizedAttachments[0].url : null);
@@ -197,11 +218,12 @@ export const createTask = async (data, userParam) => {
       location: location || "To be coordinated",
       latitude: latitude !== undefined && latitude !== null && latitude !== "" ? parseFloat(latitude) : null,
       longitude: longitude !== undefined && longitude !== null && longitude !== "" ? parseFloat(longitude) : null,
-      budget: Number(budget || 0),
+      budget: computedBudgetPaise,
       preferredAt: preferredAt ? new Date(preferredAt) : null,
       timeSlot: timeSlot || "10:00 AM - 12:00 PM",
       image: primaryImage,
       attachments: normalizedAttachments,
+      selectedServices: normalizedSelectedServices,
       createdById: user.id,
       assignedToId: resolvedHelperId || null,
       status: isDirectAssignment ? "ASSIGNED" : "OPEN",
@@ -535,7 +557,7 @@ export const HELPER_TASKS_CATALOG = [
     preferredAt: "2026-10-30T10:00:00.000Z",
     timeSlot: "10:00 AM - 01:00 PM",
     description: "Compassionate personal care, doctor visit accompaniment, and daily wellness support.",
-    image: "/images/helper_task_driver.png",
+    image: "/images/service_personal_care.png",
     isNew: true,
     status: "OPEN",
     isDefaultGrid: false,
@@ -553,7 +575,7 @@ export const HELPER_TASKS_CATALOG = [
     preferredAt: "2026-10-31T09:30:00.000Z",
     timeSlot: "09:30 AM - 11:30 AM",
     description: "Need help repotting balcony plants and organizing household storage items.",
-    image: "/images/service_delivery.png",
+    image: "/images/service_others.png",
     isNew: true,
     status: "OPEN",
     isDefaultGrid: false,
@@ -563,19 +585,23 @@ export const HELPER_TASKS_CATALOG = [
 
 const getCategoryImageForTask = (category = "", title = "") => {
   const text = `${category} ${title}`.toLowerCase();
-  if (text.includes("clean")) return "/images/helper_task_cleaning.png";
+  if (text.includes("carpenter") || text.includes("carpentry") || text.includes("wood"))
+    return "/images/service_carpenter.png";
+  if (text.includes("clean")) return "/images/service_home_cleaning.png";
   if (text.includes("medicine") || text.includes("deliver") || text.includes("pickup"))
-    return "/images/helper_task_medicine.png";
-  if (text.includes("furniture") || text.includes("wardrobe") || text.includes("carpenter"))
-    return "/images/helper_task_furniture.png";
+    return "/images/service_delivery.png";
+  if (text.includes("furniture") || text.includes("wardrobe") || text.includes("assembly"))
+    return "/images/service_furniture.png";
   if (text.includes("driver") || text.includes("car") || text.includes("airport"))
-    return "/images/helper_task_driver.png";
+    return "/images/service_driver.png";
   if (text.includes("plumb") || text.includes("sink") || text.includes("pipe") || text.includes("leak"))
-    return "/images/helper_task_plumbing.png";
+    return "/images/service_plumbing.png";
   if (text.includes("cook") || text.includes("meal") || text.includes("food"))
-    return "/images/helper_task_cooking.png";
+    return "/images/service_cooking.png";
   if (text.includes("electr")) return "/images/service_electrical.png";
-  return "/images/helper_task_cleaning.png";
+  if (text.includes("care") || text.includes("elder") || text.includes("nurse"))
+    return "/images/service_personal_care.png";
+  return "/images/service_others.png";
 };
 
 const matchesHelperCategory = (task, filterCat) => {

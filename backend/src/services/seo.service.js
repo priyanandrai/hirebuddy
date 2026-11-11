@@ -1,4 +1,5 @@
 import prisma from '../utils/prisma.js';
+import { normalizeServiceOfferings } from './user.service.js';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://hirebuddy.in').replace(/\/+$/, '');
 
@@ -1179,13 +1180,25 @@ export function sanitizePublicHelper(user) {
     reviewerName: r.givenBy?.name ? r.givenBy.name.split(' ')[0] : 'Verified Customer',
   }));
 
+  const skillsArr = user.skills
+    ? user.skills
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : ['Home Services'];
+
   return {
     id: user.id,
     slug: user.slug || user.id,
     name: user.name || 'Verified HireBuddy Partner',
     image: user.image || '/images/priya_sharma.png',
     city: user.city || 'Meerut',
-    skills: user.skills ? user.skills.split(',').map((s) => s.trim()).filter(Boolean) : ['Home Services'],
+    skills: skillsArr,
+    serviceOfferings: normalizeServiceOfferings(
+      user.serviceOfferings,
+      skillsArr,
+      user.hourlyRate
+    ),
     experience: user.experience || 3,
     hourlyRatePaise: user.hourlyRate || 24900,
     hourlyRateRupees: Math.round((user.hourlyRate || 24900) / 100),

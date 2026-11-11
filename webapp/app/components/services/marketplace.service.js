@@ -13,6 +13,18 @@ export const getMarketplaceProducts = (filters = {}) => {
   });
 };
 
+export const getMarketplaceProductDetail = (slug) => {
+  return apiClient(`${MARKETPLACE_ENDPOINTS.GET_PRODUCTS}/${encodeURIComponent(slug)}`, {
+    method: "GET",
+  });
+};
+
+export const getPromotionalPopupAd = () => {
+  return apiClient("/marketplace/promo-popup", {
+    method: "GET",
+  });
+};
+
 export const onboardSeller = (payload, token) => {
   return apiClient(MARKETPLACE_ENDPOINTS.SELLER_ONBOARD, {
     method: "POST",
@@ -51,10 +63,18 @@ export const getCustomerMarketplaceOrders = (token) => {
   });
 };
 
-export const updateMarketplaceOrderStatus = (orderId, orderStatus, token) => {
+export const updateMarketplaceOrderStatus = (orderId, orderStatus, token, otp) => {
   return apiClient(`${MARKETPLACE_ENDPOINTS.ORDER_STATUS}/${orderId}/status`, {
     method: "PATCH",
-    body: { orderStatus },
+    body: { orderStatus, ...(otp ? { otp } : {}) },
+    token,
+  });
+};
+
+export const rateMarketplaceOrder = (orderId, payload, token) => {
+  return apiClient(`${MARKETPLACE_ENDPOINTS.ORDER_STATUS}/${orderId}/rate`, {
+    method: "POST",
+    body: payload,
     token,
   });
 };

@@ -1,17 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
   Globe,
-  Search,
   CheckCircle2,
-  AlertTriangle,
   FileText,
   MapPin,
-  Sparkles,
   RefreshCw,
-  Plus,
-  Eye,
-  ExternalLink,
   BookOpen,
+  Download,
 } from 'lucide-react';
 import { adminApi } from '../services/api';
 
@@ -24,13 +19,13 @@ export default function SeoCmsDashboardPage() {
 
   // Page Config Editor State
   const [pageForm, setPageForm] = useState({
-    pagePath: '/services',
+    path: '/services',
     pageType: 'STATIC',
-    seoTitle: 'Home & Personal Services in Noida, Ghaziabad, Delhi & Meerut | HireBuddy',
-    seoDescription:
-      'Explore verified home cleaning, plumbing, electrical repair, carpentry, and personal driver services on HireBuddy with upfront pricing.',
+    seoTitle: 'All Home Services — Cleaning, Plumber, Electrician, Carpenter & Driver | HireBuddy',
+    metaDescription:
+      'Explore all verified home and personal services on HireBuddy including Home Cleaning, Plumber, Electrician, Carpenter and Personal Driver bookings.',
     canonicalUrl: 'https://hirebuddy.in/services',
-    h1Heading: 'Trusted Home & Personal Services by Verified Helpers',
+    h1Heading: 'Explore Verified Home & Personal Services on HireBuddy',
     introContent: '',
     isIndexable: true,
     publicationStatus: 'PUBLISHED',
@@ -38,15 +33,18 @@ export default function SeoCmsDashboardPage() {
 
   // Service+Location Editor State
   const [slForm, setSlForm] = useState({
-    id: null,
-    serviceId: '',
-    locationId: '',
-    slugPath: '',
-    seoTitle: '',
-    seoDescription: '',
-    h1Heading: '',
+    serviceSlug: 'home-cleaning',
+    locationSlug: 'noida',
+    serviceName: 'Home Cleaning',
+    locationName: 'Noida',
+    seoTitle: 'Home Cleaning in Noida | HireBuddy',
+    metaDescription:
+      'Book trusted home cleaning professionals in Noida. Compare available services, check pricing and schedule your cleaning service with HireBuddy.',
+    h1Heading: 'Professional Home Cleaning Services in Noida',
     introContent: '',
-    startingPricePaise: 29900,
+    localGuideContent: '',
+    startingPricePaise: 34900,
+    availableHelpersCount: 15,
     isIndexable: true,
     publicationStatus: 'PUBLISHED',
   });
@@ -56,7 +54,7 @@ export default function SeoCmsDashboardPage() {
     slug: '',
     title: '',
     seoTitle: '',
-    seoDescription: '',
+    metaDescription: '',
     excerpt: '',
     content: '',
     category: 'Home Maintenance',
@@ -90,7 +88,8 @@ export default function SeoCmsDashboardPage() {
     setRunningAudit(true);
     try {
       const res = await adminApi.runSeoAudit();
-      showToast(`SEO Audit completed! Score: ${res?.audit?.score ?? 100}/100`);
+      const score = res?.report?.auditScore ?? res?.audit?.auditScore ?? 100;
+      showToast(`SEO Audit completed! Score: ${score}/100`);
       await fetchOverview();
     } catch (err) {
       showToast(err.message || 'SEO Audit failed', 'error');
@@ -103,7 +102,7 @@ export default function SeoCmsDashboardPage() {
     e.preventDefault();
     try {
       await adminApi.saveSeoPage(pageForm);
-      showToast(`Saved SEO config for ${pageForm.pagePath}`);
+      showToast(`Saved SEO config for ${pageForm.path}`);
       fetchOverview();
     } catch (err) {
       showToast(err.message || 'Failed to save page config', 'error');
@@ -114,7 +113,7 @@ export default function SeoCmsDashboardPage() {
     e.preventDefault();
     try {
       await adminApi.saveServiceLocationPage(slForm);
-      showToast(`Saved Service+Location page: /services/${slForm.slugPath}`);
+      showToast(`Saved Service+Location page: /services/${slForm.serviceSlug}/${slForm.locationSlug}`);
       fetchOverview();
     } catch (err) {
       showToast(err.message || 'Failed to save Service+Location page', 'error');
@@ -134,7 +133,11 @@ export default function SeoCmsDashboardPage() {
 
   const audit = overview?.latestAudit || {};
   const health = overview?.healthSummary || {};
-  const findings = Array.isArray(audit.findings) ? audit.findings : [];
+  const pageFindings = Array.isArray(audit.pageFindings) ? audit.pageFindings : [];
+  const findingsWithIssues = pageFindings.filter(
+    (p) => (p.issues && p.issues.length > 0) || (p.warnings && p.warnings.length > 0)
+  );
+  const staticPages = overview?.staticPages || overview?.pageConfigs || [];
 
   return (
     <div className="space-y-6">
@@ -167,6 +170,15 @@ export default function SeoCmsDashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <a
+            href={adminApi.exportCsvUrl('/seo/admin/overview')}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-xs font-bold text-slate-200 hover:bg-slate-800"
+          >
+            <Download className="h-4 w-4" />
+            Export Audit CSV
+          </a>
           <button
             onClick={handleRunAudit}
             disabled={runningAudit}
@@ -183,23 +195,23 @@ export default function SeoCmsDashboardPage() {
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
           <p className="text-xs font-semibold text-slate-400">SEO Audit Score</p>
           <p className="mt-1 text-2xl font-extrabold text-emerald-400">
-            {audit.score ?? 100}/100
+            {audit.auditScore ?? health.auditScore ?? 100}/100
           </p>
-          <p className="mt-1 text-[11px] text-slate-500">Automated 9-point check</p>
+          <p className="mt-1 text-[11px] text-slate-500">Automated 10-point check</p>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
           <p className="text-xs font-semibold text-slate-400">Indexable Pages</p>
           <p className="mt-1 text-2xl font-extrabold text-white">
-            {health.totalIndexablePages ?? audit.indexablePages ?? 0}
+            {audit.totalIndexablePages ?? health.totalIndexablePages ?? 0}
           </p>
           <p className="mt-1 text-[11px] text-slate-500">In XML Sitemap</p>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-          <p className="text-xs font-semibold text-slate-400">Missing Meta Desc</p>
+          <p className="text-xs font-semibold text-slate-400">Missing Metadata</p>
           <p className="mt-1 text-2xl font-extrabold text-amber-400">
-            {health.missingDescriptions ?? audit.missingDescriptions ?? 0}
+            {audit.missingMetadataCount ?? health.missingDescriptions ?? 0}
           </p>
           <p className="mt-1 text-[11px] text-slate-500">Target: 0 pages</p>
         </div>
@@ -207,7 +219,7 @@ export default function SeoCmsDashboardPage() {
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
           <p className="text-xs font-semibold text-slate-400">Duplicate Titles</p>
           <p className="mt-1 text-2xl font-extrabold text-rose-400">
-            {health.duplicateTitles ?? audit.duplicateTitles ?? 0}
+            {audit.duplicateTitlesCount ?? health.duplicateTitles ?? 0}
           </p>
           <p className="mt-1 text-[11px] text-slate-500">Target: 0 duplicates</p>
         </div>
@@ -215,7 +227,7 @@ export default function SeoCmsDashboardPage() {
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
           <p className="text-xs font-semibold text-slate-400">Thin Content Pages</p>
           <p className="mt-1 text-2xl font-extrabold text-amber-400">
-            {health.thinContentPages ?? audit.thinContentPages ?? 0}
+            {audit.thinContentCount ?? health.thinContentPages ?? 0}
           </p>
           <p className="mt-1 text-[11px] text-slate-500">Auto-set to noindex</p>
         </div>
@@ -223,7 +235,7 @@ export default function SeoCmsDashboardPage() {
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
           <p className="text-xs font-semibold text-slate-400">Non-Indexed Pages</p>
           <p className="mt-1 text-2xl font-extrabold text-slate-300">
-            {health.nonIndexedPages ?? audit.nonIndexedPages ?? 0}
+            {audit.totalNoindexPages ?? health.nonIndexedPages ?? 0}
           </p>
           <p className="mt-1 text-[11px] text-slate-500">Draft or Noindex</p>
         </div>
@@ -266,17 +278,17 @@ export default function SeoCmsDashboardPage() {
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
                 <h2 className="text-base font-bold text-white">
-                  Automated SEO Audit Findings ({findings.length})
+                  Automated SEO Audit Findings ({pageFindings.length} Audited Pages)
                 </h2>
                 <p className="mt-1 text-xs text-slate-400">
                   Checks title/description lengths, duplicate metadata, H1 tags, canonical URLs, thin content, internal links, and JSON-LD schema.
                 </p>
 
-                {findings.length === 0 ? (
+                {findingsWithIssues.length === 0 ? (
                   <div className="mt-6 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-6 text-center">
                     <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-400" />
                     <p className="mt-2 text-sm font-bold text-emerald-300">
-                      All public pages passed the automated technical SEO audit!
+                      All {pageFindings.length} public pages passed the automated technical SEO audit!
                     </p>
                     <p className="mt-1 text-xs text-emerald-400/80">
                       Zero missing titles, zero duplicate descriptions, and valid canonical URLs across all routes.
@@ -284,7 +296,7 @@ export default function SeoCmsDashboardPage() {
                   </div>
                 ) : (
                   <div className="mt-4 max-h-96 space-y-2.5 overflow-y-auto pr-1">
-                    {findings.map((f, idx) => (
+                    {findingsWithIssues.map((f, idx) => (
                       <div
                         key={idx}
                         className="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/70 p-3.5 text-xs"
@@ -292,15 +304,17 @@ export default function SeoCmsDashboardPage() {
                         <div>
                           <span
                             className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
-                              f.severity === 'CRITICAL'
+                              f.issues?.length > 0
                                 ? 'bg-rose-500/20 text-rose-400'
                                 : 'bg-amber-500/20 text-amber-400'
                             }`}
                           >
-                            {f.severity} · {f.type}
+                            {f.status} · {f.type}
                           </span>
-                          <p className="mt-1.5 font-mono text-slate-200">{f.pagePath}</p>
-                          <p className="mt-0.5 text-slate-400">{f.message}</p>
+                          <p className="mt-1.5 font-mono text-slate-200">{f.path}</p>
+                          <p className="mt-0.5 text-slate-400">
+                            {[...(f.issues || []), ...(f.warnings || [])].join(' • ')}
+                          </p>
                         </div>
                       </div>
                     ))}
@@ -325,7 +339,9 @@ export default function SeoCmsDashboardPage() {
                     >
                       <div>
                         <p className="font-bold text-white">{sl.seoTitle || sl.h1Heading}</p>
-                        <p className="mt-0.5 font-mono text-emerald-400">/services/{sl.slugPath}</p>
+                        <p className="mt-0.5 font-mono text-emerald-400">
+                          /services/{sl.serviceSlug}/{sl.locationSlug}
+                        </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <span
@@ -340,15 +356,17 @@ export default function SeoCmsDashboardPage() {
                         <button
                           onClick={() => {
                             setSlForm({
-                              id: sl.id,
-                              serviceId: sl.serviceId,
-                              locationId: sl.locationId,
-                              slugPath: sl.slugPath,
+                              serviceSlug: sl.serviceSlug,
+                              locationSlug: sl.locationSlug,
+                              serviceName: sl.serviceName,
+                              locationName: sl.locationName,
                               seoTitle: sl.seoTitle || '',
-                              seoDescription: sl.seoDescription || '',
+                              metaDescription: sl.metaDescription || '',
                               h1Heading: sl.h1Heading || '',
                               introContent: sl.introContent || '',
+                              localGuideContent: sl.localGuideContent || '',
                               startingPricePaise: sl.startingPricePaise || 29900,
+                              availableHelpersCount: sl.availableHelpersCount || 10,
                               isIndexable: sl.isIndexable,
                               publicationStatus: sl.publicationStatus || 'PUBLISHED',
                             });
@@ -382,8 +400,8 @@ export default function SeoCmsDashboardPage() {
                     <label className="block text-xs font-bold text-slate-300">Page Path</label>
                     <input
                       type="text"
-                      value={pageForm.pagePath}
-                      onChange={(e) => setPageForm({ ...pageForm, pagePath: e.target.value })}
+                      value={pageForm.path}
+                      onChange={(e) => setPageForm({ ...pageForm, path: e.target.value })}
                       className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
                       placeholder="/services"
                       required
@@ -406,12 +424,12 @@ export default function SeoCmsDashboardPage() {
                     <label className="font-bold text-slate-300">SEO Title</label>
                     <span
                       className={
-                        pageForm.seoTitle.length >= 30 && pageForm.seoTitle.length <= 65
+                        pageForm.seoTitle.length >= 30 && pageForm.seoTitle.length <= 75
                           ? 'text-emerald-400'
                           : 'text-amber-400'
                       }
                     >
-                      {pageForm.seoTitle.length} / 60 chars
+                      {pageForm.seoTitle.length} chars
                     </span>
                   </div>
                   <input
@@ -428,20 +446,20 @@ export default function SeoCmsDashboardPage() {
                     <label className="font-bold text-slate-300">Meta Description</label>
                     <span
                       className={
-                        pageForm.seoDescription.length >= 90 &&
-                        pageForm.seoDescription.length <= 165
+                        pageForm.metaDescription.length >= 70 &&
+                        pageForm.metaDescription.length <= 170
                           ? 'text-emerald-400'
                           : 'text-amber-400'
                       }
                     >
-                      {pageForm.seoDescription.length} / 160 chars
+                      {pageForm.metaDescription.length} chars
                     </span>
                   </div>
                   <textarea
                     rows={3}
-                    value={pageForm.seoDescription}
+                    value={pageForm.metaDescription}
                     onChange={(e) =>
-                      setPageForm({ ...pageForm, seoDescription: e.target.value })
+                      setPageForm({ ...pageForm, metaDescription: e.target.value })
                     }
                     className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
                     required
@@ -455,6 +473,7 @@ export default function SeoCmsDashboardPage() {
                     value={pageForm.h1Heading}
                     onChange={(e) => setPageForm({ ...pageForm, h1Heading: e.target.value })}
                     className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
+                    required
                   />
                 </div>
 
@@ -492,31 +511,33 @@ export default function SeoCmsDashboardPage() {
                         H
                       </span>
                       <span>hirebuddy.in</span>
-                      <span>› {pageForm.pagePath.replace(/^\//, '')}</span>
+                      <span>› {(pageForm.path || '/').replace(/^\//, '')}</span>
                     </div>
                     <h3 className="mt-1.5 text-lg font-semibold text-[#1a0dab] hover:underline">
                       {pageForm.seoTitle || 'Page Title | HireBuddy'}
                     </h3>
                     <p className="mt-1 text-xs leading-relaxed text-[#4d5156]">
-                      {pageForm.seoDescription ||
+                      {pageForm.metaDescription ||
                         'Enter a unique meta description to preview how this page appears in Google Search results.'}
                     </p>
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6">
-                  <h3 className="text-sm font-bold text-white">Configured Static & Custom Pages</h3>
+                  <h3 className="text-sm font-bold text-white">
+                    Configured Static & Custom Pages ({staticPages.length})
+                  </h3>
                   <div className="mt-3 max-h-60 space-y-2 overflow-y-auto">
-                    {(overview?.pageConfigs || []).map((p) => (
+                    {staticPages.map((p) => (
                       <div
                         key={p.id}
                         onClick={() =>
                           setPageForm({
-                            pagePath: p.pagePath,
+                            path: p.path,
                             pageType: p.pageType || 'STATIC',
                             seoTitle: p.seoTitle || '',
-                            seoDescription: p.seoDescription || '',
-                            canonicalUrl: p.canonicalUrl || `https://hirebuddy.in${p.pagePath}`,
+                            metaDescription: p.metaDescription || '',
+                            canonicalUrl: p.canonicalUrl || `https://hirebuddy.in${p.path}`,
                             h1Heading: p.h1Heading || '',
                             introContent: p.introContent || '',
                             isIndexable: p.isIndexable,
@@ -526,7 +547,7 @@ export default function SeoCmsDashboardPage() {
                         className="cursor-pointer rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-xs hover:border-blue-500/50"
                       >
                         <div className="flex justify-between">
-                          <span className="font-mono font-bold text-emerald-400">{p.pagePath}</span>
+                          <span className="font-mono font-bold text-emerald-400">{p.path}</span>
                           <span className="text-[10px] text-slate-400">
                             {p.isIndexable ? 'INDEX' : 'NOINDEX'}
                           </span>
@@ -547,20 +568,26 @@ export default function SeoCmsDashboardPage() {
               className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-6"
             >
               <h2 className="text-base font-bold text-white">
-                Create / Edit Service + Location SEO Landing Page
+                Create / Edit Service + Location SEO Landing Page (/services/{slForm.serviceSlug}/{slForm.locationSlug})
               </h2>
               <div className="grid gap-4 sm:grid-cols-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-300">Service</label>
                   <select
-                    value={slForm.serviceId}
-                    onChange={(e) => setSlForm({ ...slForm, serviceId: e.target.value })}
+                    value={slForm.serviceSlug}
+                    onChange={(e) => {
+                      const svc = (overview?.services || []).find((s) => s.slug === e.target.value);
+                      setSlForm({
+                        ...slForm,
+                        serviceSlug: e.target.value,
+                        serviceName: svc?.name || e.target.value,
+                      });
+                    }}
                     className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
                     required
                   >
-                    <option value="">Select Service</option>
                     {(overview?.services || []).map((s) => (
-                      <option key={s.id} value={s.id}>
+                      <option key={s.id} value={s.slug}>
                         {s.name} ({s.slug})
                       </option>
                     ))}
@@ -569,14 +596,20 @@ export default function SeoCmsDashboardPage() {
                 <div>
                   <label className="block text-xs font-bold text-slate-300">City / Location</label>
                   <select
-                    value={slForm.locationId}
-                    onChange={(e) => setSlForm({ ...slForm, locationId: e.target.value })}
+                    value={slForm.locationSlug}
+                    onChange={(e) => {
+                      const loc = (overview?.locations || []).find((l) => l.slug === e.target.value);
+                      setSlForm({
+                        ...slForm,
+                        locationSlug: e.target.value,
+                        locationName: loc?.name || e.target.value,
+                      });
+                    }}
                     className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
                     required
                   >
-                    <option value="">Select Location</option>
                     {(overview?.locations || []).map((l) => (
-                      <option key={l.id} value={l.id}>
+                      <option key={l.id} value={l.slug}>
                         {l.name} ({l.slug})
                       </option>
                     ))}
@@ -584,14 +617,16 @@ export default function SeoCmsDashboardPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-300">
-                    Slug Path (e.g. home-cleaning/noida)
+                    Available Verified Helpers
                   </label>
                   <input
-                    type="text"
-                    value={slForm.slugPath}
-                    onChange={(e) => setSlForm({ ...slForm, slugPath: e.target.value })}
+                    type="number"
+                    min="0"
+                    value={slForm.availableHelpersCount}
+                    onChange={(e) =>
+                      setSlForm({ ...slForm, availableHelpersCount: Number(e.target.value) })
+                    }
                     className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
-                    placeholder="home-cleaning/noida"
                     required
                   />
                 </div>
@@ -624,8 +659,8 @@ export default function SeoCmsDashboardPage() {
                 <label className="block text-xs font-bold text-slate-300">Meta Description</label>
                 <textarea
                   rows={2}
-                  value={slForm.seoDescription}
-                  onChange={(e) => setSlForm({ ...slForm, seoDescription: e.target.value })}
+                  value={slForm.metaDescription}
+                  onChange={(e) => setSlForm({ ...slForm, metaDescription: e.target.value })}
                   className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
                   required
                 />
@@ -633,7 +668,7 @@ export default function SeoCmsDashboardPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-300">
-                  Local Intro & Coverage Content (min 300 chars for indexability)
+                  Local Intro & Coverage Content (min 150 chars for indexability)
                 </label>
                 <textarea
                   rows={4}
@@ -677,7 +712,13 @@ export default function SeoCmsDashboardPage() {
                     <input
                       type="text"
                       value={blogForm.title}
-                      onChange={(e) => setBlogForm({ ...blogForm, title: e.target.value })}
+                      onChange={(e) =>
+                        setBlogForm({
+                          ...blogForm,
+                          title: e.target.value,
+                          seoTitle: blogForm.seoTitle || `${e.target.value} | HireBuddy Blog`,
+                        })
+                      }
                       className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
                       required
                     />
@@ -689,7 +730,7 @@ export default function SeoCmsDashboardPage() {
                       value={blogForm.slug}
                       onChange={(e) => setBlogForm({ ...blogForm, slug: e.target.value })}
                       className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
-                      placeholder="home-cleaning-checklist"
+                      placeholder="how-to-find-trusted-home-cleaning-services"
                       required
                     />
                   </div>
@@ -699,8 +740,8 @@ export default function SeoCmsDashboardPage() {
                   <label className="block text-xs font-bold text-slate-300">Meta Description</label>
                   <textarea
                     rows={2}
-                    value={blogForm.seoDescription}
-                    onChange={(e) => setBlogForm({ ...blogForm, seoDescription: e.target.value })}
+                    value={blogForm.metaDescription}
+                    onChange={(e) => setBlogForm({ ...blogForm, metaDescription: e.target.value })}
                     className="mt-1 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white"
                     required
                   />
@@ -740,7 +781,7 @@ export default function SeoCmsDashboardPage() {
                           slug: b.slug,
                           title: b.title,
                           seoTitle: b.seoTitle || b.title,
-                          seoDescription: b.seoDescription || b.excerpt || '',
+                          metaDescription: b.metaDescription || b.excerpt || '',
                           excerpt: b.excerpt || '',
                           content: b.content || '',
                           category: b.category || 'Home Maintenance',

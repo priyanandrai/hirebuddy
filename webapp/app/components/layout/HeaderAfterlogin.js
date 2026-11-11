@@ -15,6 +15,7 @@ import {
 } from "../services/notification.service";
 import { getUserProfile } from "../services/user.service";
 import { initializeSocket } from "../config/socketClient";
+import DailyPromotionalPopup from "../ui/DailyPromotionalPopup";
 
 export default function AuthenticatedHeader({
   initialQuery = "",
@@ -207,6 +208,7 @@ export default function AuthenticatedHeader({
   }, []);
 
   return (
+    <>
     <header className="fixed top-0 z-50 w-full border-b bg-[#060c1b]/95 backdrop-blur-xl h-16 border-[#152238]">
       <div className="mx-auto flex max-w-[1360px] items-center justify-between gap-4 px-6 h-full">
         <Link href="/dashboard" className="text-[22px] font-extrabold tracking-tight shrink-0">
@@ -495,6 +497,10 @@ export default function AuthenticatedHeader({
         </div>
       )}
     </header>
+
+    {/* Smooth Once-Per-Day Promotional Popup Ad (Product or Service) */}
+    <DailyPromotionalPopup />
+    </>
   );
 }
 

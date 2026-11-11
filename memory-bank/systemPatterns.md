@@ -1,264 +1,147 @@
 # HireBuddy — System Patterns & Architecture
 
-## High-Level System Architecture
+## High-Level Multi-App Architecture
 
 ```mermaid
 graph TD
-    subgraph ClientLayer["Frontend Client (Next.js 16 + React 19)"]
-        Landing["Landing & Categories\n(/, /categories/:slug)"]
-        PosterDash["Poster Dashboard\n(/dashboard/*)"]
-        TaskerDash["Tasker Dashboard\n(/dashboard-tasker/*)"]
-        AdminUI["Admin ID Verification\n(/dashboard/admin/verify-ids)"]
-        ApiClient["lib/apiClient.js (Fetch + JWT)"]
-        SocketClient["config/socketClient.js (Socket.IO client)"]
+    subgraph ClientApps["Client Applications"]
+        WebApp["Main Webapp (Next.js 16 + React 19)\nPoster, Tasker, Seller, Marketplace, SEO Pages"]
+        AdminApp["Admin Portal (Vite + React 19)\nOperations, KYC, Marketplace, Finance/Tax, SEO CMS"]
+        MobileApp["Mobile App (Expo / React Native)\nTasker & Customer Companion"]
     end
 
     subgraph APILayer["Backend Server (Express 5 on Node.js)"]
-        HTTPRouter["Express Router (/api/*)"]
+        HTTPRouter["REST API Router (/api/*)"]
         SocketServer["Socket.IO Server (socket.config.js)"]
-        AuthMid["auth.middleware.js\nrole.middleware.js"]
+        AuthMid["auth.middleware.js & role.middleware.js"]
     end
 
-    subgraph ServicesLayer["Backend Services"]
-        AuthSvc["auth.service.js"]
-        TaskSvc["task.service.js"]
-        UserSvc["user.service.js"]
-        MsgSvc["message.service.js"]
-        PaySvc["payment.service.js"]
-        RevSvc["review.service.js"]
-        NotifSvc["notification.service.js"]
-        ESSvc["es.client.js"]
+    subgraph CoreServices["Domain & Financial Services"]
+        TaskHiring["task.service.js / hire.controller.js"]
+        MarketSvc["marketplace.service.js"]
+        PayEngine["marketplacePayment.service.js\nPaymentGatewayFactory (Razorpay / Cashfree)"]
+        TaxLedger["gstTaxEngine.service.js\ntdsWithholdingEngine.service.js\nledger.service.js / invoice.service.js"]
+        PayoutRefund["payout.service.js / refundEngine.service.js\nreconciliation.service.js"]
+        SeoCms["seo.service.js / seoAudit.service.js"]
+        SearchSvc["es.client.js + MariaDB Fallback"]
     end
 
-    subgraph DataStorage["Data & External Services"]
-        MariaDB[("MariaDB / MySQL\n(Prisma ORM)")]
-        ES[("Elasticsearch 8/9\n(tasks & helpers indices)")]
-        Razorpay["Razorpay Gateway\n(Orders & Signatures)"]
+    subgraph DataAndInfra["Data Storage & External Gateways"]
+        MariaDB[("MariaDB / MySQL\n(Prisma ORM - 32 Models)")]
+        ES[("Elasticsearch 9\n(tasks & helpers geo indices)")]
+        Gateways["Razorpay Route & Cashfree Split\nFirebase FCM Push"]
     end
 
-    Landing --> ApiClient
-    PosterDash --> ApiClient
-    TaskerDash --> ApiClient
-    AdminUI --> ApiClient
-    PosterDash -.-> SocketClient
-    TaskerDash -.-> SocketClient
-
-    ApiClient --> HTTPRouter
-    SocketClient <==> SocketServer
+    WebApp --> HTTPRouter
+    AdminApp --> HTTPRouter
+    MobileApp --> HTTPRouter
+    WebApp <==> SocketServer
+    MobileApp <==> SocketServer
 
     HTTPRouter --> AuthMid
-    AuthMid --> ServicesLayer
-    SocketServer --> MsgSvc
-    SocketServer --> NotifSvc
-
-    ServicesLayer --> MariaDB
-    ServicesLayer --> ES
-    PaySvc <--> Razorpay
+    AuthMid --> CoreServices
+    CoreServices --> MariaDB
+    SearchSvc --> ES
+    PayEngine <--> Gateways
 ```
 
 ---
 
-## Directory & File Organization
+## Repository & Directory Structure
 
-### 1. Backend Structure (`backend/src`)
+### 1. Backend (`backend/`)
 ```
 backend/
 ├── prisma/
-│   ├── schema.prisma         # Single source of truth for MariaDB schema
-│   └── migrations/           # Versioned SQL migrations
+│   ├── schema.prisma                        # 32 models across Core, Marketplace, Finance/Tax, SEO/CMS
+│   └── migrations/                          # SQL migration history
 ├── scripts/
-│   ├── create-indices.js     # ElasticSearch index creation script
-│   ├── reindex-all.js        # Full DB-to-ES synchronization script
-│   └── seed-helpers.js       # Database seeder for local testing
+│   ├── create-indices.js                    # Elasticsearch index mapping setup
+│   ├── reindex-all.js                       # Full MariaDB-to-ES synchronization
+│   ├── seed-categories.js                   # Category & sub-services seeder
+│   └── seed-helpers.js                      # Realistic helpers seeder
+├── tests/
+│   ├── marketplace-payment-tax.test.js      # Unit/integration tests for GST, TDS/TCS, commissions, ledger
+│   └── seo-and-e2e.test.js                  # E2E tests for SEO CMS, sitemaps, marketplace, and flows
 └── src/
-    ├── app.js                # Express app setup, CORS, route mounting
-    ├── server.js             # HTTP server creation & Socket.IO initialization
-    ├── config/
-    │   └── socket.config.js  # WebSocket server, rooms, JWT verification, events
-    ├── controllers/          # Request parsing & HTTP response formatting
-    │   ├── auth.controller.js
-    │   ├── user.controller.js
-    │   ├── task.controller.js
-    │   ├── hire.controller.js
-    │   ├── payment.controller.js
-    │   ├── message.controller.js
-    │   ├── review.controller.js
-    │   └── notification.controller.js
-    ├── middlewares/
-    │   ├── auth.middleware.js # Bearer token verification and req.user injection
-    │   └── role.middleware.js # Role enforcement (USER vs HELPER)
-    ├── routes/               # API endpoint definitions
-    ├── services/             # Core business logic, queries, external APIs
+    ├── app.js                               # Express 5 app, CORS, static uploads, route mounting
+    ├── server.js                            # HTTP server & Socket.IO bootstrap
+    ├── payments/                            # Pluggable Payment Gateway Architecture
+    │   ├── PaymentGatewayFactory.js
+    │   └── providers/
+    │       ├── PaymentGatewayInterface.js
+    │       ├── RazorpayRouteProvider.js
+    │       └── CashfreeSplitProvider.js
+    ├── controllers/                         # HTTP handlers (auth, user, helper, task, hire, category, marketplace, payment, message, review, notification, upload)
+    ├── routes/                              # Express routers including adminFinance, helperFinance, marketplace, seo, support, search
+    ├── services/                            # Domain logic, tax engines, double-entry ledger, invoicing, SEO audit, ES client, Firebase FCM
     └── utils/
-        ├── jwt.js            # Token generation & decoding
-        └── prisma.js         # PrismaClient singleton with MariaDB adapter
+        ├── cryptoVault.js                   # AES-256-GCM encryption & masking for PAN / bank account numbers
+        ├── jwt.js                           # JWT signing & verification
+        └── prisma.js                        # PrismaClient singleton with MariaDB adapter
 ```
 
-### 2. Frontend Structure (`webapp/app`)
+### 2. Main Web Application (`webapp/app/`)
 ```
 webapp/app/
-├── layout.js                 # Global HTML structure, fonts, CSS import
-├── providers.js              # SessionProvider wrapper for NextAuth
-├── globals.css               # Global styles & Tailwind v4 directives
-├── page.js                   # Landing page (Category grid, location selector)
-├── post-task/                # Quick task posting form
-├── become-a-helper/          # Helper registration workflow
-├── categories/[slug]/        # Category details & listings (CategoryListingsClient)
-├── dashboard/                # Customer/Poster view
-│   ├── page.js               # Overview dashboard
-│   ├── create-task/          # Full task creator form
-│   ├── my-tasks/             # Task listing and detail pages [id]
-│   ├── helpers/              # Browse and view helper profiles [id]
-│   ├── search/               # Search UI
-│   ├── notifications/        # User notification inbox
-│   ├── settings/             # Profile & user settings
-│   └── admin/verify-ids/     # Administrative ID approval dashboard
-├── dashboard-tasker/         # Helper/Tasker view
-│   ├── page.js               # Tasker overview, earnings, today's work
-│   ├── tasks/                # Open task discovery feed
-│   ├── my-tasks/             # Assigned/accepted tasks & execution [id]
-│   ├── earnings/             # Financials & wallet details
-│   ├── profile/              # Helper skills, rate & ID submission (edit)
-│   └── notifications/        # Tasker alerts
-└── components/
-    ├── config/socketClient.js # Socket.IO client singleton & event emitters
-    ├── lib/                  # apiClient.js, endpoints.js, getSessionToken.js
-    ├── services/             # Frontend service layer mapping to backend APIs
-    ├── ui/                   # HelperCard, Avatar, Badge, Button
-    ├── category/             # CategoryCard, categories.js
-    ├── hire/                 # HireButton modal
-    └── reuseable/            # CustomDropdown.js
+├── page.js                                  # Homepage with hero, category grid, location selector, DailyPromotionalPopup
+├── sitemap.js & robots.js                   # Dynamic XML sitemap & robots.txt backed by SEO service
+├── marketplace/                             # Meerut Manufacturers Marketplace (/marketplace & /marketplace/[slug])
+├── become-a-seller/ & dashboard-seller/     # Seller onboarding & storefront/order/settlement dashboard
+├── become-a-helper/ & dashboard-tasker/     # Helper onboarding, tasks feed, profile/offerings editor, earnings
+├── dashboard/                               # Customer dashboard, create-task, my-tasks, helpers, notifications, settings
+├── categories/[slug]/                       # Interactive category catalog & multi-filter helper search
+├── services/ & services/[serviceSlug]/      # SEO service landing pages
+├── locations/ & locations/[locationSlug]/   # Hyperlocal city/neighborhood SEO landing pages
+├── helpers/[id]/                            # Public SEO-indexed helper profile page with service offerings
+├── blog/                                    # Editorial blog hub & articles
+├── lib/seo.js                               # Metadata builder, canonical URLs, JSON-LD schema generators
+└── components/                              # Reusable UI, layout headers, HireButton, DailyPromotionalPopup, API services
 ```
+
+### 3. Standalone Admin Portal (`admin/src/`)
+```
+admin/src/
+├── App.jsx                                  # React Router v7 admin routes & AuthContext protection
+├── pages/
+│   ├── DashboardPage.jsx                    # Platform KPIs & live activity
+│   ├── UsersPage.jsx & HelpersPage.jsx      # User/Helper management, block controls, profile approvals
+│   ├── VerificationsPage.jsx                # Helper ID/Address KYC & Partner Pass verification queue
+│   ├── TasksPage.jsx & CategoriesPage.jsx   # Task oversight & dynamic Category CRUD
+│   ├── MarketplacePage.jsx                  # Seller KYC, product approval, orders, NEFT settlements
+│   ├── FinanceTaxDashboardPage.jsx          # Commission/Tax rules, CA review, GST/TDS/TCS, Ledger, Payouts, Refunds
+│   ├── SeoCmsDashboardPage.jsx              # SEO page configs, Service/Location pages, Blog CMS, SEO Audit, Promotional Popup Ad config
+│   ├── SearchLogsPage.jsx                   # User search analytics & zero-result tracking
+│   ├── AnalyticsPage.jsx & SettingsPage.jsx # Platform metrics & system configuration
+└── services/api.js                          # Admin REST client
+```
+
+### 4. Mobile App (`mobile/`)
+- Expo ~51 / React Native 0.74 companion app (`App.js`, `src/api/client.js`) connecting to the same Express & Socket.IO backend.
 
 ---
 
-## Data Schema & Relationship Patterns (`schema.prisma`)
+## Core Architectural Patterns
 
-```mermaid
-erDiagram
-    User ||--o{ Task : "creates (CreatedTasks)"
-    User ||--o{ Task : "accepts (AssignedTasks)"
-    User ||--o{ Message : "sends / receives"
-    User ||--o{ Review : "gives / receives"
-    User ||--o{ Payment : "payer / payee"
-    User ||--o{ Notification : "sender / receiver"
-    
-    Task ||--o{ Message : "contains"
-    Task ||--o{ Review : "reviewedBy"
-    Task ||--o{ Payment : "fundedBy"
-    Task ||--o{ Notification : "references"
+### 1. Paise-First Immutable Financial & Tax Snapshots
+- All monetary values across all 32 Prisma models are stored in **integer paise** (`Int` / `BigInt`) and basis points (`bps`, where `100 bps = 1.00%`).
+- Every booking/payment calculates an immutable snapshot via `pricingBreakdown.service.js`, `commission.service.js`, `gstTaxEngine.service.js`, and `tdsWithholdingEngine.service.js`.
+- **Classification Support**:
+  - `ORDINARY_MARKETPLACE`: Helper is supplier; platform charges commission + 18% GST and collects Section 52 TCS & deducts Section 194-O TDS.
+  - `SECTION_9_5`: Platform is liable for service GST under CGST Section 9(5).
+  - `PRINCIPAL_PROVIDER`: Platform acts as principal supplier.
 
-    User {
-        string id PK
-        string email UK
-        string phone UK
-        string name
-        enum role "USER | HELPER"
-        string password
-        float latitude
-        float longitude
-        string city
-        string skills
-        int experience
-        int hourlyRate
-        boolean isAvailable
-        float averageRating
-        int totalReviews
-        int walletBalance
-        enum idVerificationStatus "UNVERIFIED | PENDING | VERIFIED | REJECTED"
-        string idDocumentUrl
-    }
+### 2. Double-Entry Accounting Ledger (`ledger.service.js`)
+- Financial events (`PAYMENT_CAPTURED`, `PAYOUT_SETTLED`, `REFUND_ISSUED`, `CHARGEBACK`, `REVERSAL`) generate balanced `LedgerJournal` and `LedgerEntry` rows where `totalDebitPaise === totalCreditPaise`.
 
-    Task {
-        string id PK
-        string title
-        string description
-        string category
-        string location
-        float latitude
-        float longitude
-        int budget
-        datetime preferredAt
-        enum status "OPEN | ASSIGNED | IN_PROGRESS | COMPLETED | CANCELLED"
-        enum paymentStatus "PENDING | INITIATED | COMPLETED | FAILED | REFUNDED"
-        string razorpayOrderId
-        string createdById FK
-        string assignedToId FK
-    }
+### 3. Sensitive Data Vault (`cryptoVault.js`)
+- Helper PAN numbers and bank account numbers are never stored in plain text; they are encrypted via AES-256-GCM (`panEncrypted`, `accountNumberEncrypted`) alongside masked display strings (`XXXXX1234F`, `XXXXXXXX4321`) and SHA-256 hashes.
 
-    Message {
-        string id PK
-        string taskId FK
-        string senderId FK
-        string receiverId FK
-        string message
-        enum type "TEXT | IMAGE | OFFER"
-        boolean isRead
-    }
+### 4. Marketplace Auto-Task Delivery Integration
+- When a customer buys from `/marketplace` and selects `PLATFORM_HELPER` delivery (+2% delivery fee), `marketplace.service.js` automatically spawns a linked `Task` (`deliveryTaskId`) with 4-digit `pickupOtp` and `deliveryOtp` for local helpers to fulfill.
 
-    Review {
-        string id PK
-        string taskId FK
-        string givenById FK
-        string givenToId FK
-        int rating
-        string comment
-    }
+### 5. Hybrid Search with Non-Blocking Failover
+- `/api/search/*` queries Elasticsearch 9 (`tasks` and `helpers` indices with `geo_point` distance sorting) first and transparently falls back to Prisma/MariaDB queries if Elasticsearch is offline, logging every search to `SearchLog`.
 
-    Payment {
-        string id PK
-        string taskId FK
-        string payerId FK
-        string payeeId FK
-        int amount
-        string razorpayOrderId
-        string razorpayPaymentId
-        string razorpaySignature
-        enum status
-    }
-
-    Notification {
-        string id PK
-        string taskId FK
-        string senderId FK
-        string receiverId FK
-        string type
-        string title
-        boolean isRead
-    }
-```
-
----
-
-## Core System Patterns & Design Decisions
-
-### 1. Hybrid Search with Failover
-- **Elasticsearch Primary**:
-  - `tasks` index: Analyzed fields (`title`, `description`), keyword fields (`category`, `city`), and `geo_point` (`location`).
-  - `helpers` index: Analyzed fields (`name`, `skills`), keyword subfields, and `geo_point` coordinates.
-  - Sorts and filters by plane geo-distance (`_geo_distance`) within specified radius (e.g., 5km, 50km).
-- **Relational Fallback**:
-  - If Elasticsearch cluster is unreachable or errors out, backend catches the exception and falls back to relational MariaDB query via `dbSearchTasks()` using Prisma.
-
-### 2. Real-Time Room Isolation via Socket.IO
-- Socket connections authenticate using JWT token via socket handshake middleware.
-- Communication is compartmentalized into rooms per task: `task_${taskId}`.
-- When an event occurs:
-  - `join_task`: Clients join room, receiving status and read confirmations.
-  - `send_message`: Message persists to MariaDB `Message` table first, then broadcasts to the room.
-  - If recipient is offline (not in `userSockets` map), an asynchronous offline notification is recorded in the `Notification` table.
-
-### 3. Direct Hire Workflow vs. Open Bidding
-- HireBuddy bypasses complex bidding mechanisms.
-- Posters can post an unassigned task (`OPEN`) that appears in the helper feed.
-- Alternatively, posters can browse category listings, click `Hire me` on a helper card, and trigger `POST /api/hire`. This immediately provisions a Task pre-assigned to `helperId` with status `ASSIGNED`, bypassing the discovery queue.
-
-### 4. Monetary Precision Pattern
-- All monetary amounts in database and APIs (`budget`, `hourlyRate`, `walletBalance`, `amount`) are represented in **paise** (integers) rather than floating-point values to eliminate rounding and precision errors. Conversion to Rupee (₹) is handled on display or formatted in API helpers.
-
-### 5. Authentication Token Flow
-- Dual login paths supported:
-  1. Phone + Password (via `/api/auth/login`) or Phone + OTP.
-  2. Google OAuth via NextAuth frontend provider, which then synchronizes with backend via `POST /api/auth/google`.
-- JWT payload encodes `{ id: user.id, role: user.role }` with a 7-day expiration.
-- Frontend `apiClient.js` automatically pulls token from either `localStorage.getItem("token")` or NextAuth session.
+### 6. Database-Driven Technical SEO & CMS
+- Next.js `generateMetadata`, `sitemap.js`, and `robots.js` dynamically query `/api/seo/*` (`ServiceLocation`, `ServiceLocationPage`, `SeoPageConfig`, `BlogPost`, `Category`) with automatic JSON-LD structured data (`LocalBusiness`, `Service`, `FAQPage`, `BreadcrumbList`, `Article`) and an automated `seoAudit.service.js` scoring engine.

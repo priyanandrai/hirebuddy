@@ -17,6 +17,43 @@ const ALIAS_REDIRECTS = {
   cleaning: "home-cleaning",
 };
 
+const SERVICE_IMAGE_MAP = {
+  "home-cleaning": "/images/service_home_cleaning.png",
+  cleaning: "/images/service_home_cleaning.png",
+  plumber: "/images/service_plumbing.png",
+  plumbing: "/images/service_plumbing.png",
+  electrician: "/images/service_electrical.png",
+  electrical: "/images/service_electrical.png",
+  carpenter: "/images/service_carpenter.png",
+  "furniture-assembly": "/images/service_furniture.png",
+  driver: "/images/service_driver.png",
+  "driver-services": "/images/service_driver.png",
+  "delivery-pickup": "/images/service_delivery.png",
+  delivery: "/images/service_delivery.png",
+  cooking: "/images/service_cooking.png",
+  "personal-care": "/images/service_personal_care.png",
+  others: "/images/service_others.png",
+};
+
+function resolveServiceBannerImage(svc = {}) {
+  if (svc.image && typeof svc.image === "string" && svc.image.startsWith("/images/")) {
+    return svc.image;
+  }
+  const slugKey = String(svc.slug || "").toLowerCase().trim();
+  if (SERVICE_IMAGE_MAP[slugKey]) return SERVICE_IMAGE_MAP[slugKey];
+  const nameKey = String(svc.name || "").toLowerCase();
+  if (nameKey.includes("clean")) return "/images/service_home_cleaning.png";
+  if (nameKey.includes("plumb") || nameKey.includes("pipe")) return "/images/service_plumbing.png";
+  if (nameKey.includes("electr")) return "/images/service_electrical.png";
+  if (nameKey.includes("carpent") || nameKey.includes("wood")) return "/images/service_carpenter.png";
+  if (nameKey.includes("furnit") || nameKey.includes("assembl")) return "/images/service_furniture.png";
+  if (nameKey.includes("driv") || nameKey.includes("car")) return "/images/service_driver.png";
+  if (nameKey.includes("cook") || nameKey.includes("chef") || nameKey.includes("meal")) return "/images/service_cooking.png";
+  if (nameKey.includes("personal") || nameKey.includes("elder") || nameKey.includes("care")) return "/images/service_personal_care.png";
+  if (nameKey.includes("deliver") || nameKey.includes("pickup") || nameKey.includes("errand")) return "/images/service_delivery.png";
+  return "/images/service_others.png";
+}
+
 export async function generateMetadata({ params }) {
   const resolved = await params;
   const rawSlug = String(resolved?.serviceSlug || "").toLowerCase();
@@ -105,38 +142,51 @@ export default async function ServiceDetailPage({ params }) {
         />
 
         {/* 1 & 2. Service Hero, H1, Introduction, Pricing & Strong Booking CTA */}
-        <section className="rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900/90 to-blue-950/30 p-8 sm:p-10 mb-10">
-          <div className="flex flex-wrap items-center gap-3 mb-4">
-            <span className="text-3xl">{service.icon || "🛠️"}</span>
-            <span className="rounded-full bg-blue-500/15 px-3 py-1 text-xs font-bold text-blue-400">
-              GOVT ID VERIFIED PROFESSIONALS
-            </span>
-            <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-400">
-              Starting at ₹{service.startingPriceRupees || 199}
-            </span>
+        <section className="rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900/90 to-blue-950/30 p-8 sm:p-10 mb-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <div className="lg:col-span-7">
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <span className="text-3xl">{service.icon || "🛠️"}</span>
+              <span className="rounded-full bg-blue-500/15 px-3 py-1 text-xs font-bold text-blue-400">
+                GOVT ID VERIFIED PROFESSIONALS
+              </span>
+              <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-400">
+                Starting at ₹{service.startingPriceRupees || 199}
+              </span>
+            </div>
+
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+              {service.h1Heading || `${service.name} Services`}
+            </h1>
+
+            <p className="mt-4 max-w-3xl text-base text-slate-300 leading-relaxed">
+              {service.introContent || service.description}
+            </p>
+
+            <div className="mt-7 flex flex-wrap items-center gap-4">
+              <Link
+                href={`/post-task?category=${encodeURIComponent(service.name)}`}
+                className="rounded-2xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white hover:bg-blue-500 transition shadow-lg shadow-blue-600/25"
+              >
+                Book {service.name} Now
+              </Link>
+              <Link
+                href="/pricing"
+                className="rounded-2xl border border-slate-700 bg-slate-900 px-5 py-3.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 transition"
+              >
+                View Price & GST Breakdown
+              </Link>
+            </div>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            {service.h1Heading || `${service.name} Services`}
-          </h1>
-
-          <p className="mt-4 max-w-3xl text-base text-slate-300 leading-relaxed">
-            {service.introContent || service.description}
-          </p>
-
-          <div className="mt-7 flex flex-wrap items-center gap-4">
-            <Link
-              href={`/post-task?category=${encodeURIComponent(service.name)}`}
-              className="rounded-2xl bg-blue-600 px-6 py-3.5 text-sm font-bold text-white hover:bg-blue-500 transition shadow-lg shadow-blue-600/25"
-            >
-              Book {service.name} Now
-            </Link>
-            <Link
-              href="/pricing"
-              className="rounded-2xl border border-slate-700 bg-slate-900 px-5 py-3.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 transition"
-            >
-              View Price & GST Breakdown
-            </Link>
+          <div className="lg:col-span-5">
+            <div className="relative h-60 sm:h-72 w-full overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl">
+              <img
+                src={resolveServiceBannerImage(service)}
+                alt={`${service.name} Services on HireBuddy`}
+                className="h-full w-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-transparent to-transparent" />
+            </div>
           </div>
         </section>
 

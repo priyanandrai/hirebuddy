@@ -12,13 +12,31 @@ import {
 } from "../components/services/marketplace.service";
 
 const MEERUT_MANUFACTURER_CATEGORIES = [
+  "Sarees, Lehengas & Ethnic Fashion",
+  "Gifts, Hampers & Festive Boxes",
+  "Food, Sweets & Groceries (FSSAI)",
+  "Handloom, Home Textiles & Furnishings",
+  "Home, Kitchen, Brassware & Decor",
+  "Electronics & Mobile Accessories",
+  "Beauty, Wellness & Personal Care",
   "Sports Goods (Cricket Bats, Balls, Gym)",
-  "Food & Sweets (FSSAI Gajak, Rewari, Namkeen)",
   "Cutlery & Scissors (GI Tagged Meerut Scissors)",
-  "Handloom & Home Textiles",
-  "Brassware & Artisanal Crafts",
-  "Musical Instruments",
-  "General Manufacturing",
+  "General Retail, Toys, Books & Custom Items",
+];
+
+const SELLER_PRODUCT_CATEGORIES = [
+  "Sarees & Ethnic Wear",
+  "Gifts & Hampers",
+  "Fashion & Apparel",
+  "Food & Sweets (FSSAI)",
+  "Handloom & Textiles",
+  "Home, Kitchen & Decor",
+  "Brassware & Handicrafts",
+  "Electronics & Accessories",
+  "Beauty & Personal Care",
+  "Sports Goods",
+  "Scissors & Hardware",
+  "General & Custom Items",
 ];
 
 export default function SellerOnboardingAndHubPage() {
@@ -62,7 +80,7 @@ export default function SellerOnboardingAndHubPage() {
   // Step 2: Separate Product Add Form (Admin Verifies & Publishes + Sets 10%-20% Commission)
   const [productForm, setProductForm] = useState({
     title: "",
-    category: "Sports Goods",
+    category: "Sarees & Ethnic Wear",
     description: "",
     priceRupees: "",
     mrpRupees: "",
@@ -70,6 +88,8 @@ export default function SellerOnboardingAndHubPage() {
     unit: "piece",
     minOrderQty: 1,
     image: "/images/helper_task_furniture.png",
+    variants: [],
+    highlights: "",
     deliveryByPlatform: false,
   });
 
@@ -180,7 +200,7 @@ export default function SellerOnboardingAndHubPage() {
       );
       setProductForm({
         title: "",
-        category: "Sports Goods",
+        category: "Sarees & Ethnic Wear",
         description: "",
         priceRupees: "",
         mrpRupees: "",
@@ -188,6 +208,8 @@ export default function SellerOnboardingAndHubPage() {
         unit: "piece",
         minOrderQty: 1,
         image: "/images/helper_task_furniture.png",
+        variants: [],
+        highlights: "",
         deliveryByPlatform: false,
       });
       await loadDashboard();
@@ -227,16 +249,21 @@ export default function SellerOnboardingAndHubPage() {
                     🏭 Meerut Manufacturers Hub
                   </span>
                   {sellerProfile && (
-                    <span
-                      className={`rounded-full px-3 py-0.5 text-xs font-bold ${
-                        sellerProfile.verificationStatus === "VERIFIED"
-                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                          : "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                      }`}
-                    >
-                      KYC Status: {sellerProfile.verificationStatus} • Bank:{" "}
-                      {sellerProfile.bankVerificationStatus}
-                    </span>
+                    <>
+                      <span
+                        className={`rounded-full px-3 py-0.5 text-xs font-bold ${
+                          sellerProfile.verificationStatus === "VERIFIED"
+                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                            : "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                        }`}
+                      >
+                        KYC Status: {sellerProfile.verificationStatus} • Bank:{" "}
+                        {sellerProfile.bankVerificationStatus}
+                      </span>
+                      <span className="rounded-full border border-blue-500/40 bg-blue-500/15 px-3 py-0.5 text-xs font-bold text-blue-300">
+                        Admin-Configured Commission: {sellerProfile.commissionPct ?? 15}% • Direct Seller Share: {100 - (sellerProfile.commissionPct ?? 15)}%
+                      </span>
+                    </>
                   )}
                 </div>
 
@@ -701,25 +728,27 @@ export default function SellerOnboardingAndHubPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Category *
+                      Category (Select or Type Any Category) *
                     </label>
-                    <select
+                    <input
+                      list="seller-product-categories-list"
+                      required
                       value={productForm.category}
                       onChange={(e) =>
                         setProductForm({ ...productForm, category: e.target.value })
                       }
+                      placeholder="e.g. Sarees, Gifts, Electronics..."
                       className="w-full rounded-xl border border-[#223966] bg-[#0b1730] px-3 py-2 text-xs text-white"
-                    >
-                      <option value="Sports Goods">Sports Goods</option>
-                      <option value="Food & Sweets">Food &amp; Sweets (FSSAI)</option>
-                      <option value="Cutlery & Scissors">Cutlery &amp; Scissors</option>
-                      <option value="Handloom & Textiles">Handloom &amp; Textiles</option>
-                      <option value="Home & Handicrafts">Home &amp; Handicrafts</option>
-                    </select>
+                    />
+                    <datalist id="seller-product-categories-list">
+                      {SELLER_PRODUCT_CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat} />
+                      ))}
+                    </datalist>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Unit (e.g. piece, 500g box)
+                      Unit (e.g. saree, gift box, piece, kg)
                     </label>
                     <input
                       type="text"
@@ -727,7 +756,41 @@ export default function SellerOnboardingAndHubPage() {
                       onChange={(e) =>
                         setProductForm({ ...productForm, unit: e.target.value })
                       }
+                      placeholder="piece / saree / gift box"
                       className="w-full rounded-xl border border-[#223966] bg-[#0b1730] px-3 py-2 text-xs text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Product Photo (Upload Image or Paste URL)
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          if (typeof reader.result === "string") {
+                            setProductForm((prev) => ({ ...prev, image: reader.result }));
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      className="w-full rounded-xl border border-[#223966] bg-[#0b1730] px-2.5 py-1.5 text-[11px] text-slate-300 file:mr-2 file:rounded-lg file:border-0 file:bg-blue-600 file:px-2.5 file:py-1 file:text-[11px] file:font-bold file:text-white"
+                    />
+                    <input
+                      type="text"
+                      value={productForm.image}
+                      onChange={(e) =>
+                        setProductForm({ ...productForm, image: e.target.value })
+                      }
+                      placeholder="/images/... or https://..."
+                      className="w-full rounded-xl border border-[#223966] bg-[#0b1730] px-3 py-1.5 text-xs text-white"
                     />
                   </div>
                 </div>
@@ -800,28 +863,204 @@ export default function SellerOnboardingAndHubPage() {
                   />
                 </div>
 
-                {/* Delivery Option Toggle */}
-                <label className="flex items-start gap-2.5 rounded-xl border border-[#203864] bg-[#0b1730] p-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={productForm.deliveryByPlatform}
-                    onChange={(e) =>
-                      setProductForm({
-                        ...productForm,
-                        deliveryByPlatform: e.target.checked,
-                      })
-                    }
-                    className="mt-1 h-4 w-4 rounded border-slate-600 text-blue-600"
-                  />
-                  <div className="text-xs">
-                    <span className="font-bold text-white block">
-                      Opt for HireBuddy Platform Delivery (+2% Extra Charge)
+                {/* Optional Amazon-Style Product Variants (Colors, Sizes, Weights for Sarees, Gifts, etc.) */}
+                <div className="rounded-xl border border-[#1d325c] bg-[#060f20] p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-300">
+                      🎨 Color / Size / Weight Variants (Optional)
                     </span>
-                    <span className="text-slate-400">
-                      By default, delivery is handled by Seller. If checked, +2% is added and an automatic delivery task is created on behalf of Admin for nearby Buddies.
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setProductForm((prev) => ({
+                          ...prev,
+                          variants: [
+                            ...(prev.variants || []),
+                            {
+                              label: "",
+                              priceRupees: prev.priceRupees || "",
+                              stock: 15,
+                            },
+                          ],
+                        }))
+                      }
+                      className="rounded-lg bg-blue-600/25 border border-blue-500/40 px-2.5 py-1 text-[11px] font-bold text-blue-300 hover:bg-blue-600/40"
+                    >
+                      + Add Variant
+                    </button>
                   </div>
-                </label>
+
+                  {Array.isArray(productForm.variants) &&
+                    productForm.variants.length > 0 && (
+                      <div className="space-y-2">
+                        {productForm.variants.map((v, idx) => (
+                          <div key={idx} className="grid grid-cols-[1fr_90px_32px] gap-2 items-center">
+                            <input
+                              type="text"
+                              value={v.label}
+                              onChange={(e) => {
+                                const next = [...productForm.variants];
+                                next[idx] = { ...next[idx], label: e.target.value };
+                                setProductForm({ ...productForm, variants: next });
+                              }}
+                              placeholder="e.g. Crimson Red / 1 Kg Box / XL"
+                              className="rounded-lg border border-[#223966] bg-[#0b1730] px-2.5 py-1.5 text-xs text-white"
+                            />
+                            <input
+                              type="number"
+                              value={v.priceRupees}
+                              onChange={(e) => {
+                                const next = [...productForm.variants];
+                                next[idx] = { ...next[idx], priceRupees: e.target.value };
+                                setProductForm({ ...productForm, variants: next });
+                              }}
+                              placeholder="₹ Price"
+                              className="rounded-lg border border-[#223966] bg-[#0b1730] px-2.5 py-1.5 text-xs text-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setProductForm((prev) => ({
+                                  ...prev,
+                                  variants: prev.variants.filter((_, i) => i !== idx),
+                                }))
+                              }
+                              className="rounded-lg border border-rose-500/40 bg-rose-500/15 py-1.5 text-xs font-bold text-rose-300"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                </div>
+
+                {/* Seller Delivery Option Selector */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Delivery Option (How will this product be delivered?) *
+                  </label>
+                  <div className="grid grid-cols-1 gap-2.5">
+                    <div
+                      onClick={() =>
+                        setProductForm({
+                          ...productForm,
+                          deliveryByPlatform: false,
+                        })
+                      }
+                      className={`cursor-pointer rounded-xl border p-3 transition ${
+                        !productForm.deliveryByPlatform
+                          ? "border-emerald-500 bg-emerald-500/15 ring-1 ring-emerald-500/40"
+                          : "border-[#203864] bg-[#0b1730] hover:border-slate-500"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-xs">
+                          <span className="font-bold text-white block">
+                            🏭 Deliver by Myself (Seller Self-Delivery)
+                          </span>
+                          <span className="text-slate-400 mt-0.5 block">
+                            I will handle packaging and delivery to the customer myself (₹0 delivery task fee).
+                          </span>
+                        </div>
+                        <span
+                          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${
+                            !productForm.deliveryByPlatform
+                              ? "border-emerald-500 bg-emerald-500 text-white"
+                              : "border-slate-500 text-transparent"
+                          }`}
+                        >
+                          ✓
+                        </span>
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() =>
+                        setProductForm({
+                          ...productForm,
+                          deliveryByPlatform: true,
+                        })
+                      }
+                      className={`cursor-pointer rounded-xl border p-3 transition ${
+                        productForm.deliveryByPlatform
+                          ? "border-amber-500 bg-amber-500/15 ring-1 ring-amber-500/40"
+                          : "border-[#203864] bg-[#0b1730] hover:border-slate-500"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-xs">
+                          <span className="font-bold text-white block">
+                            🚚 Need HireBuddy Delivery Help (+2% Auto-Task)
+                          </span>
+                          <span className="text-slate-300 mt-0.5 block">
+                            Need our help to deliver: +2% delivery charge is applied and an automatic Pickup &amp; Delivery Task is created on behalf of Admin for nearby Helper Buddies whenever a customer purchases.
+                          </span>
+                          {productForm.deliveryByPlatform && Number(productForm.priceRupees) > 0 && (
+                            <span className="mt-1.5 inline-block rounded-lg border border-amber-500/30 bg-amber-500/20 px-2.5 py-1 text-[11px] font-bold text-amber-300">
+                              Auto-Delivery Task Fee (+2%): ₹{Math.max(1, Math.round(Number(productForm.priceRupees) * 0.02))} per {productForm.unit || "unit"}
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${
+                            productForm.deliveryByPlatform
+                              ? "border-amber-500 bg-amber-500 text-slate-950"
+                              : "border-slate-500 text-transparent"
+                          }`}
+                        >
+                          ✓
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seller-Only Portion-Wise Payment Split Preview */}
+                {(() => {
+                  const sellerCommPct = Number(sellerProfile?.commissionPct ?? 15);
+                  const unitPrice = Number(productForm.priceRupees) || 0;
+                  const platformPortion = Math.round((unitPrice * sellerCommPct) / 100);
+                  const deliveryHelpFee = productForm.deliveryByPlatform
+                    ? Math.round(unitPrice * 0.02)
+                    : 0;
+                  const sellerDirectPortion = Math.max(
+                    0,
+                    unitPrice - platformPortion - deliveryHelpFee
+                  );
+
+                  return (
+                    <div className="rounded-2xl border border-[#1d3562] bg-[#050c1a] p-4 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between text-slate-300">
+                        <span>Customer Selling Price (per {productForm.unit || "piece"})</span>
+                        <span className="font-bold text-white">₹{unitPrice}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-emerald-400">
+                        <span>
+                          ↳ Direct Seller Account Portion ({100 - sellerCommPct - (productForm.deliveryByPlatform ? 2 : 0)}% via Daily NEFT/Split)
+                        </span>
+                        <span className="font-bold">₹{sellerDirectPortion}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-blue-300">
+                        <span>
+                          ↳ Platform Commission Portion ({sellerCommPct}% — Dynamic per Seller)
+                        </span>
+                        <span>₹{platformPortion}</span>
+                      </div>
+
+                      {productForm.deliveryByPlatform && (
+                        <div className="flex items-center justify-between text-amber-300 pt-1 border-t border-slate-800">
+                          <span>
+                            ↳ HireBuddy Delivery Help (2% — Auto-creates Buddy Delivery Task)
+                          </span>
+                          <span>₹{deliveryHelpFee}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <button
                   type="submit"
@@ -846,44 +1085,54 @@ export default function SellerOnboardingAndHubPage() {
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {products.map((p) => (
-                      <div
-                        key={p.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-[#1c325c] bg-[#050c1a] p-4"
-                      >
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-bold text-white">
-                              {p.title}
-                            </span>
-                            <span
-                              className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                                p.approvalStatus === "PUBLISHED"
-                                  ? "bg-emerald-500/20 text-emerald-300"
-                                  : "bg-amber-500/20 text-amber-300"
-                              }`}
-                            >
-                              {p.approvalStatus}
-                            </span>
-                            <span className="rounded-full bg-blue-500/15 px-2.5 py-0.5 text-[10px] font-semibold text-blue-300">
-                              Platform Commission: {p.commissionPct}% (You get{" "}
-                              {100 - p.commissionPct}%)
-                            </span>
+                    {products.map((p) => {
+                      const priceRs = p.priceRupees || Math.round((p.price || 0) / 100);
+                      const commPct = Number(sellerProfile?.commissionPct ?? p.commissionPct ?? 15);
+                      const commRs = Math.round((priceRs * commPct) / 100);
+                      const delivRs = p.deliveryByPlatform ? Math.round(priceRs * 0.02) : 0;
+                      const sellerNetRs = Math.max(0, priceRs - commRs - delivRs);
+
+                      return (
+                        <div
+                          key={p.id}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-[#1c325c] bg-[#050c1a] p-4"
+                        >
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-bold text-white">
+                                {p.title}
+                              </span>
+                              <span
+                                className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                  p.approvalStatus === "PUBLISHED"
+                                    ? "bg-emerald-500/20 text-emerald-300"
+                                    : "bg-amber-500/20 text-amber-300"
+                                }`}
+                              >
+                                {p.approvalStatus}
+                              </span>
+                              <span className="rounded-full bg-blue-500/15 px-2.5 py-0.5 text-[10px] font-semibold text-blue-300">
+                                Platform Commission: {commPct}% • Seller Portion: ₹{sellerNetRs} ({100 - commPct - (p.deliveryByPlatform ? 2 : 0)}%)
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-400">
+                              Category: {p.category} • Stock: {p.stock} {p.unit} •{" "}
+                              {p.deliveryByPlatform
+                                ? `🚚 Need HireBuddy Delivery Help (2% = ₹${delivRs})`
+                                : "🏭 Seller Self-Delivery"}
+                            </p>
                           </div>
-                          <p className="mt-1 text-xs text-slate-400">
-                            Category: {p.category} • Stock: {p.stock} {p.unit} •{" "}
-                            {p.deliveryByPlatform
-                              ? "🚚 +2% HireBuddy Delivery Enabled"
-                              : "🏭 Seller Self-Delivery"}
-                          </p>
+                          <div className="text-right">
+                            <p className="text-base font-extrabold text-emerald-400">
+                              ₹{priceRs}
+                            </p>
+                            <p className="text-[11px] text-slate-400">
+                              You receive: ₹{sellerNetRs}/{p.unit}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-base font-extrabold text-emerald-400">
-                            ₹{p.priceRupees || Math.round((p.price || 0) / 100)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

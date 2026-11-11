@@ -12,11 +12,49 @@ export const metadata = generatePageMetadata({
   path: "/services",
 });
 
+const SERVICE_IMAGE_MAP = {
+  "home-cleaning": "/images/service_home_cleaning.png",
+  cleaning: "/images/service_home_cleaning.png",
+  plumber: "/images/service_plumbing.png",
+  plumbing: "/images/service_plumbing.png",
+  electrician: "/images/service_electrical.png",
+  electrical: "/images/service_electrical.png",
+  carpenter: "/images/service_carpenter.png",
+  "furniture-assembly": "/images/service_furniture.png",
+  driver: "/images/service_driver.png",
+  "driver-services": "/images/service_driver.png",
+  "delivery-pickup": "/images/service_delivery.png",
+  delivery: "/images/service_delivery.png",
+  cooking: "/images/service_cooking.png",
+  "personal-care": "/images/service_personal_care.png",
+  others: "/images/service_others.png",
+};
+
+function resolveServiceBannerImage(svc = {}) {
+  if (svc.image && typeof svc.image === "string" && svc.image.startsWith("/images/")) {
+    return svc.image;
+  }
+  const slugKey = String(svc.slug || "").toLowerCase().trim();
+  if (SERVICE_IMAGE_MAP[slugKey]) return SERVICE_IMAGE_MAP[slugKey];
+  const nameKey = String(svc.name || "").toLowerCase();
+  if (nameKey.includes("clean")) return "/images/service_home_cleaning.png";
+  if (nameKey.includes("plumb") || nameKey.includes("pipe")) return "/images/service_plumbing.png";
+  if (nameKey.includes("electr")) return "/images/service_electrical.png";
+  if (nameKey.includes("carpent") || nameKey.includes("wood")) return "/images/service_carpenter.png";
+  if (nameKey.includes("furnit") || nameKey.includes("assembl")) return "/images/service_furniture.png";
+  if (nameKey.includes("driv") || nameKey.includes("car")) return "/images/service_driver.png";
+  if (nameKey.includes("cook") || nameKey.includes("chef") || nameKey.includes("meal")) return "/images/service_cooking.png";
+  if (nameKey.includes("personal") || nameKey.includes("elder") || nameKey.includes("care")) return "/images/service_personal_care.png";
+  if (nameKey.includes("deliver") || nameKey.includes("pickup") || nameKey.includes("errand")) return "/images/service_delivery.png";
+  return "/images/service_others.png";
+}
+
 const FALLBACK_SERVICES = [
   {
     name: "Home Cleaning",
     slug: "home-cleaning",
     icon: "🧹",
+    image: "/images/service_home_cleaning.png",
     startingPricePaise: 29900,
     description:
       "Full home deep cleaning, kitchen degreasing, bathroom descaling, and sofa vacuuming by ID-verified cleaners.",
@@ -26,6 +64,7 @@ const FALLBACK_SERVICES = [
     name: "Plumber",
     slug: "plumber",
     icon: "🚰",
+    image: "/images/service_plumbing.png",
     startingPricePaise: 19900,
     description:
       "Tap and mixer leak repair, choked drain clearing, water tank motor fitting, and bathroom sanitaryware installation.",
@@ -35,6 +74,7 @@ const FALLBACK_SERVICES = [
     name: "Electrician",
     slug: "electrician",
     icon: "⚡",
+    image: "/images/service_electrical.png",
     startingPricePaise: 19900,
     description:
       "Switchboard repair, ceiling fan & light installation, MCB troubleshooting, and inverter battery wiring.",
@@ -44,6 +84,7 @@ const FALLBACK_SERVICES = [
     name: "Carpenter",
     slug: "carpenter",
     icon: "🪚",
+    image: "/images/service_carpenter.png",
     startingPricePaise: 24900,
     description:
       "Bed and wardrobe assembly, wooden door alignment, lock replacement, and kitchen cabinet hinge repair.",
@@ -53,10 +94,41 @@ const FALLBACK_SERVICES = [
     name: "Driver",
     slug: "driver",
     icon: "🚗",
+    image: "/images/service_driver.png",
     startingPricePaise: 29900,
     description:
       "License-verified personal drivers for local city errands, hospital visits, airport drops, and outstation trips.",
     subServices: ["Hourly Local Chauffeur", "Airport Transfers", "Outstation Family Trips"],
+  },
+  {
+    name: "Cooking",
+    slug: "cooking",
+    icon: "🍳",
+    image: "/images/service_cooking.png",
+    startingPricePaise: 29900,
+    description:
+      "Fresh home-cooked meals, daily tiffin preparation, and party cooking by hygienic home cooks.",
+    subServices: ["Daily Meal Prep", "North & South Indian Cooking", "Small Gathering Catering"],
+  },
+  {
+    name: "Personal Care",
+    slug: "personal-care",
+    icon: "💆",
+    image: "/images/service_personal_care.png",
+    startingPricePaise: 39900,
+    description:
+      "Trusted personal care, elderly companionship, mobility assistance, and daily wellness support at home.",
+    subServices: ["Elderly Companionship", "Home Wellness Support", "Hospital Visit Assistance"],
+  },
+  {
+    name: "Others",
+    slug: "others",
+    icon: "✨",
+    image: "/images/service_others.png",
+    startingPricePaise: 19900,
+    description:
+      "Balcony gardening, festival decoration, home organization, and custom multi-purpose household help.",
+    subServices: ["Balcony Plant Care", "Home Organization", "Custom Household Tasks"],
   },
 ];
 
@@ -101,39 +173,52 @@ export default async function ServicesHubPage() {
           {services.map((svc) => {
             const priceRupees = Math.round((svc.startingPricePaise || 19900) / 100);
             const subList = Array.isArray(svc.subServices) ? svc.subServices : [];
+            const bannerImg = resolveServiceBannerImage(svc);
             return (
               <article
                 key={svc.slug}
-                className="flex flex-col justify-between rounded-3xl border border-slate-800 bg-slate-900/80 p-6 hover:border-blue-500/50 transition"
+                className="flex flex-col justify-between overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/80 hover:border-blue-500/50 transition group"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-3xl">{svc.icon || "🛠️"}</span>
-                    <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-400">
+                  <div className="relative h-48 w-full overflow-hidden bg-slate-950">
+                    <img
+                      src={bannerImg}
+                      alt={`${svc.name} Service on HireBuddy`}
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/30 to-transparent" />
+                    <span className="absolute top-3 left-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950/80 backdrop-blur-md text-xl border border-slate-700/60">
+                      {svc.icon || "🛠️"}
+                    </span>
+                    <span className="absolute top-3 right-3 rounded-full bg-emerald-500/90 backdrop-blur-md px-3 py-1 text-xs font-bold text-slate-950 shadow-md">
                       Starts at ₹{priceRupees}
                     </span>
                   </div>
-                  <h2 className="text-xl font-bold text-white">
-                    <Link href={`/services/${svc.slug}`} className="hover:text-blue-400 transition">
-                      {svc.name}
-                    </Link>
-                  </h2>
-                  <p className="mt-2 text-sm text-slate-300 leading-relaxed">
-                    {svc.description}
-                  </p>
-                  {subList.length > 0 && (
-                    <ul className="mt-4 space-y-1.5 text-xs text-slate-400">
-                      {subList.slice(0, 4).map((item, i) => (
-                        <li key={i} className="flex items-center gap-2">
-                          <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+
+                  <div className="p-6 pb-0">
+                    <h2 className="text-xl font-bold text-white">
+                      <Link href={`/services/${svc.slug}`} className="hover:text-blue-400 transition">
+                        {svc.name}
+                      </Link>
+                    </h2>
+                    <p className="mt-2 text-sm text-slate-300 leading-relaxed">
+                      {svc.description}
+                    </p>
+                    {subList.length > 0 && (
+                      <ul className="mt-4 space-y-1.5 text-xs text-slate-400">
+                        {subList.slice(0, 4).map((item, i) => (
+                          <li key={i} className="flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between">
+                <div className="p-6 pt-4 mt-6 border-t border-slate-800 flex items-center justify-between">
                   <Link
                     href={`/services/${svc.slug}`}
                     className="text-xs font-bold text-blue-400 hover:text-blue-300"
