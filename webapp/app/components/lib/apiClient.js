@@ -1,4 +1,5 @@
 import { getAuthToken } from "./getSessionToken";
+import { handleRevokedSession } from "./sessionRevocation";
 
 const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080").trim();
 const API_BASE_URL = rawApiUrl.endsWith("/api")
@@ -29,7 +30,31 @@ export async function apiClient(
   try {
     const res = await fetch(`${API_BASE_URL}${endpoint}`, config);
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+
+    const isAuthAttemptEndpoint =
+      endpoint.startsWith("/auth/login") ||
+      endpoint.startsWith("/auth/verify-otp") ||
+      endpoint.startsWith("/auth/send-otp") ||
+      endpoint.startsWith("/auth/signup") ||
+      endpoint.startsWith("/auth/register-helper");
+
+    if (
+      resolvedToken &&
+      !isAuthAttemptEndpoint &&
+      (res.status === 401 ||
+        (res.status === 403 &&
+          (data?.isBlocked || data?.code === "ACCOUNT_BLOCKED")))
+    ) {
+      handleRevokedSession({
+        code:
+          data?.code ||
+          (res.status === 403 ? "ACCOUNT_BLOCKED" : "ACCOUNT_DELETED"),
+        message:
+          data?.message ||
+          "Your account has been deleted or your session has expired. Please sign in again.",
+      });
+    }
 
     if (!res.ok) {
       throw new Error(data?.message || "Something went wrong");

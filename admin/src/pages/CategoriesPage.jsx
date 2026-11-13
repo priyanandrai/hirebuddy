@@ -15,6 +15,7 @@ import { adminApi } from '../services/api';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import EmptyState from '../components/common/EmptyState';
 import Modal from '../components/common/Modal';
+import { swalAlert, swalConfirm } from '../utils/swal';
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState([]);
@@ -59,7 +60,10 @@ export default function CategoriesPage() {
 
   const handleCreateCategory = async (e) => {
     e.preventDefault();
-    if (!newCat.name.trim()) return alert('Category name is required');
+    if (!newCat.name.trim()) {
+      await swalAlert('Category name is required.', 'warning');
+      return;
+    }
     setActionLoading(true);
 
     try {
@@ -97,24 +101,31 @@ export default function CategoriesPage() {
         subServices: '',
         isPopular: true,
       });
-      alert('Category created successfully in database!');
+      await swalAlert('Category created successfully in database!', 'success');
     } catch (err) {
-      alert(err.message || 'Failed to create category');
+      await swalAlert(err.message || 'Failed to create category', 'error');
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleDeleteCategory = async (catId) => {
-    if (!window.confirm('Are you sure you want to delete this category?')) return;
+    const confirmed = await swalConfirm({
+      title: 'Delete Category?',
+      text: 'Are you sure you want to delete this category?',
+      icon: 'warning',
+      confirmButtonText: 'Yes, Delete Category',
+      danger: true,
+    });
+    if (!confirmed) return;
     setActionLoading(true);
     try {
       await adminApi.deleteCategory(catId);
       setCategories((prev) => prev.filter((c) => c.id !== catId));
       if (selectedCategory?.id === catId) setSelectedCategory(null);
-      alert('Category deleted successfully');
+      await swalAlert('Category deleted successfully.', 'success');
     } catch (err) {
-      alert(err.message || 'Failed to delete category');
+      await swalAlert(err.message || 'Failed to delete category', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -132,7 +143,7 @@ export default function CategoriesPage() {
         setSelectedCategory((prev) => ({ ...prev, isPopular: updated }));
       }
     } catch (err) {
-      alert(err.message || 'Failed to update category');
+      await swalAlert(err.message || 'Failed to update category', 'error');
     } finally {
       setActionLoading(false);
     }

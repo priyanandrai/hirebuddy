@@ -155,17 +155,15 @@ export default function TaskerProfilePage() {
           <div className="relative flex flex-col sm:flex-row sm:items-center gap-6">
             {/* Avatar */}
             <div className="relative flex-shrink-0">
-              {user?.image ? (
-                <img
-                  src={user.image}
-                  alt={user.name || "Helper"}
-                  className="h-20 w-20 sm:h-24 sm:w-24 rounded-3xl object-cover border-2 border-slate-700/80 shadow-2xl"
-                />
-              ) : (
-                <div className="flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 border-2 border-slate-700 text-3xl font-extrabold text-white shadow-2xl shadow-blue-600/30">
-                  {user?.name ? user.name.charAt(0).toUpperCase() : "H"}
-                </div>
-              )}
+              <img
+                src={user?.image || "/images/default_avatar.svg"}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = "/images/default_avatar.svg";
+                }}
+                alt={user?.name || "Helper"}
+                className="h-20 w-20 sm:h-24 sm:w-24 rounded-3xl object-cover border-2 border-slate-700/80 bg-slate-200 shadow-2xl"
+              />
 
               {/* Status Dot */}
               <div

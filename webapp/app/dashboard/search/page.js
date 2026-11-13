@@ -10,6 +10,7 @@ import { getTaskCategories } from "../../components/services/task.service";
 import { getAuthToken } from "../../components/lib/getSessionToken";
 import { hireBuddy } from "../../components/services/hire.service";
 import { HelperSearchCardShimmer } from "../../components/ui/Shimmer";
+import { swalAlert } from "../../components/lib/swal";
 
 const LOCATION_OPTIONS = [
   "Modipuram, Meerut",
@@ -765,7 +766,7 @@ function SearchContent() {
       setHireSuccess(true);
     } catch (err) {
       console.error("Hire request failed", err);
-      alert("Failed to send hire request.");
+      await swalAlert(err?.message || "Failed to send hire request.", "error");
     } finally {
       setHireLoading(false);
     }

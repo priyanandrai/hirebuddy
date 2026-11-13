@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuthToken } from '../lib/getSessionToken';
 import { hireBuddy } from '../services/hire.service';
+import { swalAlert } from '../lib/swal';
 
 export default function HireButton({ helperId, helperName, defaultBudget = 0, redirectAfter = '/dashboard/my-tasks', className = '' , disabled = false, slug }) {
   const [open, setOpen] = useState(false);
@@ -36,7 +37,7 @@ export default function HireButton({ helperId, helperName, defaultBudget = 0, re
       setSuccess(true);
     } catch (err) {
       console.error('Hire request failed', err);
-      alert('Failed to send hire request.');
+      await swalAlert(err?.message || 'Failed to send hire request.', 'error');
     } finally {
       setLoading(false);
     }

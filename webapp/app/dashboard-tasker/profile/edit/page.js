@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { getUserProfile, updateHelperProfile } from "@/app/components/services/user.service";
 import { getTaskCategories } from "@/app/components/services/task.service";
 import HelperDocumentVerificationModal from "@/app/components/ui/HelperDocumentVerificationModal";
+import { swalAlert } from "@/app/components/lib/swal";
 import {
   User,
   Phone,
@@ -441,7 +442,10 @@ export default function EditTaskerProfilePage() {
         window.dispatchEvent(new Event("userProfileUpdated"));
       }
 
-      alert("Profile updated successfully!");
+      await swalAlert("Profile updated successfully!", {
+        title: "Profile Saved",
+        icon: "success",
+      });
       router.push("/dashboard-tasker/profile");
     } catch (err) {
       console.error("Failed to update profile", err);

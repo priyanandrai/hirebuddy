@@ -55,8 +55,14 @@ export default function AuthenticatedHeader({
   };
 
   const handleLogout = async () => {
-    // 1. Clear backend JWT
+    // 1. Clear backend JWT & cached user profile
     localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setCurrentUser(null);
+    setHasToken(false);
+    setUnreadCount(0);
+    setRecentNotifications([]);
+    window.dispatchEvent(new Event("userProfileUpdated"));
 
     // 2. Close dropdown
     setProfileOpen(false);
@@ -66,67 +72,109 @@ export default function AuthenticatedHeader({
       redirect: false,
     });
 
-    // 4. Redirect to signup / home
+    // 4. Redirect to home
     router.push("/");
   };
 
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentNotifications, setRecentNotifications] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
+  const [hasToken, setHasToken] = useState(false);
+
+  const isAuthenticated =
+    hasToken || (status === "authenticated" && Boolean(session?.user));
 
   // Sync user profile from localStorage, API, and userProfileUpdated events
   useEffect(() => {
     const syncLocalUser = () => {
       try {
+        const token = localStorage.getItem("token");
+        const nextAuthReady = status === "authenticated" && Boolean(session?.user);
+        setHasToken(Boolean(token));
+
+        if (!token && !nextAuthReady) {
+          if (status !== "loading") {
+            localStorage.removeItem("user");
+            setCurrentUser(null);
+          }
+          return false;
+        }
+
         const stored = localStorage.getItem("user");
         if (stored) {
           setCurrentUser(JSON.parse(stored));
         }
-      } catch (e) {}
+        return true;
+      } catch (e) {
+        return false;
+      }
     };
 
-    syncLocalUser();
+    const canFetchProfile = syncLocalUser();
 
-    getUserProfile()
-      .then((res) => {
-        if (res?.user) {
-          setCurrentUser((prev) => ({ ...(prev || {}), ...res.user }));
-          try {
-            const prevStored = JSON.parse(localStorage.getItem("user") || "{}");
-            localStorage.setItem(
-              "user",
-              JSON.stringify({ ...prevStored, ...res.user })
-            );
-          } catch (e) {}
-        }
-      })
-      .catch(() => {});
+    if (canFetchProfile) {
+      getUserProfile()
+        .then((res) => {
+          if (res?.user) {
+            setCurrentUser((prev) => ({ ...(prev || {}), ...res.user }));
+            try {
+              const prevStored = JSON.parse(localStorage.getItem("user") || "{}");
+              localStorage.setItem(
+                "user",
+                JSON.stringify({ ...prevStored, ...res.user })
+              );
+            } catch (e) {}
+          }
+        })
+        .catch(() => {
+          if (status !== "authenticated") {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            setHasToken(false);
+            setCurrentUser(null);
+          }
+        });
+    }
 
+    const handleWindowFocus = () => {
+      if (localStorage.getItem("token") || status === "authenticated") {
+        getUserProfile().catch(() => {});
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
     window.addEventListener("storage", syncLocalUser);
     window.addEventListener("userProfileUpdated", syncLocalUser);
 
     return () => {
+      window.removeEventListener("focus", handleWindowFocus);
       window.removeEventListener("storage", syncLocalUser);
       window.removeEventListener("userProfileUpdated", syncLocalUser);
     };
-  }, [session]);
+  }, [session, status]);
 
-  const displayUser = {
-    ...(session?.user || {}),
-    ...(currentUser || {}),
-    name: currentUser?.name || session?.user?.name || "Puja Rai",
-    email: currentUser?.email || session?.user?.email || "",
-    image:
-      currentUser?.image !== undefined
-        ? currentUser.image
-        : session?.user?.image || "",
-    role: currentUser?.role || session?.user?.role || "USER",
-    city: currentUser?.city || "",
-    address: currentUser?.address || "",
-  };
+  const displayUser = isAuthenticated
+    ? {
+        ...(session?.user || {}),
+        ...(currentUser || {}),
+        name: currentUser?.name || session?.user?.name || "Account",
+        email: currentUser?.email || session?.user?.email || "",
+        image:
+          currentUser?.image !== undefined
+            ? currentUser.image
+            : session?.user?.image || "",
+        role: currentUser?.role || session?.user?.role || "USER",
+        city: currentUser?.city || "",
+        address: currentUser?.address || "",
+      }
+    : null;
 
-  // Fetch real notifications and listen to socket events
+  // Fetch real notifications and listen to socket events only when authenticated
   useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
     const loadData = async () => {
       try {
         const [countRes, notifRes] = await Promise.allSettled([
@@ -179,7 +227,7 @@ export default function AuthenticatedHeader({
       window.removeEventListener("hirebuddy:notification-received", handleLiveNotif);
       window.removeEventListener("hirebuddy:notifications-updated", handleNotifsSynced);
     };
-  }, [session]);
+  }, [session, isAuthenticated]);
 
   const wrapperRef = useRef(null);
 
@@ -211,7 +259,16 @@ export default function AuthenticatedHeader({
     <>
     <header className="fixed top-0 z-50 w-full border-b bg-[#060c1b]/95 backdrop-blur-xl h-16 border-[#152238]">
       <div className="mx-auto flex max-w-[1360px] items-center justify-between gap-4 px-6 h-full">
-        <Link href="/dashboard" className="text-[22px] font-extrabold tracking-tight shrink-0">
+        <Link
+          href={
+            !isAuthenticated
+              ? "/"
+              : displayUser?.role === "HELPER"
+              ? "/dashboard-tasker"
+              : "/dashboard"
+          }
+          className="text-[22px] font-extrabold tracking-tight shrink-0"
+        >
           <span className="text-[#10b981]">Hire</span>
           <span className="text-white">Buddy</span>
         </Link>
@@ -272,6 +329,35 @@ export default function AuthenticatedHeader({
             🔍
           </button>
 
+          {!isAuthenticated ? (
+            <>
+              <Link
+                href="/marketplace"
+                className="hidden md:inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
+              >
+                <span>🛍️ Meerut Market</span>
+              </Link>
+              <Link
+                href="/become-a-seller"
+                className="hidden lg:inline-flex items-center justify-center px-2 py-2 text-xs font-semibold text-slate-200 hover:text-white transition"
+              >
+                Sell Products
+              </Link>
+              <Link
+                href="/login"
+                className="inline-flex items-center justify-center rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition"
+              >
+                Log In
+              </Link>
+              <Link
+                href="/become-a-helper"
+                className="hidden sm:inline-flex items-center justify-center rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-500/20 hover:bg-emerald-700 transition"
+              >
+                Become a Buddy
+              </Link>
+            </>
+          ) : (
+          <>
           <Link
             href="/dashboard/wallet"
             className="hidden md:inline-flex items-center justify-center gap-1.5 rounded-full border border-blue-500/40 bg-blue-500/10 px-3.5 py-2 text-xs font-bold text-blue-400 transition hover:bg-blue-500/20"
@@ -403,16 +489,16 @@ export default function AuthenticatedHeader({
               className={`flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 transition ${profileOpen ? "ring-2 ring-blue-500/40" : "hover:bg-slate-800"
                 }`}
             >
-              <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-slate-700 text-sm font-semibold text-slate-100">
-                {displayUser.image ? (
-                  <img
-                    src={displayUser.image}
-                    alt={displayUser.name || "User"}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span>{(displayUser.name || "U").charAt(0).toUpperCase()}</span>
-                )}
+              <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-slate-200 text-sm font-semibold text-slate-100">
+                <img
+                  src={displayUser.image || "/images/default_avatar.svg"}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = "/images/default_avatar.svg";
+                  }}
+                  alt={displayUser.name || "User"}
+                  className="h-full w-full object-cover"
+                />
               </div>
               <div className="hidden sm:flex flex-col items-start leading-tight text-left">
                 <span className="text-xs font-semibold text-slate-100 capitalize">
@@ -444,12 +530,16 @@ export default function AuthenticatedHeader({
                 <div className="absolute -top-2 right-6 h-4 w-4 rotate-45 border-l border-t border-slate-700 bg-slate-900"></div>
                 <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-slate-950/40">
                   <div className="flex items-center gap-3 border-b border-slate-700 px-4 py-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-700 font-semibold text-slate-100">
-                      {displayUser.image ? (
-                        <img src={displayUser.image} alt={displayUser.name || "User"} className="h-full w-full object-cover" />
-                      ) : (
-                        <span>{(displayUser.name || "U").charAt(0).toUpperCase()}</span>
-                      )}
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-200 font-semibold text-slate-100">
+                      <img
+                        src={displayUser.image || "/images/default_avatar.svg"}
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = "/images/default_avatar.svg";
+                        }}
+                        alt={displayUser.name || "User"}
+                        className="h-full w-full object-cover"
+                      />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-white truncate">{displayUser.name}</p>
@@ -462,7 +552,12 @@ export default function AuthenticatedHeader({
                     </div>
                   </div>
 
-                  <DropdownItem href="/dashboard" setOpen={setProfileOpen}>📊 Dashboard</DropdownItem>
+                  <DropdownItem
+                    href={displayUser?.role === "HELPER" ? "/dashboard-tasker" : "/dashboard"}
+                    setOpen={setProfileOpen}
+                  >
+                    📊 Dashboard
+                  </DropdownItem>
                   <DropdownItem href="/dashboard/wallet" setOpen={setProfileOpen}>💳 My Wallet (₹{Math.round((displayUser?.walletBalance || 0) / 100)})</DropdownItem>
                   <DropdownItem href="/dashboard/my-tasks" setOpen={setProfileOpen}>📝 My Tasks</DropdownItem>
                   <DropdownItem href="/dashboard/helpers" setOpen={setProfileOpen}>🤝 Browse Buddies</DropdownItem>
@@ -481,6 +576,8 @@ export default function AuthenticatedHeader({
               </div>
             )}
           </div>
+          </>
+          )}
         </div>
       </div>
 

@@ -44,6 +44,17 @@ export default function HelperHeader() {
     let active = true;
 
     const loadData = async () => {
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      if (!token) {
+        try {
+          localStorage.removeItem("user");
+        } catch {}
+        if (active) setCurrentUser(null);
+        router.replace("/login");
+        return;
+      }
+
       try {
         const stored = localStorage.getItem("user");
         if (stored && active) {
@@ -84,11 +95,28 @@ export default function HelperHeader() {
 
     const handleProfileUpdate = () => {
       try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          setCurrentUser(null);
+          router.replace("/login");
+          return;
+        }
         const stored = localStorage.getItem("user");
         if (stored) {
           setCurrentUser(JSON.parse(stored));
+        } else {
+          setCurrentUser(null);
         }
       } catch (e) {}
+    };
+
+    const handleWindowFocus = () => {
+      if (localStorage.getItem("token")) {
+        getUserProfile().catch(() => {});
+      } else {
+        setCurrentUser(null);
+        router.replace("/login");
+      }
     };
 
     const handleLiveNotif = () => {
@@ -106,6 +134,7 @@ export default function HelperHeader() {
         .catch(() => {});
     };
 
+    window.addEventListener("focus", handleWindowFocus);
     window.addEventListener("storage", handleProfileUpdate);
     window.addEventListener("userProfileUpdated", handleProfileUpdate);
     window.addEventListener("hirebuddy:notification-received", handleLiveNotif);
@@ -113,6 +142,7 @@ export default function HelperHeader() {
 
     return () => {
       active = false;
+      window.removeEventListener("focus", handleWindowFocus);
       window.removeEventListener("storage", handleProfileUpdate);
       window.removeEventListener("userProfileUpdated", handleProfileUpdate);
       window.removeEventListener("hirebuddy:notification-received", handleLiveNotif);
@@ -171,10 +201,69 @@ export default function HelperHeader() {
           <span className="text-white">Buddy</span>
         </Link>
 
+        {/* Center Navigation + Search */}
+        <nav className="hidden xl:flex items-center gap-5 text-xs font-semibold text-slate-300 shrink-0">
+          <Link
+            href="/dashboard-tasker"
+            className={`transition ${
+              pathname === "/dashboard-tasker"
+                ? "text-emerald-400 font-bold"
+                : "hover:text-white"
+            }`}
+          >
+            Dashboard
+          </Link>
+          <Link
+            href="/dashboard-tasker/my-tasks"
+            className={`transition ${
+              pathname?.startsWith("/dashboard-tasker/my-tasks")
+                ? "text-emerald-400 font-bold"
+                : "hover:text-white"
+            }`}
+          >
+            My Tasks
+          </Link>
+          <Link
+            href="/dashboard-tasker/wallet"
+            className={`transition ${
+              pathname?.startsWith("/dashboard-tasker/wallet")
+                ? "text-emerald-400 font-bold"
+                : "hover:text-white"
+            }`}
+          >
+            Wallet
+          </Link>
+          <Link
+            href="/dashboard-tasker/profile"
+            className={`transition ${
+              pathname?.startsWith("/dashboard-tasker/profile")
+                ? "text-emerald-400 font-bold"
+                : "hover:text-white"
+            }`}
+          >
+            Profile
+          </Link>
+          <Link
+            href="/dashboard-tasker/verification"
+            className={`inline-flex items-center gap-1.5 transition ${
+              pathname?.startsWith("/dashboard-tasker/verification")
+                ? "text-emerald-400 font-bold"
+                : !isVerified
+                ? "text-amber-400 hover:text-amber-300 font-bold"
+                : "hover:text-white"
+            }`}
+          >
+            <span>Verification</span>
+            {!isVerified && (
+              <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+            )}
+          </Link>
+        </nav>
+
         {/* Center Search Pill */}
         <form
           onSubmit={handleSearchSubmit}
-          className="hidden md:flex flex-1 max-w-[540px] mx-4"
+          className="hidden md:flex flex-1 max-w-[460px] mx-2"
         >
           <div className="flex w-full items-center gap-2.5 rounded-full border border-[#192a4a] bg-[#081225] px-4 py-2 text-xs sm:text-sm text-slate-200 focus-within:border-[#3b82f6] transition">
             <Search className="h-4 w-4 text-slate-400 shrink-0" />
@@ -245,13 +334,17 @@ export default function HelperHeader() {
             className="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-2 hover:bg-[#111e38]/70 transition text-left"
           >
             <img
-              src={currentUser?.image || "/images/helper_avatar.png"}
-              alt={currentUser?.name || "prreto G"}
-              className="h-9 w-9 rounded-full object-cover border border-slate-500/70"
+              src={currentUser?.image || "/images/default_avatar.svg"}
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = "/images/default_avatar.svg";
+              }}
+              alt={currentUser?.name || "Helper Partner"}
+              className="h-9 w-9 rounded-full object-cover border border-slate-500/70 bg-slate-200"
             />
             <div className="hidden sm:flex flex-col leading-tight">
               <span className="text-[13px] font-semibold text-white">
-                {currentUser?.name || "prreto G"}
+                {currentUser?.name || "Helper Partner"}
               </span>
               <span className="text-[11px] text-emerald-400 font-medium">Buddy Partner</span>
             </div>
@@ -266,7 +359,7 @@ export default function HelperHeader() {
                 className="block px-4 py-2.5 text-sm text-slate-200 hover:bg-[#132240]"
                 onClick={() => setOpen(false)}
               >
-                Buddy Home
+                Helper Dashboard
               </Link>
               <Link
                 href="/dashboard-tasker/my-tasks"
@@ -304,6 +397,17 @@ export default function HelperHeader() {
                 onClick={() => setOpen(false)}
               >
                 My Profile
+              </Link>
+              <Link
+                href="/dashboard-tasker/verification"
+                className={`block px-4 py-2.5 text-sm hover:bg-[#132240] ${
+                  isVerified
+                    ? "text-slate-200"
+                    : "font-semibold text-amber-400"
+                }`}
+                onClick={() => setOpen(false)}
+              >
+                {isVerified ? "✓ Verification Status" : "🛡️ Verify Account"}
               </Link>
               <Link
                 href="/dashboard-tasker/support"

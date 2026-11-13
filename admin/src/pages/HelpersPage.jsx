@@ -31,6 +31,7 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import EmptyState from '../components/common/EmptyState';
 import Modal from '../components/common/Modal';
 import { Link } from 'react-router-dom';
+import { swalAlert, swalConfirm, swalPrompt } from '../utils/swal';
 
 export default function HelpersPage() {
   const [helpers, setHelpers] = useState([]);
@@ -57,6 +58,7 @@ export default function HelpersPage() {
   const initialAddFormData = {
     name: '',
     phone: '',
+    email: '',
     password: `Helper@${Math.floor(1000 + Math.random() * 9000)}`,
     skills: '',
     city: 'Meerut',
@@ -90,6 +92,12 @@ export default function HelpersPage() {
       return;
     }
 
+    const trimmedEmail = (addFormData.email || '').trim().toLowerCase();
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setAddError('Please enter a valid email address.');
+      return;
+    }
+
     if (!addFormData.password || addFormData.password.length < 4) {
       setAddError('Password must be at least 4 characters long.');
       return;
@@ -100,6 +108,7 @@ export default function HelpersPage() {
       const res = await adminApi.createHelper({
         name: addFormData.name.trim(),
         phone: cleanPhone,
+        ...(trimmedEmail ? { email: trimmedEmail } : {}),
         password: addFormData.password.trim(),
         skills: addFormData.skills.trim() || 'General Helper',
         city: addFormData.city.trim() || 'Meerut',
@@ -145,9 +154,9 @@ export default function HelpersPage() {
       if (selectedHelper?.id === helperId) {
         setSelectedHelper((prev) => ({ ...prev, idVerificationStatus: newStatus }));
       }
-      alert(`Helper verification updated to ${newStatus}!`);
+      await swalAlert(`Helper verification updated to ${newStatus}!`, 'success');
     } catch (err) {
-      alert(err.message || 'Failed to update verification status');
+      await swalAlert(err.message || 'Failed to update verification status', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -157,14 +166,24 @@ export default function HelpersPage() {
     const nextBlocked = !helper.isBlocked;
     let reason = '';
     if (nextBlocked) {
-      const input = window.prompt(
-        `Enter reason for blocking ${helper.name || 'this helper'} (optional):`,
-        helper.blockedReason || 'Policy violation / Admin action'
-      );
+      const input = await swalPrompt({
+        title: `Block ${helper.name || 'Helper'}?`,
+        text: 'Enter a reason for blocking this account (optional):',
+        inputPlaceholder: 'Policy violation / Admin action',
+        inputValue: helper.blockedReason || 'Policy violation / Admin action',
+        confirmButtonText: 'Block Account',
+        icon: 'warning',
+      });
       if (input === null) return;
       reason = input.trim() || 'Blocked by Administrator';
     } else {
-      if (!window.confirm(`Unblock ${helper.name || 'this helper'} and restore account access?`)) return;
+      const confirmed = await swalConfirm({
+        title: `Unblock ${helper.name || 'Helper'}?`,
+        text: 'Restore account access so this helper can log in and accept tasks again?',
+        icon: 'question',
+        confirmButtonText: 'Yes, Unblock',
+      });
+      if (!confirmed) return;
     }
 
     setActionLoading(true);
@@ -188,23 +207,36 @@ export default function HelpersPage() {
           blockedReason: updated.blockedReason,
         }));
       }
+      await swalAlert(
+        nextBlocked
+          ? `${helper.name || 'Helper'} has been blocked and logged out.`
+          : `${helper.name || 'Helper'} has been unblocked.`,
+        'success'
+      );
     } catch (err) {
-      alert(err.message || 'Failed to update helper block status');
+      await swalAlert(err.message || 'Failed to update helper block status', 'error');
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleDeleteHelper = async (helperId) => {
-    if (!window.confirm('Are you sure you want to permanently delete this helper account? All assigned tasks will be unassigned.')) return;
+    const confirmed = await swalConfirm({
+      title: 'Delete Helper Account?',
+      text: 'Are you sure you want to permanently delete this helper account? All assigned tasks will be unassigned and active sessions will be terminated immediately.',
+      icon: 'warning',
+      confirmButtonText: 'Yes, Delete Permanently',
+      danger: true,
+    });
+    if (!confirmed) return;
     setActionLoading(true);
     try {
       await adminApi.deleteUser(helperId);
       setHelpers((prev) => prev.filter((h) => h.id !== helperId));
       setSelectedHelper(null);
-      alert('Helper account deleted successfully');
+      await swalAlert('Helper account deleted successfully.', 'success');
     } catch (err) {
-      alert(err.message || 'Failed to delete helper');
+      await swalAlert(err.message || 'Failed to delete helper', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -947,6 +979,20 @@ export default function HelpersPage() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Email Address (Optional) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Email Address <span className="text-slate-500 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="email"
+                  placeholder="e.g. helper@example.com"
+                  value={addFormData.email}
+                  onChange={(e) => setAddFormData({ ...addFormData, email: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                />
               </div>
 
               {/* Password */}

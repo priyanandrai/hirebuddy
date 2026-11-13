@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
 import { getAssignedTasks, acceptTask, declineTask, updateTaskStatus } from "@/app/components/services/task.service";
 import { releaseEscrowPayment } from "@/app/components/services/payment.service";
 import { TaskerMyTaskRowShimmer } from "@/app/components/ui/Shimmer";
+import { swalAlert, swalPrompt } from "@/app/components/lib/swal";
 
 const TASK_OVERRIDES_STORAGE_KEY = "hirebuddy_my_tasks_overrides_v1";
 
@@ -31,6 +33,7 @@ function applyStoredPaymentOverrides(rawTasks) {
 }
 
 export default function TaskerMyTasksPage() {
+  const router = useRouter();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("ALL");
@@ -108,7 +111,7 @@ export default function TaskerMyTasksPage() {
       if (otpModalTask) {
         setOtpError(err.message || "Invalid 4-digit Completion OTP");
       } else {
-        alert(err.message || "Failed to update task status");
+        await swalAlert(err.message || "Failed to update task status", "error");
       }
     } finally {
       setActionLoadingId(null);
@@ -161,20 +164,40 @@ export default function TaskerMyTasksPage() {
     setActionLoadingId(taskId);
     try {
       await acceptTask(taskId, token);
-      alert("Booking request accepted! Task is confirmed.");
       setTasks((prev) =>
         prev.map((t) => (t.id === taskId ? { ...t, status: "ASSIGNED" } : t))
       );
+      await swalAlert("Booking request accepted! Task is confirmed.", "success");
     } catch (err) {
       console.error("Failed to accept task", err);
-      alert(err.message || "Failed to accept booking request");
+      const errMsg = err?.message || "Failed to accept booking request";
+      if (
+        errMsg.toLowerCase().includes("not verified") ||
+        errMsg.toLowerCase().includes("verification")
+      ) {
+        await swalAlert(errMsg, {
+          title: "Verification Required",
+          icon: "warning",
+          confirmButtonText: "Go to Verification Page",
+        });
+        router.push("/dashboard-tasker/verification");
+      } else {
+        await swalAlert(errMsg, "error");
+      }
     } finally {
       setActionLoadingId(null);
     }
   };
 
   const handleDeclineRequest = async (taskId) => {
-    const reason = window.prompt("Reason for declining this request (optional):", "Schedule conflict / Unavailable");
+    const reason = await swalPrompt({
+      title: "Decline Booking Request?",
+      text: "Reason for declining this request (optional):",
+      inputPlaceholder: "Schedule conflict / Unavailable",
+      inputValue: "Schedule conflict / Unavailable",
+      confirmButtonText: "Decline Request",
+      icon: "warning",
+    });
     if (reason === null) return;
 
     const token = localStorage.getItem("token");
@@ -183,11 +206,11 @@ export default function TaskerMyTasksPage() {
     setActionLoadingId(taskId);
     try {
       await declineTask(taskId, reason || "Helper unavailable", token);
-      alert("Booking request declined.");
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      await swalAlert("Booking request declined.", "info");
     } catch (err) {
       console.error("Failed to decline task", err);
-      alert(err.message || "Failed to decline booking request");
+      await swalAlert(err.message || "Failed to decline booking request", "error");
     } finally {
       setActionLoadingId(null);
     }

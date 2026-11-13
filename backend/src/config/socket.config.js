@@ -20,6 +20,15 @@ export const emitToUser = (userId, event, data) => {
 };
 
 /**
+ * Disconnect all active sockets belonging to a deleted or blocked user
+ */
+export const disconnectUserSockets = (userId) => {
+  if (!ioInstance || !userId) return;
+  ioInstance.in(`user_${userId}`).disconnectSockets(true);
+  userSockets.delete(userId);
+};
+
+/**
  * Emit event to a task room
  */
 export const emitToTaskRoom = (taskId, event, data) => {
@@ -65,6 +74,17 @@ export const initializeSocket = (server) => {
       socket.userId = decoded.id || decoded.userId;
       if (!socket.userId) {
         return next(new Error('Invalid token payload'));
+      }
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: socket.userId },
+        select: { id: true, isBlocked: true },
+      });
+      if (!dbUser) {
+        return next(new Error('ACCOUNT_DELETED'));
+      }
+      if (dbUser.isBlocked) {
+        return next(new Error('ACCOUNT_BLOCKED'));
       }
       next();
     } catch (error) {

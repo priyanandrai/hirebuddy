@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { createTask, getTaskCategories, createTaskCategory } from "@/app/components/services/task.service";
 import { getHelperByID, getHelpers, getUserProfile } from "@/app/components/services/user.service";
 import CustomSelect from "@/app/components/reuseable/CustomSelect";
+import { swalAlert } from "@/app/components/lib/swal";
 import { MapPin, Navigation, UserCheck, Calendar, Plus, Users, Sparkles, CheckCircle2 } from "lucide-react";
 
 const SERVICE_LOCATIONS = [
@@ -145,7 +146,7 @@ function CreateTaskContent() {
 
   const handleDetectCurrentLocation = () => {
     if (typeof window === "undefined" || !navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.");
+      swalAlert("Geolocation is not supported by your browser.", "warning");
       return;
     }
     setDetectingGps(true);
@@ -191,7 +192,7 @@ function CreateTaskContent() {
       },
       () => {
         setDetectingGps(false);
-        alert("Unable to retrieve your current location. Please select a location from the list.");
+        swalAlert("Unable to retrieve your current location. Please select a location from the list.", "warning");
       },
       { timeout: 8000 }
     );
@@ -237,7 +238,7 @@ function CreateTaskContent() {
       }
     } catch (err) {
       console.error("Failed to add category to DB:", err);
-      alert(err.message || "Failed to save new category");
+      await swalAlert(err.message || "Failed to save new category", "error");
     } finally {
       setCreatingCategory(false);
     }
@@ -323,7 +324,7 @@ function CreateTaskContent() {
   function handleChange(e) {
     const { name, value } = e.target;
     if (name === "date" && value && value < minDate) {
-      alert("Previous dates are disabled. Please select today or a future date.");
+      swalAlert("Previous dates are disabled. Please select today or a future date.", "warning");
       setForm({ ...form, date: minDate });
       return;
     }
@@ -357,27 +358,27 @@ function CreateTaskContent() {
     setFiles(encoded);
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
 
     const token = session?.token || localStorage.getItem("token");
     if (!token) {
-      alert("Please login to create a task");
+      await swalAlert("Please login to create a task", "warning");
       return;
     }
 
     if (!form.category) {
-      alert("Please select a task category");
+      await swalAlert("Please select a task category", "warning");
       return;
     }
 
     if (!form.location || !form.location.trim()) {
-      alert("Please select or enter a location");
+      await swalAlert("Please select or enter a location", "warning");
       return;
     }
 
     if (form.date && form.date < minDate) {
-      alert("Previous dates cannot be selected. Please choose today or a future date.");
+      await swalAlert("Previous dates cannot be selected. Please choose today or a future date.", "warning");
       return;
     }
 
@@ -403,19 +404,23 @@ function CreateTaskContent() {
     };
 
     createTask(payload, token)
-      .then(() => {
-        alert(
+      .then(async () => {
+        await swalAlert(
           isDirect
             ? `Task booked! ${
                 selectedHelper?.name || "Your selected Buddy"
               } has been directly assigned to your task.`
-            : "Task posted! All verified Buddies can now see your task on their dashboard and apply/accept it."
+            : "Task posted! All verified Buddies can now see your task on their dashboard and apply/accept it.",
+          {
+            title: isDirect ? "Task Booked!" : "Task Posted!",
+            icon: "success",
+          }
         );
         router.push("/dashboard/my-tasks");
       })
-      .catch((err) => {
+      .catch(async (err) => {
         console.error("Create task failed", err);
-        alert(err.message || "Failed to create task");
+        await swalAlert(err.message || "Failed to create task", "error");
       })
       .finally(() => {
         setLoading(false);

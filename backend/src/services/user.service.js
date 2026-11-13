@@ -1,6 +1,13 @@
 import prisma from "../utils/prisma.js";
 import bcrypt from "bcrypt";
 import { indexHelper, deleteHelper } from "./es.client.js";
+import {
+  normalizePhone,
+  assertUniqueEmailAndPhone,
+  resolveFallbackEmail,
+  parseDuplicateError,
+  DuplicateUserError,
+} from "../utils/userValidation.js";
 
 export const DEFAULT_MULTI_SERVICE_TEMPLATES = {
   "Car Wash": [
@@ -359,38 +366,16 @@ export const updateMyProfileService = async (userId, rawData = {}) => {
     data.name = `${rawData.firstName || ""} ${rawData.lastName || ""}`.trim();
   }
 
-  if (rawData.email !== undefined) {
-    const cleanEmail = String(rawData.email || "").trim().toLowerCase();
+  if (rawData.email !== undefined || rawData.phone !== undefined) {
+    const { cleanEmail, cleanPhone } = await assertUniqueEmailAndPhone({
+      email: rawData.email,
+      phone: rawData.phone,
+      excludeUserId: userId,
+    });
     if (cleanEmail) {
-      const existingEmail = await prisma.user.findFirst({
-        where: {
-          email: cleanEmail,
-          NOT: { id: userId },
-        },
-      });
-      if (existingEmail) {
-        throw new Error("This email address is already linked to another account.");
-      }
       data.email = cleanEmail;
     }
-  }
-
-  if (rawData.phone !== undefined) {
-    const digitsOnly = String(rawData.phone || "").replace(/\D/g, "");
-    const cleanPhone = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
     if (cleanPhone) {
-      if (cleanPhone.length !== 10) {
-        throw new Error("Please enter a valid 10-digit mobile number.");
-      }
-      const existingPhone = await prisma.user.findFirst({
-        where: {
-          phone: cleanPhone,
-          NOT: { id: userId },
-        },
-      });
-      if (existingPhone) {
-        throw new Error("This mobile number is already linked to another account.");
-      }
       data.phone = cleanPhone;
     }
   }
@@ -469,14 +454,24 @@ export const updateMyProfileService = async (userId, rawData = {}) => {
   return user;
 };
 
-export const updateHelperProfileService = (userId, rawData) => {
+export const updateHelperProfileService = async (userId, rawData = {}) => {
   const data = {};
   if (rawData.name !== undefined) {
     data.name = rawData.name;
   } else if (rawData.firstName || rawData.lastName) {
     data.name = `${rawData.firstName || ""} ${rawData.lastName || ""}`.trim();
   }
-  if (rawData.phone !== undefined) data.phone = rawData.phone;
+
+  if (rawData.email !== undefined || rawData.phone !== undefined) {
+    const { cleanEmail, cleanPhone } = await assertUniqueEmailAndPhone({
+      email: rawData.email,
+      phone: rawData.phone,
+      excludeUserId: userId,
+    });
+    if (cleanEmail) data.email = cleanEmail;
+    if (cleanPhone) data.phone = cleanPhone;
+  }
+
   if (rawData.city !== undefined) data.city = rawData.city;
   if (rawData.address !== undefined) data.address = rawData.address;
   if (rawData.image !== undefined) data.image = rawData.image;
@@ -503,20 +498,21 @@ export const updateHelperProfileService = (userId, rawData) => {
   if (rawData.latitude !== undefined && rawData.latitude !== null) data.latitude = Number(rawData.latitude);
   if (rawData.longitude !== undefined && rawData.longitude !== null) data.longitude = Number(rawData.longitude);
 
-  return prisma.user.update({
+  const user = await prisma.user.update({
     where: { id: userId },
     data: {
       ...data,
       role: "HELPER",
     },
-  }).then(async (user) => {
-    try {
-      await indexHelper(user);
-    } catch (e) {
-      console.error('Failed to index helper after update', e);
-    }
-    return user;
   });
+
+  try {
+    await indexHelper(user);
+  } catch (e) {
+    console.error("Failed to index helper after update", e);
+  }
+
+  return user;
 };
 
 export const submitIdDocumentService = async (userId, payload = {}) => {
@@ -1079,62 +1075,72 @@ export const createHelperService = async ({
   city,
   skills,
   hourlyRate,
+  role = "HELPER",
   isVerified = true,
 }) => {
-  const digitsOnly = String(phone || "").replace(/\D/g, "");
-  const cleanPhone = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
-
-  if (!cleanPhone || cleanPhone.length !== 10) {
-    throw new Error("A valid 10-digit mobile number is required");
+  const { isValid: isValidPhone } = normalizePhone(phone);
+  if (!isValidPhone) {
+    const err = new Error("A valid 10-digit mobile number is required");
+    err.statusCode = 400;
+    throw err;
   }
 
-  if (!password || password.trim().length < 4) {
-    throw new Error("Password must be at least 4 characters long");
+  if (!password || String(password).trim().length < 4) {
+    const err = new Error("Password must be at least 4 characters long");
+    err.statusCode = 400;
+    throw err;
   }
 
-  // Check if user already exists
-  const existing = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { phone: cleanPhone },
-        ...(email ? [{ email: email.trim().toLowerCase() }] : []),
-      ],
-    },
+  // Ensure neither email nor phone already belongs to any existing user/helper
+  const { cleanEmail, cleanPhone } = await assertUniqueEmailAndPhone({
+    email,
+    phone,
   });
 
-  if (existing) {
-    throw new Error(
-      `A user with this ${existing.phone === cleanPhone ? 'mobile number' : 'email'} already exists (${existing.role || 'USER'})`
-    );
-  }
-
-  const hashedPassword = await bcrypt.hash(password.trim(), 10);
-  const helperEmail = email?.trim()?.toLowerCase() || `${cleanPhone}@hirebuddy.local`;
+  const hashedPassword = await bcrypt.hash(String(password).trim(), 10);
+  const resolvedEmail =
+    cleanEmail || (await resolveFallbackEmail(cleanPhone));
+  const resolvedRole = ["USER", "HELPER", "SELLER", "ADMIN"].includes(role)
+    ? role
+    : "HELPER";
   const normalizedSkills = Array.isArray(skills)
     ? skills.map((s) => String(s).trim()).filter(Boolean).join(", ") || "General Helper"
-    : String(skills || "").trim() || "General Helper";
+    : String(skills || "").trim() || (resolvedRole === "HELPER" ? "General Helper" : null);
 
-  const user = await prisma.user.create({
-    data: {
-      name: name?.trim() || "Helper Partner",
-      phone: cleanPhone,
-      email: helperEmail,
-      password: hashedPassword,
-      role: "HELPER",
-      city: city?.trim() || "Meerut, UP",
-      skills: normalizedSkills,
-      hourlyRate: hourlyRate ? Number(hourlyRate) * 100 : null,
-      isAvailable: true,
-      idVerificationStatus: isVerified ? "VERIFIED" : "PENDING",
-      idVerifiedAt: isVerified ? new Date() : null,
-      idVerificationNotes: isVerified ? "Account created and verified directly by Administrator" : null,
-    },
-  });
-
+  let user;
   try {
-    await indexHelper(user);
+    user = await prisma.user.create({
+      data: {
+        name: name?.trim() || (resolvedRole === "HELPER" ? "Helper Partner" : "User"),
+        phone: cleanPhone,
+        email: resolvedEmail,
+        password: hashedPassword,
+        role: resolvedRole,
+        city: city?.trim() || "Meerut, UP",
+        skills: normalizedSkills,
+        hourlyRate: hourlyRate ? Number(hourlyRate) * 100 : null,
+        isAvailable: true,
+        idVerificationStatus: isVerified ? "VERIFIED" : "PENDING",
+        idVerifiedAt: isVerified ? new Date() : null,
+        idVerificationNotes: isVerified
+          ? "Account created and verified directly by Administrator"
+          : null,
+      },
+    });
   } catch (err) {
-    console.warn("Index helper failed:", err.message);
+    const duplicate = parseDuplicateError(err);
+    if (duplicate.isDuplicate) {
+      throw new DuplicateUserError(duplicate.message);
+    }
+    throw err;
+  }
+
+  if (user.role === "HELPER") {
+    try {
+      await indexHelper(user);
+    } catch (err) {
+      console.warn("Index helper failed:", err.message);
+    }
   }
 
   return {

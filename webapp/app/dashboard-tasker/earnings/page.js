@@ -10,6 +10,7 @@ import {
 import { getUserProfile } from "@/app/components/services/user.service";
 import HelperDocumentVerificationModal from "@/app/components/ui/HelperDocumentVerificationModal";
 import { PaymentRowShimmer } from "@/app/components/ui/Shimmer";
+import { swalAlert } from "@/app/components/lib/swal";
 import {
   Lock,
   Clock,
@@ -87,9 +88,15 @@ export default function TaskerEarningsPage() {
         } catch (e) {}
 
         if (res.user.idVerificationStatus === "VERIFIED") {
-          alert("🎉 Congratulations! Your account has been verified! Earnings are now unlocked.");
+          await swalAlert("Congratulations! Your account has been verified! Earnings are now unlocked.", {
+            title: "Account Verified!",
+            icon: "success",
+          });
         } else {
-          alert(`Current status: ${res.user.idVerificationStatus}. Please wait while admin reviews your documents.`);
+          await swalAlert(`Current status: ${res.user.idVerificationStatus}. Please wait while admin reviews your documents.`, {
+            title: "Verification Status",
+            icon: "info",
+          });
         }
       }
     } catch (err) {
@@ -128,7 +135,7 @@ export default function TaskerEarningsPage() {
       await activateSubscription(planType, "ONLINE");
       await loadData();
     } catch (err) {
-      alert(err?.message || "Failed to activate Buddy Pass");
+      await swalAlert(err?.message || "Failed to activate Buddy Pass", "error");
     } finally {
       setActivatingPlan(null);
     }

@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import Header from "../components/layout/Header";
 import HeaderAfterlogin from "../components/layout/HeaderAfterlogin";
 import Footer from "../components/layout/Footer";
 import {
@@ -40,11 +42,33 @@ const SELLER_PRODUCT_CATEGORIES = [
 ];
 
 export default function SellerOnboardingAndHubPage() {
+  const { data: session, status } = useSession();
+  const [hasToken, setHasToken] = useState(false);
   const [activeTab, setActiveTab] = useState("onboarding"); // "onboarding" | "products" | "orders"
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [bannerMsg, setBannerMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    const syncAuth = () => {
+      try {
+        setHasToken(Boolean(localStorage.getItem("token")));
+      } catch {
+        setHasToken(false);
+      }
+    };
+    syncAuth();
+    window.addEventListener("storage", syncAuth);
+    window.addEventListener("userProfileUpdated", syncAuth);
+    return () => {
+      window.removeEventListener("storage", syncAuth);
+      window.removeEventListener("userProfileUpdated", syncAuth);
+    };
+  }, []);
+
+  const isAuthenticated =
+    hasToken || (status === "authenticated" && Boolean(session?.user));
 
   const [sellerProfile, setSellerProfile] = useState(null);
   const [products, setProducts] = useState([]);
@@ -94,6 +118,21 @@ export default function SellerOnboardingAndHubPage() {
   });
 
   const loadDashboard = useCallback(async () => {
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const nextAuthReady =
+      status === "authenticated" && Boolean(session?.user);
+
+    if (!token && !nextAuthReady) {
+      setSellerProfile(null);
+      setProducts([]);
+      setOrders([]);
+      setSettlements([]);
+      setMetrics(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await getSellerDashboard();
@@ -132,7 +171,7 @@ export default function SellerOnboardingAndHubPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [session, status]);
 
   useEffect(() => {
     loadDashboard();
@@ -165,6 +204,10 @@ export default function SellerOnboardingAndHubPage() {
 
   const handleSubmitOnboarding = async (e) => {
     e.preventDefault();
+    if (!isAuthenticated) {
+      setErrorMsg("Please log in or create an account first to submit your Seller KYC.");
+      return;
+    }
     setSubmitting(true);
     setBannerMsg("");
     setErrorMsg("");
@@ -188,6 +231,10 @@ export default function SellerOnboardingAndHubPage() {
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
+    if (!isAuthenticated) {
+      setErrorMsg("Please log in first to add products to your seller storefront.");
+      return;
+    }
     setSubmitting(true);
     setBannerMsg("");
     setErrorMsg("");
@@ -236,10 +283,31 @@ export default function SellerOnboardingAndHubPage() {
 
   return (
     <div className="min-h-screen bg-[#050b18] text-slate-100 flex flex-col">
-      <HeaderAfterlogin />
+      {isAuthenticated ? <HeaderAfterlogin /> : <Header />}
 
-      <main className="flex-1 pt-20 pb-16">
+      <main className={`flex-1 ${isAuthenticated ? "pt-20" : "pt-6"} pb-16`}>
         <div className="mx-auto max-w-[1320px] px-4 sm:px-6">
+          {!isAuthenticated && status !== "loading" && (
+            <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-3.5 text-xs sm:text-sm text-amber-200">
+              <span>
+                You are browsing as a guest. Sign in or create an account to submit your Seller KYC and list products.
+              </span>
+              <div className="flex items-center gap-2.5 shrink-0">
+                <Link
+                  href="/login"
+                  className="rounded-xl bg-[#1361f5] hover:bg-blue-600 px-4 py-2 text-xs font-bold text-white transition"
+                >
+                  Log In
+                </Link>
+                <Link
+                  href="/signup"
+                  className="rounded-xl border border-slate-700 bg-slate-900/90 hover:bg-slate-800 px-4 py-2 text-xs font-bold text-white transition"
+                >
+                  Create Account
+                </Link>
+              </div>
+            </div>
+          )}
           {/* Header Banner */}
           <div className="rounded-3xl border border-[#192d52] bg-gradient-to-r from-[#08152d] via-[#0b1f42] to-[#061527] p-6 sm:p-8 shadow-2xl">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">

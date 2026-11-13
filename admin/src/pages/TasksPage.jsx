@@ -21,6 +21,7 @@ import Badge from '../components/common/Badge';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import EmptyState from '../components/common/EmptyState';
 import Modal from '../components/common/Modal';
+import { swalAlert, swalConfirm } from '../utils/swal';
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState([]);
@@ -45,24 +46,31 @@ export default function TasksPage() {
       if (selectedTask?.id === taskId) {
         setSelectedTask((prev) => ({ ...prev, status: newStatus }));
       }
-      alert(`Task status updated to ${newStatus}`);
+      await swalAlert(`Task status updated to ${newStatus}.`, 'success');
     } catch (err) {
-      alert(err.message || 'Failed to update task status');
+      await swalAlert(err.message || 'Failed to update task status', 'error');
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleDeleteTask = async (taskId) => {
-    if (!window.confirm('Are you sure you want to permanently delete this task?')) return;
+    const confirmed = await swalConfirm({
+      title: 'Delete Task?',
+      text: 'Are you sure you want to permanently delete this task?',
+      icon: 'warning',
+      confirmButtonText: 'Yes, Delete Task',
+      danger: true,
+    });
+    if (!confirmed) return;
     setActionLoading(true);
     try {
       await adminApi.deleteTask(taskId);
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
       setSelectedTask(null);
-      alert('Task deleted successfully');
+      await swalAlert('Task deleted successfully.', 'success');
     } catch (err) {
-      alert(err.message || 'Failed to delete task');
+      await swalAlert(err.message || 'Failed to delete task', 'error');
     } finally {
       setActionLoading(false);
     }

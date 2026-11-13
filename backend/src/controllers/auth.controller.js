@@ -7,6 +7,12 @@ import {
   import bcrypt from "bcrypt";
   import { signUserToken } from "../utils/jwt.js";
   import { indexHelper } from "../services/es.client.js";
+  import {
+    normalizePhone,
+    assertUniqueEmailAndPhone,
+    resolveFallbackEmail,
+    parseDuplicateError,
+  } from "../utils/userValidation.js";
 
 
   
@@ -49,52 +55,77 @@ export const googleAuth = async (req, res) => {
  */
 export const signup = async (req, res) => {
   try {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, role } = req.body;
+    const trimmedName = String(name ?? "").trim();
+    const trimmedPassword = String(password ?? "").trim();
 
-    if (!name || !phone || !password) {
+    if (!trimmedName || !phone || !trimmedPassword) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // Check if user exists
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [{ email }, { phone }],
-      },
-    });
-
-    if (existingUser) {
-      return res.status(409).json({ message: "User already exists" });
+    if (trimmedPassword.length < 4) {
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 4 characters long" });
     }
 
+    // Validate format & ensure neither email nor phone already belongs to any account
+    const { cleanEmail, cleanPhone } = await assertUniqueEmailAndPhone({
+      email,
+      phone,
+    });
+
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
+    const resolvedRole = ["USER", "HELPER", "SELLER"].includes(role)
+      ? role
+      : "USER";
 
     // Create user
     const user = await prisma.user.create({
       data: {
-        name,
-        email,
-        phone,
+        name: trimmedName,
+        email: cleanEmail,
+        phone: cleanPhone,
         password: hashedPassword,
-        role: "USER",
+        role: resolvedRole,
       },
     });
+
+    if (user.role === "HELPER") {
+      try {
+        await indexHelper(user);
+      } catch (e) {
+        console.warn("Index helper on signup failed:", e.message);
+      }
+    }
 
     // Issue JWT
     const token = signUserToken(user);
 
     res.status(201).json({
+      success: true,
       message: "Signup successful",
       token,
       user: {
         id: user.id,
         name: user.name,
+        email: user.email,
+        phone: user.phone,
         role: user.role,
       },
     });
   } catch (error) {
-    console.log("signup eror", error);
-    
+    const duplicate = parseDuplicateError(error);
+    if (duplicate.isDuplicate) {
+      return res
+        .status(duplicate.statusCode)
+        .json({ success: false, message: duplicate.message });
+    }
+    if (error?.statusCode === 400) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    console.error("signup error", error);
     res.status(500).json({ message: "Signup failed" });
   }
 };
@@ -166,23 +197,52 @@ export const login = async (req, res) => {
 export const becomeHelper = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { city, skills, experience } = req.body;
+    const { city, skills, experience, email, phone } = req.body;
+
+    const updateData = {
+      role: "HELPER",
+      ...(city !== undefined ? { city } : {}),
+      ...(skills !== undefined
+        ? { skills: Array.isArray(skills) ? skills.join(", ") : skills }
+        : {}),
+      ...(experience !== undefined ? { experience: Number(experience) || 0 } : {}),
+    };
+
+    if (email !== undefined || phone !== undefined) {
+      const { cleanEmail, cleanPhone } = await assertUniqueEmailAndPhone({
+        email,
+        phone,
+        excludeUserId: userId,
+      });
+      if (cleanEmail) updateData.email = cleanEmail;
+      if (cleanPhone) updateData.phone = cleanPhone;
+    }
 
     const helper = await prisma.user.update({
       where: { id: userId },
-      data: {
-        role: "HELPER",
-        city,
-        skills,
-        experience,
-      },
+      data: updateData,
     });
+
+    try {
+      await indexHelper(helper);
+    } catch (e) {
+      console.warn("Index helper failed:", e.message);
+    }
 
     res.json({
       message: "You are now a helper",
       helper,
     });
   } catch (error) {
+    const duplicate = parseDuplicateError(error);
+    if (duplicate.isDuplicate) {
+      return res
+        .status(duplicate.statusCode)
+        .json({ success: false, message: duplicate.message });
+    }
+    if (error?.statusCode === 400) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     res.status(500).json({ message: "Failed to create helper" });
   }
 };
@@ -192,17 +252,39 @@ export const becomeHelper = async (req, res) => {
  */
 export const registerHelperPublic = async (req, res) => {
   try {
-    const { firstName, lastName, name, phone, password, city, services, skills, hourlyRate, idDocumentUrl } = req.body;
+    const {
+      firstName,
+      lastName,
+      name,
+      phone,
+      email,
+      password,
+      city,
+      services,
+      skills,
+      hourlyRate,
+      idDocumentUrl,
+    } = req.body;
 
-    const rawPhone = String(phone || "").trim();
-    const cleanPhone = rawPhone.replace(/\D/g, "").slice(-10);
-
-    if (!cleanPhone || cleanPhone.length !== 10) {
-      return res.status(400).json({ message: "A valid 10-digit mobile number is required" });
+    const { isValid: isValidPhone } = normalizePhone(phone);
+    if (!isValidPhone) {
+      return res
+        .status(400)
+        .json({ message: "A valid 10-digit mobile number is required" });
     }
 
-    const enteredName = (name || `${firstName || ''} ${lastName || ''}`).trim() || "Helper Partner";
-    const skillsString = skills || (Array.isArray(services) ? services.join(", ") : (services || ""));
+    // Do NOT allow registering a helper with an existing mobile number or email address
+    const { cleanEmail, cleanPhone } = await assertUniqueEmailAndPhone({
+      email,
+      phone,
+    });
+
+    const enteredName =
+      (name || `${firstName || ""} ${lastName || ""}`).trim() ||
+      "Helper Partner";
+    const skillsString =
+      skills ||
+      (Array.isArray(services) ? services.join(", ") : services || "");
     const helperCity = city || "Modipuram, Meerut";
 
     let hashedPassword = null;
@@ -210,54 +292,30 @@ export const registerHelperPublic = async (req, res) => {
       hashedPassword = await bcrypt.hash(String(password).trim(), 10);
     }
 
-    let user = await prisma.user.findFirst({
-      where: { phone: cleanPhone },
-    });
+    const resolvedEmail =
+      cleanEmail || (await resolveFallbackEmail(cleanPhone));
 
-    if (user) {
-      const updateData = {
-        role: "HELPER",
-        name: enteredName || user.name,
-        city: city || user.city,
-        skills: skillsString || user.skills,
-      };
-      if (hashedPassword) {
-        updateData.password = hashedPassword;
-      }
-      if (hourlyRate) {
-        updateData.hourlyRate = Number(hourlyRate) * 100;
-      }
-      if (idDocumentUrl) {
-        updateData.idDocumentUrl = idDocumentUrl;
-        updateData.idVerificationStatus = "PENDING";
-      }
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: updateData,
-      });
-    } else {
-      const email = `${cleanPhone}@hirebuddy.local`;
-      const createData = {
-        name: enteredName,
-        phone: cleanPhone,
-        email,
-        city: helperCity,
-        role: "HELPER",
-        skills: skillsString,
-        idDocumentUrl: idDocumentUrl || null,
-        idVerificationStatus: idDocumentUrl ? "PENDING" : "UNVERIFIED",
-        isAvailable: true,
-      };
-      if (hashedPassword) {
-        createData.password = hashedPassword;
-      }
-      if (hourlyRate) {
-        createData.hourlyRate = Number(hourlyRate) * 100;
-      }
-      user = await prisma.user.create({
-        data: createData,
-      });
+    const createData = {
+      name: enteredName,
+      phone: cleanPhone,
+      email: resolvedEmail,
+      city: helperCity,
+      role: "HELPER",
+      skills: skillsString,
+      idDocumentUrl: idDocumentUrl || null,
+      idVerificationStatus: idDocumentUrl ? "PENDING" : "UNVERIFIED",
+      isAvailable: true,
+    };
+    if (hashedPassword) {
+      createData.password = hashedPassword;
     }
+    if (hourlyRate) {
+      createData.hourlyRate = Number(hourlyRate) * 100;
+    }
+
+    const user = await prisma.user.create({
+      data: createData,
+    });
 
     try {
       await indexHelper(user);
@@ -274,8 +332,19 @@ export const registerHelperPublic = async (req, res) => {
       user,
     });
   } catch (error) {
+    const duplicate = parseDuplicateError(error);
+    if (duplicate.isDuplicate) {
+      return res
+        .status(duplicate.statusCode)
+        .json({ success: false, message: duplicate.message });
+    }
+    if (error?.statusCode === 400) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     console.error("registerHelperPublic error:", error);
-    return res.status(500).json({ message: "Failed to register helper: " + error.message });
+    return res
+      .status(500)
+      .json({ message: "Failed to register helper: " + error.message });
   }
 };
 

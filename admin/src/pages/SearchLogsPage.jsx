@@ -16,6 +16,7 @@ import { adminApi } from '../services/api';
 import Badge from '../components/common/Badge';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import EmptyState from '../components/common/EmptyState';
+import { swalAlert, swalConfirm } from '../utils/swal';
 
 export default function SearchLogsPage() {
   const [logs, setLogs] = useState([]);
@@ -71,17 +72,25 @@ export default function SearchLogsPage() {
       setLogs((prev) => prev.filter((item) => item.id !== id));
       setTotal((prev) => Math.max(0, prev - 1));
     } catch (err) {
-      alert(err.message || 'Failed to delete search log');
+      await swalAlert(err.message || 'Failed to delete search log', 'error');
     }
   };
 
   const handleClearAll = async () => {
-    if (!window.confirm('Are you sure you want to clear all recorded user search logs?')) return;
+    const confirmed = await swalConfirm({
+      title: 'Clear All Search Logs?',
+      text: 'Are you sure you want to permanently clear all recorded user search logs?',
+      icon: 'warning',
+      confirmButtonText: 'Yes, Clear All',
+      danger: true,
+    });
+    if (!confirmed) return;
     try {
       await adminApi.clearSearchLogs();
       fetchLogs(true, '', 'ALL');
+      await swalAlert('All recorded search logs have been cleared.', 'success');
     } catch (err) {
-      alert(err.message || 'Failed to clear search logs');
+      await swalAlert(err.message || 'Failed to clear search logs', 'error');
     }
   };
 

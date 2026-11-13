@@ -15,6 +15,8 @@ import {
     deleteUserService,
     createHelperService,
   } from "../services/user.service.js";
+import { parseDuplicateError } from "../utils/userValidation.js";
+import { emitToUser, disconnectUserSockets } from "../config/socket.config.js";
   
   export const setRole = async (req, res) => {
     const user = await setRoleService(req.user.id, req.body.role);
@@ -30,8 +32,15 @@ import {
         user,
       });
     } catch (error) {
+      const duplicate = parseDuplicateError(error);
+      if (duplicate.isDuplicate) {
+        return res.status(duplicate.statusCode).json({
+          success: false,
+          message: duplicate.message,
+        });
+      }
       console.error("Update profile error:", error);
-      res.status(400).json({
+      res.status(error.statusCode || 400).json({
         success: false,
         message: error.message || "Failed to update profile",
       });
@@ -39,8 +48,23 @@ import {
   };
   
   export const updateHelperProfile = async (req, res) => {
-    const user = await updateHelperProfileService(req.user.id, req.body);
-    res.json(user);
+    try {
+      const user = await updateHelperProfileService(req.user.id, req.body);
+      res.json(user);
+    } catch (error) {
+      const duplicate = parseDuplicateError(error);
+      if (duplicate.isDuplicate) {
+        return res.status(duplicate.statusCode).json({
+          success: false,
+          message: duplicate.message,
+        });
+      }
+      console.error("Update helper profile error:", error);
+      res.status(error.statusCode || 400).json({
+        success: false,
+        message: error.message || "Failed to update helper profile",
+      });
+    }
   };
   export const getHelperById = async (req, res) => {
     const helper = await getHelper(req.params.id);
@@ -229,6 +253,15 @@ import {
         Boolean(isBlocked),
         reason || blockedReason || null
       );
+      if (user.isBlocked) {
+        emitToUser(id, "account_revoked", {
+          code: "ACCOUNT_BLOCKED",
+          message: user.blockedReason
+            ? `Account blocked by administrator: ${user.blockedReason}`
+            : "Your account has been blocked by the administrator.",
+        });
+        setTimeout(() => disconnectUserSockets(id), 250);
+      }
       res.json({
         success: true,
         message: user.isBlocked ? "User profile blocked successfully" : "User profile unblocked successfully",
@@ -243,7 +276,12 @@ import {
   export const deleteUser = async (req, res) => {
     try {
       const { id } = req.params;
+      emitToUser(id, "account_revoked", {
+        code: "ACCOUNT_DELETED",
+        message: "Your account has been deleted by the administrator.",
+      });
       await deleteUserService(id);
+      setTimeout(() => disconnectUserSockets(id), 250);
       res.json({ success: true, message: 'User deleted successfully' });
     } catch (error) {
       console.error('Delete user error', error);
@@ -273,8 +311,16 @@ import {
         helper,
       });
     } catch (error) {
+      const duplicate = parseDuplicateError(error);
+      if (duplicate.isDuplicate) {
+        return res
+          .status(duplicate.statusCode)
+          .json({ success: false, message: duplicate.message });
+      }
       console.error("Create helper by admin error:", error);
-      res.status(400).json({ success: false, message: error.message || "Failed to create helper" });
+      res
+        .status(error.statusCode || 400)
+        .json({ success: false, message: error.message || "Failed to create helper" });
     }
   };
 

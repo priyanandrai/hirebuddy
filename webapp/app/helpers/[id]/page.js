@@ -7,6 +7,7 @@ import Header from "../../components/layout/Header";
 import Footer from "../../components/layout/Footer";
 import { getHelperByID } from "../../components/services/user.service";
 import { HelperProfilePageShimmer } from "../../components/ui/Shimmer";
+import { swalAlert } from "../../components/lib/swal";
 
 // Default preset for Priya Sharma (matching helper_view.png 100%)
 const PRIYA_SHARMA_PRESET = {
@@ -296,7 +297,7 @@ export default function PublicHelperProfilePage() {
             experience: `${data.experience || 5}+ years`,
             languages: data.languages || "Hindi, English",
             memberSince: memberDate,
-            image: data.image || "/images/priya_sharma.png",
+            image: data.image || "/images/default_avatar.svg",
             quote:
               data.quote ||
               PRIYA_SHARMA_PRESET.quote,
@@ -489,7 +490,7 @@ export default function PublicHelperProfilePage() {
                 {/* 1. Left: Profile Photo Card */}
                 <div className="relative shrink-0 w-full sm:w-60 h-72 sm:h-80 rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-sm mx-auto sm:mx-0">
                   <img
-                    src={helper.image || "/images/priya_sharma.png"}
+                    src={helper.image || "/images/default_avatar.svg"}
                     alt={helper.name}
                     className="w-full h-full object-cover object-top"
                   />
@@ -1191,7 +1192,7 @@ export default function PublicHelperProfilePage() {
               <button
                 onClick={() => {
                   if (!messageText.trim()) {
-                    alert("Please type a message first.");
+                    swalAlert("Please type a message first.", "warning");
                     return;
                   }
                   setMessageModalOpen(false);

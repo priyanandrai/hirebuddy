@@ -74,6 +74,10 @@ export default function MarketplaceProductDetailPage({ params }) {
   }, []);
 
   useEffect(() => {
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    if (!token && !session?.user) return;
+
     if (session?.user) applyProfileToShipping(session.user);
     try {
       const stored = JSON.parse(localStorage.getItem("user") || "{}");

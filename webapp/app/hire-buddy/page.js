@@ -7,6 +7,7 @@ import Footer from "../components/layout/Footer";
 import { hireBuddy } from "../components/services/hire.service";
 import { getTaskCategories } from "../components/services/task.service";
 import { getUserProfile } from "../components/services/user.service";
+import { swalAlert } from "../components/lib/swal";
 
 const SERVICE_LOCATIONS = [
   "Modipuram, Meerut",
@@ -137,7 +138,7 @@ export default function HireBuddyPage() {
   function handleChange(e) {
     const { name, value } = e.target;
     if (name === "preferredAt" && value && value < minDate) {
-      alert("Previous dates are disabled. Please select today or a future date.");
+      swalAlert("Previous dates are disabled. Please select today or a future date.", "warning");
       setForm({ ...form, preferredAt: minDate });
       return;
     }
@@ -147,14 +148,17 @@ export default function HireBuddyPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     if (form.preferredAt && form.preferredAt < minDate) {
-      alert("Previous dates are disabled. Please select today or a future date.");
+      await swalAlert("Previous dates are disabled. Please select today or a future date.", "warning");
       return;
     }
     setLoading(true);
     try {
       const payload = { ...form };
       await hireBuddy(payload);
-      alert("Your request has been submitted. Helpers will be notified.");
+      await swalAlert("Your request has been submitted. Helpers will be notified.", {
+        title: "Request Submitted!",
+        icon: "success",
+      });
       setForm({
         title: "",
         description: "",
@@ -165,7 +169,7 @@ export default function HireBuddyPage() {
       });
     } catch (err) {
       console.error("HireBuddy request failed", err);
-      alert("Failed to submit request");
+      await swalAlert(err?.message || "Failed to submit request", "error");
     } finally {
       setLoading(false);
     }

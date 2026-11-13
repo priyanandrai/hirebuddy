@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getPendingIdSubmissions, verifyUserId } from "@/app/components/services/user.service";
 import { NotificationRowShimmer } from "@/app/components/ui/Shimmer";
+import { swalAlert, swalPrompt } from "@/app/components/lib/swal";
 
 export default function VerifyIdsAdminPage() {
   const [adminToken, setAdminToken] = useState("hirebuddy_admin_secret_2026");
@@ -16,7 +17,7 @@ export default function VerifyIdsAdminPage() {
       setPending(res.data || []);
     } catch (err) {
       console.error(err);
-      alert('Failed to load pending submissions. Check admin token and auth.');
+      await swalAlert("Failed to load pending submissions. Check admin token and auth.", "error");
     } finally {
       setLoading(false);
     }
@@ -27,14 +28,25 @@ export default function VerifyIdsAdminPage() {
   }, [adminToken]);
 
   async function handleAction(id, status) {
-    const notes = status === 'REJECTED' ? prompt('Reason for rejection (optional)') : 'Verified by admin';
+    let notes = "Verified by admin";
+    if (status === "REJECTED") {
+      const input = await swalPrompt({
+        title: "Reject ID Submission?",
+        text: "Reason for rejection (optional):",
+        inputPlaceholder: "Document is blurry, expired, or invalid",
+        confirmButtonText: "Reject ID",
+        icon: "warning",
+      });
+      if (input === null) return;
+      notes = input || "Rejected by admin";
+    }
     try {
       await verifyUserId(id, { status, notes, adminToken });
-      alert(`User ${status.toLowerCase()}`);
+      await swalAlert(`User ${status.toLowerCase()}!`, status === "VERIFIED" ? "success" : "warning");
       loadPending();
     } catch (err) {
       console.error(err);
-      alert('Action failed');
+      await swalAlert(err?.message || "Action failed", "error");
     }
   }
 

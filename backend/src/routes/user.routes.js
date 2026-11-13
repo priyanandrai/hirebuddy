@@ -29,6 +29,7 @@ router.post("/set-role", authMiddleware, setRole);
 router.post("/helper-profile", authMiddleware, updateHelperProfile);
 router.post("/helper/create", authMiddleware, createHelperByAdmin);
 router.post("/helpers", authMiddleware, createHelperByAdmin);
+router.post("/create", authMiddleware, createHelperByAdmin);
 router.post("/id/submit", authMiddleware, submitIdDocument);
 router.get("/helper/:id", getHelperById); //
 router.get("/helpers", authMiddleware, getHelpersList);

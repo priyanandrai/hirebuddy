@@ -191,6 +191,10 @@ export default function OtpLoginPage() {
       if (data?.token) {
         localStorage.setItem("token", data.token);
       }
+      if (data?.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+      window.dispatchEvent(new Event("userProfileUpdated"));
       redirectByRole(data.user?.role);
     } catch (err) {
       setError(err.message || "Invalid credentials. Please try again.");

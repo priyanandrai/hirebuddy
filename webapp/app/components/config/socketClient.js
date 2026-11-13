@@ -1,6 +1,7 @@
 // webapp/app/components/config/socketClient.js
 import io from "socket.io-client";
 import { getAuthToken } from "../lib/getSessionToken";
+import { handleRevokedSession } from "../lib/sessionRevocation";
 
 let socket = null;
 let initPromise = null;
@@ -44,6 +45,30 @@ const bindGlobalBridgeEvents = (sock) => {
     window.dispatchEvent(
       new CustomEvent("hirebuddy:payment-notification", { detail: payload })
     );
+  });
+
+  sock.on("account_revoked", (payload) => {
+    handleRevokedSession({
+      code: payload?.code || "ACCOUNT_DELETED",
+      message:
+        payload?.message ||
+        "Your account has been removed or disabled by the administrator.",
+    });
+  });
+
+  sock.on("connect_error", (err) => {
+    if (
+      err?.message === "ACCOUNT_DELETED" ||
+      err?.message === "ACCOUNT_BLOCKED"
+    ) {
+      handleRevokedSession({
+        code: err.message,
+        message:
+          err.message === "ACCOUNT_BLOCKED"
+            ? "Your account has been blocked by the administrator."
+            : "Your account has been deleted or no longer exists.",
+      });
+    }
   });
 };
 

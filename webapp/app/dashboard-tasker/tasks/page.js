@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { acceptTask, getOpenTasks } from "@/app/components/services/task.service";
 import { getUserProfile } from "@/app/components/services/user.service";
 import HelperDocumentVerificationModal from "@/app/components/ui/HelperDocumentVerificationModal";
 import { TaskerMyTaskRowShimmer } from "@/app/components/ui/Shimmer";
+import { swalAlert } from "@/app/components/lib/swal";
 import {
   Lock,
   Clock,
@@ -44,6 +46,7 @@ const SAMPLE_PREVIEW_TASKS = [
 ];
 
 export default function HelperTasksPage() {
+  const router = useRouter();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userLoading, setUserLoading] = useState(true);
@@ -111,9 +114,15 @@ export default function HelperTasksPage() {
         } catch (e) {}
 
         if (res.user.idVerificationStatus === "VERIFIED") {
-          alert("🎉 Congratulations! Your account has been verified! Available tasks are now unlocked.");
+          await swalAlert("Congratulations! Your account has been verified! Available tasks are now unlocked.", {
+            title: "Account Verified!",
+            icon: "success",
+          });
         } else {
-          alert(`Current status: ${res.user.idVerificationStatus}. Please wait while admin reviews your documents.`);
+          await swalAlert(`Current status: ${res.user.idVerificationStatus}. Please wait while admin reviews your documents.`, {
+            title: "Verification Status",
+            icon: "info",
+          });
         }
       }
     } catch (err) {
@@ -130,13 +139,21 @@ export default function HelperTasksPage() {
 
   async function handleAcceptTask(taskId) {
     if (!isVerified) {
-      alert("You must be a verified helper to accept tasks. Please complete your document verification.");
+      await swalAlert(
+        "Your account is not verified yet. Please complete document verification and wait for admin approval to accept tasks.",
+        {
+          title: "Verification Required",
+          icon: "warning",
+          confirmButtonText: "Go to Verification Page",
+        }
+      );
+      router.push("/dashboard-tasker/verification");
       return;
     }
 
     const token = localStorage.getItem("token");
     if (!token) {
-      alert("Please login to accept a task");
+      await swalAlert("Please login to accept a task", "warning");
       return;
     }
 
@@ -144,9 +161,22 @@ export default function HelperTasksPage() {
     try {
       await acceptTask(taskId, token);
       setTasks((prev) => prev.filter((task) => task.id !== taskId));
-      alert("Task accepted successfully!");
+      await swalAlert("Task accepted successfully!", "success");
     } catch (error) {
-      alert(error.message || "Unable to accept task");
+      const errMsg = error?.message || "Unable to accept task";
+      if (
+        errMsg.toLowerCase().includes("not verified") ||
+        errMsg.toLowerCase().includes("verification")
+      ) {
+        await swalAlert(errMsg, {
+          title: "Verification Required",
+          icon: "warning",
+          confirmButtonText: "Go to Verification Page",
+        });
+        router.push("/dashboard-tasker/verification");
+      } else {
+        await swalAlert(errMsg, "error");
+      }
     } finally {
       setAcceptingId(null);
     }

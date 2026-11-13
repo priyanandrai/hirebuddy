@@ -4,6 +4,7 @@ import { getTaskById, updateTaskStatus, acceptTask, declineTask } from "@/app/co
 import { releaseEscrowPayment } from "@/app/components/services/payment.service";
 import { getTaskMessages, sendMessage as sendTaskMessageApi } from "@/app/components/services/message.service";
 import { TaskDetailShimmer } from "@/app/components/ui/Shimmer";
+import { swalAlert, swalPrompt } from "@/app/components/lib/swal";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -135,7 +136,7 @@ export default function TaskerTaskDetailPage() {
       }
       setReplyText("");
     } catch (err) {
-      alert(err.message || "Failed to send message");
+      await swalAlert(err.message || "Failed to send message", "error");
     } finally {
       setSendingReply(false);
     }
@@ -144,7 +145,7 @@ export default function TaskerTaskDetailPage() {
   async function handleAcceptRequest() {
     const token = localStorage.getItem("token");
     if (!token) {
-      alert("Please login to accept this booking request");
+      await swalAlert("Please login to accept this booking request", "warning");
       return;
     }
 
@@ -152,16 +153,36 @@ export default function TaskerTaskDetailPage() {
     try {
       await acceptTask(id, token);
       setTask((prev) => ({ ...prev, status: "ASSIGNED" }));
-      alert("Booking request accepted! Task is confirmed and ready to start.");
+      await swalAlert("Booking request accepted! Task is confirmed and ready to start.", "success");
     } catch (error) {
-      alert(error.message || "Failed to accept booking request");
+      const errMsg = error?.message || "Failed to accept booking request";
+      if (
+        errMsg.toLowerCase().includes("not verified") ||
+        errMsg.toLowerCase().includes("verification")
+      ) {
+        await swalAlert(errMsg, {
+          title: "Verification Required",
+          icon: "warning",
+          confirmButtonText: "Go to Verification Page",
+        });
+        router.push("/dashboard-tasker/verification");
+      } else {
+        await swalAlert(errMsg, "error");
+      }
     } finally {
       setActionLoading(false);
     }
   }
 
   async function handleDeclineRequest() {
-    const reason = window.prompt("Reason for declining this request (optional):", "Schedule conflict / Unavailable");
+    const reason = await swalPrompt({
+      title: "Decline Booking Request?",
+      text: "Reason for declining this request (optional):",
+      inputPlaceholder: "Schedule conflict / Unavailable",
+      inputValue: "Schedule conflict / Unavailable",
+      confirmButtonText: "Decline Request",
+      icon: "warning",
+    });
     if (reason === null) return;
 
     const token = localStorage.getItem("token");
@@ -170,10 +191,10 @@ export default function TaskerTaskDetailPage() {
     setActionLoading(true);
     try {
       await declineTask(id, reason || "Helper unavailable", token);
-      alert("Booking request declined.");
+      await swalAlert("Booking request declined.", "info");
       router.push("/dashboard-tasker/my-tasks");
     } catch (error) {
-      alert(error.message || "Failed to decline booking request");
+      await swalAlert(error.message || "Failed to decline booking request", "error");
     } finally {
       setActionLoading(false);
     }
@@ -182,14 +203,14 @@ export default function TaskerTaskDetailPage() {
   async function markTaskCompleted() {
     const token = localStorage.getItem("token");
     if (!token) {
-      alert("Please login to update task status");
+      await swalAlert("Please login to update task status", "warning");
       return;
     }
 
     const expectedOtp = task?.completionOtp || "";
     const otpToSubmit = completionOtpInput.trim() || expectedOtp;
     if (otpToSubmit.length !== 4) {
-      alert("Please enter the 4-digit Completion OTP shared by the customer.");
+      await swalAlert("Please enter the 4-digit Completion OTP shared by the customer.", "warning");
       return;
     }
 
@@ -197,10 +218,10 @@ export default function TaskerTaskDetailPage() {
     try {
       await updateTaskStatus(id, "COMPLETED", { otp: otpToSubmit, token });
       setTask((prev) => ({ ...prev, status: "COMPLETED" }));
-      alert("4-Digit OTP Verified! Task marked as completed.");
+      await swalAlert("4-Digit OTP Verified! Task marked as completed.", "success");
       router.push("/dashboard-tasker/my-tasks");
     } catch (error) {
-      alert(error.message || "Invalid 4-digit OTP or unable to update task status");
+      await swalAlert(error.message || "Invalid 4-digit OTP or unable to update task status", "error");
     } finally {
       setActionLoading(false);
     }
@@ -214,9 +235,9 @@ export default function TaskerTaskDetailPage() {
     try {
       await updateTaskStatus(id, "IN_PROGRESS", token);
       setTask((prev) => ({ ...prev, status: "IN_PROGRESS" }));
-      alert("Task started successfully");
+      await swalAlert("Task started successfully!", "success");
     } catch (error) {
-      alert(error.message || "Unable to start task");
+      await swalAlert(error.message || "Unable to start task", "error");
     } finally {
       setActionLoading(false);
     }
@@ -479,7 +500,7 @@ export default function TaskerTaskDetailPage() {
                             if ((pickupOtpInput || task.pickupOtp) === task.pickupOtp) {
                               setPickupOtpVerified(true);
                             } else {
-                              alert("Invalid Store Pickup OTP");
+                              swalAlert("Invalid Store Pickup OTP", "error");
                             }
                           }}
                           className="rounded-xl bg-amber-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-400"

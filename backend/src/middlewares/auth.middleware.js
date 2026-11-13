@@ -44,7 +44,11 @@ export const authMiddleware = async (req, res, next) => {
     });
 
     if (!user) {
-      return res.status(401).json({ message: "User not found" });
+      return res.status(401).json({
+        message: "Your account has been deleted or no longer exists.",
+        code: "ACCOUNT_DELETED",
+        isDeleted: true,
+      });
     }
 
     if (user.isBlocked) {
@@ -52,6 +56,7 @@ export const authMiddleware = async (req, res, next) => {
         message: user.blockedReason
           ? `Account blocked by administrator: ${user.blockedReason}`
           : "Your account has been blocked by the administrator.",
+        code: "ACCOUNT_BLOCKED",
         isBlocked: true,
       });
     }

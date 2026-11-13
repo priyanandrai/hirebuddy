@@ -8,6 +8,7 @@ import Header from "../components/layout/Header";
 import { getUserProfile } from "../components/services/user.service";
 import { getTaskCategories, createTaskCategory } from "../components/services/task.service";
 import CustomSelect from "../components/reuseable/CustomSelect";
+import { swalAlert } from "../components/lib/swal";
 
 const SERVICE_LOCATIONS = [
   "Modipuram, Meerut",
@@ -145,7 +146,7 @@ export default function PostTaskPage() {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (preferredDate && preferredDate < minDate) {
-      alert("Previous dates are disabled. Please select today or a future date.");
+      swalAlert("Previous dates are disabled. Please select today or a future date.", "warning");
       setPreferredDate(minDate);
       return;
     }

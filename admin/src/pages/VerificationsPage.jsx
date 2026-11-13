@@ -19,6 +19,7 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 import EmptyState from '../components/common/EmptyState';
 import Badge from '../components/common/Badge';
 import Modal from '../components/common/Modal';
+import { swalAlert, swalConfirm } from '../utils/swal';
 
 export default function VerificationsPage() {
   const { adminToken } = useAuth();
@@ -52,7 +53,13 @@ export default function VerificationsPage() {
   }, [adminToken, refreshTrigger]);
 
   const handleVerify = async (userId) => {
-    if (!window.confirm('Approve and verify this helper ID?')) return;
+    const confirmed = await swalConfirm({
+      title: 'Approve & Verify ID?',
+      text: 'This helper will receive the official Verified Partner badge.',
+      icon: 'question',
+      confirmButtonText: 'Yes, Verify Helper',
+    });
+    if (!confirmed) return;
     setActionLoadingId(userId);
     try {
       await adminApi.verifyUserId(userId, {
@@ -60,11 +67,14 @@ export default function VerificationsPage() {
         notes: 'Verified by Admin Portal',
         adminToken: customToken || adminToken,
       });
-      alert('Helper verified successfully! Badges updated.');
       setSubmissions((prev) => prev.filter((s) => s.id !== userId));
       if (context?.onRefresh) context.onRefresh();
+      await swalAlert('Helper verified successfully! Badges updated.', {
+        title: 'Helper Verified',
+        icon: 'success',
+      });
     } catch (err) {
-      alert(err.message || 'Verification action failed');
+      await swalAlert(err.message || 'Verification action failed', 'error');
     } finally {
       setActionLoadingId(null);
     }
@@ -85,13 +95,16 @@ export default function VerificationsPage() {
         notes: rejectReason || 'Document rejected by Admin',
         adminToken: customToken || adminToken,
       });
-      alert('Submission rejected.');
       setSubmissions((prev) => prev.filter((s) => s.id !== rejectingUserId));
       setRejectModalOpen(false);
       setRejectingUserId(null);
       if (context?.onRefresh) context.onRefresh();
+      await swalAlert('ID submission has been rejected and the helper was notified.', {
+        title: 'Submission Rejected',
+        icon: 'warning',
+      });
     } catch (err) {
-      alert(err.message || 'Reject action failed');
+      await swalAlert(err.message || 'Reject action failed', 'error');
     } finally {
       setActionLoadingId(null);
     }

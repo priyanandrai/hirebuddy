@@ -1,14 +1,20 @@
 import prisma from "../utils/prisma.js";
 import { signUserToken } from "../utils/jwt.js";
+import {
+  normalizePhone,
+  normalizeEmail,
+  resolveFallbackEmail,
+  parseDuplicateError,
+} from "../utils/userValidation.js";
 
 const normalizeIdentifier = (raw) => {
   const trimmed = String(raw || "").trim();
   if (trimmed.includes("@")) {
-    return { type: "email", value: trimmed.toLowerCase() };
+    const { cleanEmail } = normalizeEmail(trimmed);
+    return { type: "email", value: cleanEmail || "", lookupVariants: [] };
   }
-  const digits = trimmed.replace(/\D/g, "");
-  const cleanPhone = digits.length >= 10 ? digits.slice(-10) : digits;
-  return { type: "phone", value: cleanPhone };
+  const { cleanPhone, lookupVariants } = normalizePhone(trimmed);
+  return { type: "phone", value: cleanPhone || "", lookupVariants };
 };
 
 export const sendOtpService = async (identifier) => {
@@ -36,7 +42,7 @@ export const sendOtpService = async (identifier) => {
 
 export const verifyOtpService = async (identifier, otp) => {
   try {
-    const { type, value } = normalizeIdentifier(identifier);
+    const { type, value, lookupVariants } = normalizeIdentifier(identifier);
     const enteredCode = String(otp || "").trim();
 
     const record = await prisma.otp.findFirst({
@@ -62,25 +68,39 @@ export const verifyOtpService = async (identifier, otp) => {
       where:
         type === "email"
           ? { email: value }
-          : { OR: [{ phone: value }, { phone: String(identifier || "").trim() }] },
+          : {
+              OR: (lookupVariants.length > 0 ? lookupVariants : [value]).map(
+                (p) => ({ phone: p })
+              ),
+            },
     });
 
     if (!user) {
-      user = await prisma.user.create({
-        data:
-          type === "email"
-            ? {
-                email: value,
-                name: value.split("@")[0],
-                role: "USER",
-              }
-            : {
-                phone: value,
-                email: `${value}@hirebuddy.local`,
-                name: `User ${value.slice(-4)}`,
-                role: "USER",
-              },
-      });
+      const fallbackEmail =
+        type === "phone" ? await resolveFallbackEmail(value) : null;
+      try {
+        user = await prisma.user.create({
+          data:
+            type === "email"
+              ? {
+                  email: value,
+                  name: value.split("@")[0],
+                  role: "USER",
+                }
+              : {
+                  phone: value,
+                  email: fallbackEmail,
+                  name: `User ${value.slice(-4)}`,
+                  role: "USER",
+                },
+        });
+      } catch (createErr) {
+        const duplicate = parseDuplicateError(createErr);
+        if (duplicate.isDuplicate) {
+          throw new Error(duplicate.message);
+        }
+        throw createErr;
+      }
     } else if (user.isBlocked) {
       throw new Error(
         user.blockedReason
@@ -112,38 +132,48 @@ export const verifyOtpService = async (identifier, otp) => {
 };
 
 export const googleAuthService = async ({ email, name, image }) => {
-  if (!email) {
-    throw new Error("Email is required");
+  const { cleanEmail, isValid } = normalizeEmail(email);
+  if (!cleanEmail || !isValid) {
+    throw new Error("A valid email is required");
   }
 
   try {
     let user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: cleanEmail },
     });
 
     if (!user) {
       user = await prisma.user.create({
         data: {
-          email,
+          email: cleanEmail,
           name,
           image,
           role: null, // role selection pending
         },
       });
     } else if (user.isBlocked) {
-      throw new Error(
+      const blockedErr = new Error(
         user.blockedReason
           ? `Account blocked by administrator: ${user.blockedReason}`
           : "Your account has been blocked by the administrator."
       );
+      blockedErr.isBlockedError = true;
+      throw blockedErr;
     }
 
     const token = signUserToken(user);
 
     return { token, user };
   } catch (err) {
-    console.error('googleAuthService error:', err);
-    throw new Error('Google authentication failed. Please try again later.');
+    if (err?.isBlockedError) {
+      throw err;
+    }
+    const duplicate = parseDuplicateError(err);
+    if (duplicate.isDuplicate) {
+      throw new Error(duplicate.message);
+    }
+    console.error("googleAuthService error:", err);
+    throw new Error("Google authentication failed. Please try again later.");
   }
 };
 

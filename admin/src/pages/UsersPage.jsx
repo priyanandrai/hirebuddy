@@ -23,6 +23,7 @@ import Badge from '../components/common/Badge';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import EmptyState from '../components/common/EmptyState';
 import Modal from '../components/common/Modal';
+import { swalAlert, swalConfirm, swalPrompt } from '../utils/swal';
 
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
@@ -49,9 +50,9 @@ export default function UsersPage() {
       if (selectedUser?.id === userId) {
         setSelectedUser((prev) => ({ ...prev, role: newRole }));
       }
-      alert(`User role updated to ${newRole === 'USER' ? 'CUSTOMER' : newRole}!`);
+      await swalAlert(`User role updated to ${newRole === 'USER' ? 'CUSTOMER' : newRole}!`, 'success');
     } catch (err) {
-      alert(err.message || 'Failed to update user role');
+      await swalAlert(err.message || 'Failed to update user role', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -61,14 +62,24 @@ export default function UsersPage() {
     const nextBlocked = !user.isBlocked;
     let reason = '';
     if (nextBlocked) {
-      const input = window.prompt(
-        `Enter reason for blocking ${user.name || 'this user'} (optional):`,
-        user.blockedReason || 'Policy violation / Admin action'
-      );
+      const input = await swalPrompt({
+        title: `Block ${user.name || 'User'}?`,
+        text: 'Enter reason for blocking this user (optional):',
+        inputPlaceholder: 'Policy violation / Admin action',
+        inputValue: user.blockedReason || 'Policy violation / Admin action',
+        confirmButtonText: 'Block Account',
+        icon: 'warning',
+      });
       if (input === null) return; // cancelled
       reason = input.trim() || 'Blocked by Administrator';
     } else {
-      if (!window.confirm(`Unblock ${user.name || 'this user'} and restore account access?`)) return;
+      const confirmed = await swalConfirm({
+        title: `Unblock ${user.name || 'User'}?`,
+        text: 'Restore account access so this user can sign in again?',
+        icon: 'question',
+        confirmButtonText: 'Yes, Unblock',
+      });
+      if (!confirmed) return;
     }
 
     setActionLoading(true);
@@ -92,23 +103,36 @@ export default function UsersPage() {
           blockedReason: updatedUser.blockedReason,
         }));
       }
+      await swalAlert(
+        nextBlocked
+          ? `${user.name || 'User'} has been blocked and logged out.`
+          : `${user.name || 'User'} has been unblocked.`,
+        'success'
+      );
     } catch (err) {
-      alert(err.message || 'Failed to update user block status');
+      await swalAlert(err.message || 'Failed to update user block status', 'error');
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to permanently delete this user account? This will cascade remove their profile, tasks, reviews, and notifications.')) return;
+    const confirmed = await swalConfirm({
+      title: 'Delete User Account?',
+      text: 'Are you sure you want to permanently delete this user account? This will cascade remove their profile, tasks, reviews, and notifications, and log them out immediately.',
+      icon: 'warning',
+      confirmButtonText: 'Yes, Delete Permanently',
+      danger: true,
+    });
+    if (!confirmed) return;
     setActionLoading(true);
     try {
       await adminApi.deleteUser(userId);
       setUsers((prev) => prev.filter((u) => u.id !== userId));
       setSelectedUser(null);
-      alert('User account deleted successfully');
+      await swalAlert('User account deleted successfully.', 'success');
     } catch (err) {
-      alert(err.message || 'Failed to delete user');
+      await swalAlert(err.message || 'Failed to delete user', 'error');
     } finally {
       setActionLoading(false);
     }

@@ -17,6 +17,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { adminApi } from '../services/api';
+import { swalAlert } from '../utils/swal';
 
 const PRESET_SERVICES = [
   {
@@ -176,7 +177,7 @@ export default function MarketplacePage() {
       );
       await loadAll();
     } catch (err) {
-      alert(err.message || 'Failed to update product');
+      await swalAlert(err.message || 'Failed to update product', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -200,7 +201,7 @@ export default function MarketplacePage() {
       );
       await loadAll();
     } catch (err) {
-      alert(err.message || 'Failed to verify seller');
+      await swalAlert(err.message || 'Failed to verify seller', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -217,7 +218,7 @@ export default function MarketplacePage() {
       );
       await loadAll();
     } catch (err) {
-      alert(err.message || 'Failed to run NEFT settlement batch');
+      await swalAlert(err.message || 'Failed to run NEFT settlement batch', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -233,7 +234,7 @@ export default function MarketplacePage() {
       setBannerMsg(`Updated support ticket "${ticket.subject}".`);
       await loadAll();
     } catch (err) {
-      alert(err.message || 'Failed to update support ticket');
+      await swalAlert(err.message || 'Failed to update support ticket', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -253,7 +254,7 @@ export default function MarketplacePage() {
       );
       await loadAll();
     } catch (err) {
-      alert(err.message || 'Failed to save promotional popup ad');
+      await swalAlert(err.message || 'Failed to save promotional popup ad', 'error');
     } finally {
       setActionLoading(null);
     }
