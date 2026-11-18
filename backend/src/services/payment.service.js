@@ -4,10 +4,18 @@ import prisma from '../utils/prisma.js';
 import { notificationEvents, sendNotification } from './notification.service.js';
 import { emitToUser } from '../config/socket.config.js';
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'your_razorpay_key_id',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'your_razorpay_key_secret',
-});
+const getRazorpayClient = () =>
+  new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID || 'your_razorpay_key_id',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || 'your_razorpay_key_secret',
+  });
+
+const isRealRazorpayOrderId = (orderId) =>
+  Boolean(
+    orderId &&
+      String(orderId).startsWith('order_') &&
+      !/^(order_mock_|order_sim_|order_mkt_|order_rzp_|order_escrow_)/.test(String(orderId))
+  );
 
 /**
  * Create a Razorpay order for task payment
@@ -35,10 +43,10 @@ export const createPaymentOrder = async (taskId, amount, payerId, payeeId = null
       const options = {
         amount: Math.round(amount), // in paise
         currency: 'INR',
-        receipt: `receipt_${taskId}_${Date.now()}`,
+        receipt: `rcpt_${String(taskId || 'hb').slice(0, 12)}_${Date.now()}`.slice(0, 40),
         payment_capture: 1,
       };
-      order = await razorpay.orders.create(options);
+      order = await getRazorpayClient().orders.create(options);
     } else {
       order = {
         id: `order_mock_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -61,6 +69,7 @@ export const createPaymentOrder = async (taskId, amount, payerId, payeeId = null
 
     return {
       success: true,
+      keyId: process.env.RAZORPAY_KEY_ID || null,
       orderId: order.id,
       paymentId: payment.id,
       amount: order.amount,
@@ -82,8 +91,12 @@ export const verifyPaymentSignature = (razorpayOrderId, razorpayPaymentId, razor
       process.env.RAZORPAY_KEY_SECRET !== 'your_razorpay_key_secret' &&
       !process.env.RAZORPAY_KEY_SECRET.includes('placeholder');
 
-    if (!isRealSecret || razorpayOrderId.startsWith('order_mock_')) {
+    if (!isRealSecret || !isRealRazorpayOrderId(razorpayOrderId)) {
       return true;
+    }
+
+    if (!razorpayPaymentId || !razorpaySignature) {
+      return false;
     }
 
     const body = razorpayOrderId + '|' + razorpayPaymentId;
@@ -92,7 +105,10 @@ export const verifyPaymentSignature = (razorpayOrderId, razorpayPaymentId, razor
       .update(body)
       .digest('hex');
 
-    return expectedSignature === razorpaySignature;
+    return crypto.timingSafeEqual(
+      Buffer.from(expectedSignature, 'utf8'),
+      Buffer.from(String(razorpaySignature), 'utf8')
+    );
   } catch (error) {
     console.error('Signature verification error:', error);
     return false;
@@ -569,10 +585,58 @@ export const activatePartnerSubscription = async (
   userId,
   planType = 'DAILY',
   paymentMethod = 'ONLINE',
-  razorpayPaymentId = null
+  razorpayInfo = null
 ) => {
   const normalizedPlan = String(planType || 'DAILY').toUpperCase();
   const plan = PARTNER_SUBSCRIPTION_PLANS[normalizedPlan] || PARTNER_SUBSCRIPTION_PLANS.DAILY;
+
+  const razorpayPaymentId =
+    typeof razorpayInfo === 'string'
+      ? razorpayInfo
+      : razorpayInfo?.razorpayPaymentId || razorpayInfo?.razorpay_payment_id || null;
+  const razorpayOrderId =
+    typeof razorpayInfo === 'object' && razorpayInfo
+      ? razorpayInfo.razorpayOrderId || razorpayInfo.razorpay_order_id || null
+      : null;
+  const razorpaySignature =
+    typeof razorpayInfo === 'object' && razorpayInfo
+      ? razorpayInfo.razorpaySignature || razorpayInfo.razorpay_signature || null
+      : null;
+
+  if (
+    paymentMethod === 'ONLINE' &&
+    (isRealRazorpayOrderId(razorpayOrderId) || razorpaySignature)
+  ) {
+    const isValid = verifyPaymentSignature(
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature
+    );
+    if (!isValid) {
+      throw new Error('Razorpay payment signature verification failed for Partner Pass');
+    }
+  }
+
+  if (razorpayPaymentId) {
+    const existingSub = await prisma.partnerSubscription.findFirst({
+      where: { razorpayPaymentId },
+    });
+    if (existingSub) {
+      const existingUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { walletBalance: true, subscriptionActiveUntil: true },
+      });
+      return {
+        success: true,
+        alreadyProcessed: true,
+        isActive: true,
+        plan,
+        subscription: existingSub,
+        subscriptionActiveUntil: existingUser?.subscriptionActiveUntil,
+        walletBalance: existingUser?.walletBalance || 0,
+      };
+    }
+  }
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -935,9 +999,17 @@ export const topupWallet = async (
     method = 'UPI',
     razorpayPaymentId = null,
     razorpayOrderId = null,
+    razorpaySignature = null,
+    razorpay_payment_id = null,
+    razorpay_order_id = null,
+    razorpay_signature = null,
     description = null,
   } = {}
 ) => {
+  const resolvedPaymentId = razorpayPaymentId || razorpay_payment_id || null;
+  const resolvedOrderId = razorpayOrderId || razorpay_order_id || null;
+  const resolvedSignature = razorpaySignature || razorpay_signature || null;
+
   const resolvedPaise = amountPaise
     ? Math.round(Number(amountPaise))
     : Math.round(Number(amountRupees || 0) * 100);
@@ -947,6 +1019,42 @@ export const topupWallet = async (
   }
   if (resolvedPaise > 10000000) {
     throw new Error('Maximum single top-up amount is ₹1,00,000');
+  }
+
+  if (isRealRazorpayOrderId(resolvedOrderId) || resolvedSignature) {
+    const isValid = verifyPaymentSignature(resolvedOrderId, resolvedPaymentId, resolvedSignature);
+    if (!isValid) {
+      throw new Error('Razorpay payment signature verification failed for wallet top-up');
+    }
+  }
+
+  // Idempotency guard: prevent duplicate wallet credit for the same Razorpay payment ID
+  if (resolvedPaymentId) {
+    const duplicateTx = await prisma.walletTransaction.findFirst({
+      where: {
+        userId,
+        type: 'TOPUP',
+        referenceId: resolvedPaymentId,
+      },
+    });
+    if (duplicateTx) {
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { walletBalance: true },
+      });
+      const bal = currentUser?.walletBalance || duplicateTx.balanceAfterPaise || 0;
+      return {
+        success: true,
+        alreadyProcessed: true,
+        message: 'Wallet top-up already credited!',
+        balancePaise: bal,
+        balanceRupees: Number((bal / 100).toFixed(2)),
+        transaction: {
+          ...duplicateTx,
+          amountRupees: Number((duplicateTx.amountPaise / 100).toFixed(2)),
+        },
+      };
+    }
   }
 
   const formattedRupees = (resolvedPaise / 100).toFixed(2);
@@ -973,7 +1081,7 @@ export const topupWallet = async (
         balanceAfterPaise: updatedUser.walletBalance,
         balanceAfter: updatedUser.walletBalance,
         method: method || 'UPI',
-        referenceId: razorpayPaymentId || razorpayOrderId || `topup_${Date.now()}`,
+        referenceId: resolvedPaymentId || resolvedOrderId || `topup_${Date.now()}`,
         description: description || `Added ₹${formattedRupees} to HireBuddy Wallet via ${method || 'UPI'}`,
         status: 'COMPLETED',
       },

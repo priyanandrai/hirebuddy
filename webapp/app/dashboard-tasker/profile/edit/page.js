@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getUserProfile, updateHelperProfile } from "@/app/components/services/user.service";
 import { getTaskCategories } from "@/app/components/services/task.service";
+import { uploadDocumentFile } from "@/app/components/services/upload.service";
 import HelperDocumentVerificationModal from "@/app/components/ui/HelperDocumentVerificationModal";
 import { swalAlert } from "@/app/components/lib/swal";
 import {
@@ -19,6 +20,10 @@ import {
   AlertCircle,
   Clock,
   Sparkles,
+  Camera,
+  Upload,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 
 const DEFAULT_AVAILABLE_SERVICES = [
@@ -196,10 +201,13 @@ export default function EditTaskerProfilePage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [availableServices, setAvailableServices] = useState(DEFAULT_AVAILABLE_SERVICES);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
 
   const [form, setForm] = useState({
     name: "",
     phone: "",
+    image: "",
     city: "",
     address: "",
     experience: "",
@@ -292,6 +300,7 @@ export default function EditTaskerProfilePage() {
     setForm({
       name: u.name || "",
       phone: u.phone ? u.phone.replace(/^\+91/, "").trim() : "",
+      image: u.image || "",
       city: u.city || "",
       address: u.address || "",
       experience: u.experience !== null && u.experience !== undefined ? String(u.experience) : "",
@@ -299,6 +308,37 @@ export default function EditTaskerProfilePage() {
       services: skills.length > 0 ? skills : ["Home Cleaning", "Delivery & Pickup"],
       serviceOfferings: existingOfferings,
     });
+  }
+
+  async function handleAvatarChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      await swalAlert("Please select a valid image file (JPG, PNG, or WEBP).", "warning");
+      return;
+    }
+
+    setUploadingAvatar(true);
+    setError("");
+    try {
+      const res = await uploadDocumentFile(file);
+      const uploadedUrl = res?.data?.url || res?.url || "";
+      if (!uploadedUrl) {
+        throw new Error("Could not get uploaded image URL");
+      }
+      setForm((prev) => ({ ...prev, image: uploadedUrl }));
+    } catch (err) {
+      console.error("Failed to upload profile photo", err);
+      await swalAlert(err?.message || "Failed to upload profile photo", "error");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  function handleRemoveAvatar() {
+    setForm((prev) => ({ ...prev, image: "" }));
   }
 
   function handleLoadPresetsForSelectedServices() {
@@ -418,6 +458,7 @@ export default function EditTaskerProfilePage() {
       const payload = {
         name: form.name.trim(),
         phone: cleanPhone || undefined,
+        image: form.image || null,
         city: form.city.trim() || undefined,
         address: form.address.trim() || undefined,
         skills: form.services,
@@ -434,6 +475,10 @@ export default function EditTaskerProfilePage() {
       const mergedUser = {
         ...prevUser,
         ...updatedUser,
+        image:
+          updatedUser?.image !== undefined
+            ? updatedUser.image
+            : form.image || null,
         skills: form.services.join(", "),
       };
       localStorage.setItem("user", JSON.stringify(mergedUser));
@@ -482,6 +527,92 @@ export default function EditTaskerProfilePage() {
           onSubmit={handleSubmit}
           className="rounded-[2.5rem] border border-slate-800 bg-slate-900/80 p-6 sm:p-8 shadow-2xl shadow-slate-950/40 backdrop-blur-xl space-y-6"
         >
+          {/* Profile Picture Upload */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+              Profile Picture
+            </label>
+
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleAvatarChange}
+              className="hidden"
+            />
+
+            <div className="mt-2.5 flex flex-col sm:flex-row sm:items-center gap-5 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+              <div className="relative h-20 w-20 shrink-0">
+                <img
+                  src={form.image || "/images/default_avatar.svg"}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = "/images/default_avatar.svg";
+                  }}
+                  alt={form.name || "Helper Profile"}
+                  className="h-20 w-20 rounded-2xl object-cover border-2 border-slate-700 bg-slate-200 shadow-md"
+                />
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                  title="Change profile photo"
+                  className="absolute -bottom-1.5 -right-1.5 flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg transition disabled:opacity-60"
+                >
+                  {uploadingAvatar ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Camera className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+
+              <div className="flex-1 space-y-2">
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    {form.image ? "Custom Profile Photo" : "Default Blank Avatar"}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Upload a clear JPG, PNG, or WEBP photo (max 10MB) so customers can recognize you.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition disabled:opacity-60"
+                  >
+                    {uploadingAvatar ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <span>Uploading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-3.5 w-3.5" />
+                        <span>{form.image ? "Change Photo" : "Upload Photo"}</span>
+                      </>
+                    )}
+                  </button>
+
+                  {form.image && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveAvatar}
+                      disabled={uploadingAvatar}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 px-3.5 py-2 text-xs font-semibold text-rose-400 transition disabled:opacity-60"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Remove Photo</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Full Name */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
@@ -661,7 +792,7 @@ export default function EditTaskerProfilePage() {
 
             {(!form.serviceOfferings || form.serviceOfferings.length === 0) ? (
               <div className="rounded-2xl border border-dashed border-slate-800 p-6 text-center text-xs text-slate-400">
-                No custom service packages added yet. Click <strong>"✨ Load Preset Options"</strong> to auto-populate multi-price options for your selected categories ({form.services.join(", ") || "Car Wash, Dry Cleaning, etc."}) or click <strong>"+ Add Custom Option"</strong>.
+                No custom service packages added yet. Click <strong>&ldquo;✨ Load Preset Options&rdquo;</strong> to auto-populate multi-price options for your selected categories ({form.services.join(", ") || "Car Wash, Dry Cleaning, etc."}) or click <strong>&ldquo;+ Add Custom Option&rdquo;</strong>.
               </div>
             ) : (
               <div className="space-y-3 max-h-96 overflow-y-auto pr-1">

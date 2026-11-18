@@ -44,28 +44,31 @@ export default function TaskDetailsPage() {
     setPaymentActionLoading(true);
     setPaymentMessage("");
     try {
+      const budgetRupees = Number(task.budget || 300);
       const orderRes = await createPaymentOrder({
         taskId: task.id,
-        amount: Number(task.budget || 300),
+        amountRupees: budgetRupees,
       });
       const orderId =
         orderRes?.order?.orderId ||
         orderRes?.data?.orderId ||
-        orderRes?.orderId ||
-        `order_escrow_${Date.now()}`;
+        orderRes?.orderId;
+      const chargedPaise = orderRes?.amount || Math.round(budgetRupees * 100);
 
       const checkoutRes = await openRazorpayCheckout({
-        amountInRupees: Number(task.budget || 300),
+        amountPaise: chargedPaise,
+        amountInRupees: chargedPaise / 100,
         orderId,
         keyId: orderRes?.keyId || orderRes?.data?.keyId,
         title: `Escrow: ${task.title}`,
-        description: `Hold ₹${task.budget} in HireBuddy Escrow`,
+        description: `Hold ₹${(chargedPaise / 100).toFixed(2)} in HireBuddy Escrow`,
       });
 
       await verifyPayment({
         orderId: checkoutRes.razorpayOrderId || orderId,
-        paymentId: checkoutRes.razorpayPaymentId || `pay_escrow_${Date.now()}`,
-        signature: checkoutRes.razorpaySignature || "sandbox_escrow_verified",
+        paymentId: checkoutRes.razorpayPaymentId,
+        signature: checkoutRes.razorpaySignature,
+        taskId: task.id,
         holdInEscrow: true,
       });
 

@@ -474,7 +474,7 @@ export const updateHelperProfileService = async (userId, rawData = {}) => {
 
   if (rawData.city !== undefined) data.city = rawData.city;
   if (rawData.address !== undefined) data.address = rawData.address;
-  if (rawData.image !== undefined) data.image = rawData.image;
+  if (rawData.image !== undefined) data.image = rawData.image || null;
   if (rawData.bio !== undefined) data.bio = rawData.bio;
   if (rawData.skills !== undefined) {
     data.skills = Array.isArray(rawData.skills) ? rawData.skills.join(", ") : rawData.skills;
@@ -596,6 +596,14 @@ export const getMyProfileService = async (userId) => {
       isBlocked: true,
       blockedReason: true,
       createdAt: true,
+      sellerProfile: {
+        select: {
+          id: true,
+          sellerType: true,
+          businessName: true,
+          verificationStatus: true,
+        },
+      },
     },
   });
   if (!user) return null;
@@ -609,6 +617,7 @@ export const getMyProfileService = async (userId) => {
 
   return {
     ...user,
+    sellerType: user.sellerProfile?.sellerType || null,
     serviceOfferings: normalizeServiceOfferings(user.serviceOfferings, user.skills, user.hourlyRate),
     tasksCompleted,
   };

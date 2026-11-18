@@ -39,6 +39,7 @@ export async function createMarketplacePaymentOrder({
       return {
         success: true,
         idempotentReplay: true,
+        keyId: process.env.RAZORPAY_KEY_ID || null,
         orderId: existingByIdempotency.razorpayOrderId,
         paymentId: existingByIdempotency.id,
         amount: existingByIdempotency.amount,
@@ -176,6 +177,7 @@ export async function createMarketplacePaymentOrder({
   return {
     success: true,
     idempotentReplay: false,
+    keyId: gatewayOrder.keyId || process.env.RAZORPAY_KEY_ID || null,
     orderId: gatewayOrder.orderId,
     paymentId: payment.id,
     amount: gatewayOrder.amountPaise,
@@ -554,11 +556,34 @@ export async function processRazorpayWebhook({
     let result = null;
 
     if (eventType === 'payment.captured' || eventType === 'order.paid') {
-      result = await finalizeCapturedMarketplacePayment({
-        razorpayOrderId: gatewayOrderId,
-        razorpayPaymentId: gatewayPaymentId,
-        verifySignature: false, // Already authenticated via webhook HMAC signature
-      });
+      const taskPayment = gatewayOrderId
+        ? await prisma.payment.findFirst({ where: { razorpayOrderId: gatewayOrderId } })
+        : null;
+
+      if (taskPayment) {
+        result = await finalizeCapturedMarketplacePayment({
+          razorpayOrderId: gatewayOrderId,
+          razorpayPaymentId: gatewayPaymentId,
+          verifySignature: false, // Already authenticated via webhook HMAC signature
+        });
+      } else if (gatewayOrderId) {
+        const updatedMktOrders = await prisma.marketplaceOrder.updateMany({
+          where: { razorpayOrderId: gatewayOrderId },
+          data: {
+            paymentStatus: 'PAID',
+            ...(gatewayPaymentId ? { razorpayPaymentId: gatewayPaymentId } : {}),
+          },
+        });
+        result = {
+          status:
+            updatedMktOrders.count > 0
+              ? 'MARKETPLACE_ORDER_CAPTURED'
+              : 'STANDALONE_PAYMENT_CAPTURED',
+          gatewayOrderId,
+          gatewayPaymentId,
+          updatedOrdersCount: updatedMktOrders.count,
+        };
+      }
     } else if (eventType === 'payment.failed') {
       if (gatewayOrderId) {
         const payment = await prisma.payment.findFirst({

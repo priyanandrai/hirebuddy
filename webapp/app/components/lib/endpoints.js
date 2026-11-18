@@ -71,9 +71,11 @@ export const PAYMENT_ENDPOINTS = {
 
 export const MARKETPLACE_ENDPOINTS = {
   GET_PRODUCTS: "/marketplace/products",
+  GET_SERVICES: "/marketplace/services",
   SELLER_ONBOARD: "/marketplace/seller/onboard",
   SELLER_DASHBOARD: "/marketplace/seller/dashboard",
   SELLER_PRODUCTS: "/marketplace/seller/products",
+  SELLER_SERVICES: "/marketplace/seller/services",
   PLACE_ORDER: "/marketplace/orders",
   MY_ORDERS: "/marketplace/orders/my",
   ORDER_STATUS: "/marketplace/orders",

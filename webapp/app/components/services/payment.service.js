@@ -1,33 +1,63 @@
 // webapp/app/components/services/payment.service.js
 import { apiClient } from "../lib/apiClient";
 import { PAYMENT_ENDPOINTS } from "../lib/endpoints";
+import { openRazorpayCheckout } from "../lib/razorpayCheckout";
 
-export const createPaymentOrder = (taskId, amount) => {
+export const createPaymentOrder = (taskOrPayload, amountRupees, purpose) => {
+  const body =
+    taskOrPayload && typeof taskOrPayload === "object" && !Array.isArray(taskOrPayload)
+      ? taskOrPayload
+      : {
+          ...(taskOrPayload ? { taskId: taskOrPayload } : {}),
+          amountRupees: Number(amountRupees || 0),
+          purpose: purpose || (taskOrPayload ? "TASK_ESCROW" : "MARKETPLACE_ORDER"),
+        };
+
   return apiClient(PAYMENT_ENDPOINTS.CREATE_ORDER, {
     method: "POST",
-    body: {
-      taskId,
-      amount, // in paise
-    },
+    body,
   });
 };
 
 export const verifyPayment = (
-  razorpayOrderId,
+  orderOrPayload,
   razorpayPaymentId,
   razorpaySignature,
   taskId,
   holdInEscrow = true
 ) => {
+  const body =
+    orderOrPayload && typeof orderOrPayload === "object" && !Array.isArray(orderOrPayload)
+      ? {
+          razorpay_order_id:
+            orderOrPayload.razorpay_order_id ||
+            orderOrPayload.razorpayOrderId ||
+            orderOrPayload.orderId,
+          razorpay_payment_id:
+            orderOrPayload.razorpay_payment_id ||
+            orderOrPayload.razorpayPaymentId ||
+            orderOrPayload.paymentId,
+          razorpay_signature:
+            orderOrPayload.razorpay_signature ||
+            orderOrPayload.razorpaySignature ||
+            orderOrPayload.signature,
+          task_id: orderOrPayload.task_id || orderOrPayload.taskId,
+          holdInEscrow:
+            orderOrPayload.holdInEscrow !== undefined
+              ? orderOrPayload.holdInEscrow
+              : true,
+        }
+      : {
+          razorpay_order_id: orderOrPayload,
+          razorpay_payment_id: razorpayPaymentId,
+          razorpay_signature: razorpaySignature,
+          task_id: taskId,
+          holdInEscrow,
+        };
+
   return apiClient(PAYMENT_ENDPOINTS.VERIFY_PAYMENT, {
     method: "POST",
-    body: {
-      razorpay_order_id: razorpayOrderId,
-      razorpay_payment_id: razorpayPaymentId,
-      razorpay_signature: razorpaySignature,
-      task_id: taskId,
-      holdInEscrow,
-    },
+    body,
   });
 };
 
@@ -44,10 +74,48 @@ export const getSubscriptionStatus = () => {
   });
 };
 
-export const activateSubscription = (planType = "DAILY", paymentMethod = "ONLINE") => {
+export const activateSubscription = async (
+  planType = "DAILY",
+  paymentMethod = "ONLINE",
+  extra = {}
+) => {
+  let paymentDetails = { ...extra };
+
+  if (
+    paymentMethod === "ONLINE" &&
+    typeof window !== "undefined" &&
+    !paymentDetails.razorpayPaymentId &&
+    !paymentDetails.razorpay_payment_id
+  ) {
+    const normalizedPlan = String(planType || "DAILY").toUpperCase();
+    const priceRupees = normalizedPlan === "MONTHLY" ? 99 : 5;
+    const orderRes = await createPaymentOrder({
+      amountRupees: priceRupees,
+      purpose: "PARTNER_SUBSCRIPTION",
+      notes: { planType: normalizedPlan },
+    });
+
+    const rzpRes = await openRazorpayCheckout({
+      amountRupees: priceRupees,
+      orderId: orderRes?.orderId,
+      keyId: orderRes?.keyId,
+      title: "HireBuddy Partner Pass",
+      description: `${
+        normalizedPlan === "MONTHLY" ? "Monthly Pass (30 Days)" : "Daily Pass (24 Hours)"
+      } — Zero Commission Task Access`,
+    });
+
+    paymentDetails = {
+      ...paymentDetails,
+      razorpayOrderId: rzpRes.razorpayOrderId,
+      razorpayPaymentId: rzpRes.razorpayPaymentId,
+      razorpaySignature: rzpRes.razorpaySignature,
+    };
+  }
+
   return apiClient(PAYMENT_ENDPOINTS.SUBSCRIPTION_ACTIVATE, {
     method: "POST",
-    body: { planType, paymentMethod },
+    body: { planType, paymentMethod, ...paymentDetails },
   });
 };
 
@@ -57,10 +125,45 @@ export const getWallet = () => {
   });
 };
 
-export const topupWallet = (payload = {}) => {
+export const topupWallet = async (payload = {}) => {
+  let enrichedPayload = { ...payload };
+
+  if (
+    typeof window !== "undefined" &&
+    !enrichedPayload.razorpayPaymentId &&
+    !enrichedPayload.razorpay_payment_id
+  ) {
+    const amountRupees =
+      enrichedPayload.amountRupees ??
+      (enrichedPayload.amountPaise ? Number(enrichedPayload.amountPaise) / 100 : 0);
+
+    const orderRes = await createPaymentOrder({
+      amountRupees,
+      amountPaise: enrichedPayload.amountPaise,
+      purpose: "WALLET_TOPUP",
+      notes: { method: enrichedPayload.method || "UPI" },
+    });
+
+    const rzpRes = await openRazorpayCheckout({
+      amountRupees,
+      amountPaise: orderRes?.amountPaise,
+      orderId: orderRes?.orderId,
+      keyId: orderRes?.keyId,
+      title: "HireBuddy Wallet",
+      description: `Add ₹${amountRupees} to HireBuddy Wallet`,
+    });
+
+    enrichedPayload = {
+      ...enrichedPayload,
+      razorpayOrderId: rzpRes.razorpayOrderId,
+      razorpayPaymentId: rzpRes.razorpayPaymentId,
+      razorpaySignature: rzpRes.razorpaySignature,
+    };
+  }
+
   return apiClient(PAYMENT_ENDPOINTS.WALLET_TOPUP, {
     method: "POST",
-    body: payload,
+    body: enrichedPayload,
   });
 };
 

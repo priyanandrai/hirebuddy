@@ -6,7 +6,7 @@ import Link from "next/link";
 import HeaderAfterlogin from "../../components/layout/HeaderAfterlogin";
 import Footer from "../../components/layout/Footer";
 import { searchTasks, searchHelpers, logUserSearch } from "../../components/services/search.service";
-import { getTaskCategories } from "../../components/services/task.service";
+import { getTaskCategories, getFilteredServices } from "../../components/services/task.service";
 import { getAuthToken } from "../../components/lib/getSessionToken";
 import { hireBuddy } from "../../components/services/hire.service";
 import { HelperSearchCardShimmer } from "../../components/ui/Shimmer";
@@ -477,6 +477,7 @@ function SearchContent() {
 
   const [apiTasks, setApiTasks] = useState([]);
   const [apiHelpers, setApiHelpers] = useState([]);
+  const [apiStoreServices, setApiStoreServices] = useState([]);
   const [dbCategories, setDbCategories] = useState([]);
   const [loading, setLoading] = useState(Boolean(q || hasActiveFilters));
   const shimmerTimerRef = useRef(null);
@@ -537,11 +538,18 @@ function SearchContent() {
     let mounted = true;
     setLoading(true);
 
-    Promise.all([searchTasks(q, 20), searchHelpers(q, 20)])
-      .then(([tRes, hRes]) => {
+    Promise.all([
+      searchTasks(q, 20),
+      searchHelpers(q, 20),
+      getFilteredServices({ search: q }).catch(() => ({ services: [] })),
+    ])
+      .then(([tRes, hRes, sRes]) => {
         if (!mounted) return;
         setApiTasks(tRes?.tasks || []);
         setApiHelpers(hRes?.helpers || []);
+        setApiStoreServices(
+          (sRes?.services || []).filter((s) => s.isSellerStore)
+        );
       })
       .catch((e) => console.error("Search page error", e))
       .finally(() => {
@@ -1358,6 +1366,62 @@ function SearchContent() {
                 <HelperSearchCardShimmer count={6} />
               ) : (
                 <>
+                  {/* Verified Partner Storefront Matches (e.g. Wash O Dry) */}
+                  {q && apiStoreServices.length > 0 && (
+                    <div className="mb-6 space-y-3">
+                      <h3 className="text-sm font-bold text-cyan-300">
+                        🏪 Verified Partner Storefronts ({apiStoreServices.length})
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {apiStoreServices.map((store) => (
+                          <div
+                            key={store.id}
+                            className="flex flex-col sm:flex-row overflow-hidden rounded-2xl border border-cyan-500/35 bg-[#0b1528] shadow-lg"
+                          >
+                            <div className="relative h-36 sm:h-auto sm:w-44 shrink-0 overflow-hidden bg-[#101c35]">
+                              <img
+                                src={store.image || "/images/wash_o_dry_banner.jpeg"}
+                                alt={store.title}
+                                className="h-full w-full object-cover"
+                              />
+                              <span className="absolute left-2 top-2 rounded-full bg-amber-500/95 px-2 py-0.5 text-[10px] font-extrabold text-slate-950">
+                                25% OFF 1st Order
+                              </span>
+                            </div>
+                            <div className="flex flex-1 flex-col justify-between p-4">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="text-sm font-bold text-white">{store.title}</h4>
+                                  <span className="rounded bg-[#0d6e52]/90 px-1.5 py-0.5 text-[10px] font-semibold text-[#34d399]">
+                                    Verified
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-xs text-slate-400">📍 {store.location}</p>
+                                <p className="mt-1.5 text-xs text-slate-300 line-clamp-2">
+                                  {store.description}
+                                </p>
+                              </div>
+                              <div className="mt-3 flex items-center justify-between gap-2 pt-2 border-t border-[#15233e]">
+                                <span className="text-xs text-slate-300">
+                                  from{" "}
+                                  <strong className="text-sm text-emerald-400">
+                                    ₹{store.price}/{store.priceUnit || "kg"}
+                                  </strong>
+                                </span>
+                                <Link
+                                  href={store.marketplaceUrl || "/marketplace"}
+                                  className="rounded-lg bg-[#34b27b] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#2ca16d]"
+                                >
+                                  Order Services →
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Helper Cards Grid */}
                   {(activeTab === "helpers" || activeTab === "all") && (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">

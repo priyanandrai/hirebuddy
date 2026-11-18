@@ -19,6 +19,33 @@ export const getMarketplaceProductDetail = (slug) => {
   });
 };
 
+export const getMarketplaceServices = (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.search) params.set("search", filters.search);
+  if (filters.category && filters.category !== "All") params.set("category", filters.category);
+  if (filters.serviceSlug) params.set("serviceSlug", filters.serviceSlug);
+  if (filters.sellerId) params.set("sellerId", filters.sellerId);
+  if (filters.deliveryMode) params.set("deliveryMode", filters.deliveryMode);
+  if (filters.sortBy) params.set("sortBy", filters.sortBy);
+  const qs = params.toString();
+  return apiClient(
+    qs ? `${MARKETPLACE_ENDPOINTS.GET_SERVICES}?${qs}` : MARKETPLACE_ENDPOINTS.GET_SERVICES,
+    {
+      method: "GET",
+    }
+  );
+};
+
+export const getMarketplaceServiceDetail = (slug, sellerId = null) => {
+  const qs = sellerId ? `?sellerId=${encodeURIComponent(sellerId)}` : "";
+  return apiClient(
+    `${MARKETPLACE_ENDPOINTS.GET_SERVICES}/${encodeURIComponent(slug)}${qs}`,
+    {
+      method: "GET",
+    }
+  );
+};
+
 export const getPromotionalPopupAd = () => {
   return apiClient("/marketplace/promo-popup", {
     method: "GET",
@@ -43,6 +70,22 @@ export const getSellerDashboard = (token) => {
 export const addSellerProduct = (payload, token) => {
   return apiClient(MARKETPLACE_ENDPOINTS.SELLER_PRODUCTS, {
     method: "POST",
+    body: payload,
+    token,
+  });
+};
+
+export const addSellerService = (payload, token) => {
+  return apiClient(MARKETPLACE_ENDPOINTS.SELLER_SERVICES, {
+    method: "POST",
+    body: payload,
+    token,
+  });
+};
+
+export const updateSellerService = (serviceId, payload, token) => {
+  return apiClient(`${MARKETPLACE_ENDPOINTS.SELLER_SERVICES}/${encodeURIComponent(serviceId)}`, {
+    method: "PUT",
     body: payload,
     token,
   });

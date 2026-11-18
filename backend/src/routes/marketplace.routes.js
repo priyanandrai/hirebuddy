@@ -7,6 +7,8 @@ const router = express.Router();
 // Public storefront endpoints
 router.get("/products", marketplaceController.getPublishedProducts);
 router.get("/products/:slug", marketplaceController.getPublishedProductDetail);
+router.get("/services", marketplaceController.getPublishedServices);
+router.get("/services/:slug", marketplaceController.getPublishedServiceDetail);
 router.get("/promo-popup", marketplaceController.getPromotionalPopupAd);
 
 // Admin overview & actions (accessible from Admin Panel)
@@ -17,6 +19,8 @@ router.patch("/admin/sellers/:sellerId/verify", marketplaceController.adminVerif
 router.patch("/admin/seller/:sellerId/verify", marketplaceController.adminVerifySeller);
 router.patch("/admin/products/:productId/verify", marketplaceController.adminVerifyProduct);
 router.patch("/admin/product/:productId/verify", marketplaceController.adminVerifyProduct);
+router.patch("/admin/services/:serviceId/verify", marketplaceController.adminVerifyService);
+router.patch("/admin/service/:serviceId/verify", marketplaceController.adminVerifyService);
 router.post("/admin/settlements/process-neft", marketplaceController.adminProcessNeftSettlement);
 router.post("/admin/settlements/run-daily-neft", marketplaceController.adminProcessNeftSettlement);
 
@@ -24,6 +28,8 @@ router.post("/admin/settlements/run-daily-neft", marketplaceController.adminProc
 router.post("/seller/onboard", authMiddleware, marketplaceController.onboardSeller);
 router.get("/seller/dashboard", authMiddleware, marketplaceController.getMySellerDashboard);
 router.post("/seller/products", authMiddleware, marketplaceController.addSellerProduct);
+router.post("/seller/services", authMiddleware, marketplaceController.addSellerService);
+router.put("/seller/services/:serviceId", authMiddleware, marketplaceController.updateSellerService);
 
 router.post("/orders", authMiddleware, marketplaceController.placeOrder);
 router.get("/orders/my", authMiddleware, marketplaceController.getCustomerOrders);

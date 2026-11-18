@@ -141,13 +141,15 @@ export default function MarketplaceProductDetailPage({ params }) {
     setOrderError("");
 
     try {
-      let paymentOrderData = {};
-      try {
-        paymentOrderData = await createPaymentOrder(null, totalPayableRupees);
-      } catch {}
+      const paymentOrderData = await createPaymentOrder({
+        amountRupees: totalPayableRupees,
+        purpose: "MARKETPLACE_ORDER",
+        notes: { productId: product.id },
+      });
 
       const rzpResponse = await openRazorpayCheckout({
         amountRupees: totalPayableRupees,
+        amountPaise: paymentOrderData?.amountPaise,
         orderId: paymentOrderData?.orderId,
         keyId: paymentOrderData?.keyId,
         title: "HireBuddy Marketplace",
@@ -167,8 +169,9 @@ export default function MarketplaceProductDetailPage({ params }) {
           },
         ],
         ...shippingForm,
-        razorpayPaymentId: rzpResponse?.razorpay_payment_id,
-        razorpayOrderId: rzpResponse?.razorpay_order_id,
+        razorpayPaymentId: rzpResponse?.razorpayPaymentId || rzpResponse?.razorpay_payment_id,
+        razorpayOrderId: rzpResponse?.razorpayOrderId || rzpResponse?.razorpay_order_id,
+        razorpaySignature: rzpResponse?.razorpaySignature || rzpResponse?.razorpay_signature,
       });
       setOrderResult(res);
     } catch (err) {
@@ -295,33 +298,33 @@ export default function MarketplaceProductDetailPage({ params }) {
                     </h1>
 
                     {/* Price & Express Delivery Banner */}
-                    <div className="rounded-2xl border border-[#1d3461] bg-[#050d1d] p-4">
-                      <div className="flex items-baseline gap-3">
-                        <span className="text-3xl font-extrabold text-white">
+                    <div className="rounded-2xl border border-slate-200 dark:border-[#1d3461] bg-slate-50 dark:bg-[#050d1d] p-4">
+                      <div className="flex flex-wrap items-baseline gap-3">
+                        <span className="text-3xl font-extrabold text-slate-900 dark:text-white">
                           ₹{unitPriceRupees}
                         </span>
                         {mrpRupees > unitPriceRupees && (
                           <>
-                            <span className="text-sm text-slate-500 line-through">
+                            <span className="text-sm font-medium text-slate-500 dark:text-slate-400 line-through">
                               MRP ₹{mrpRupees}
                             </span>
-                            <span className="text-xs font-bold text-amber-400">
+                            <span className="rounded-md border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-400">
                               Save ₹{mrpRupees - unitPriceRupees} ({discountPct}% OFF)
                             </span>
                           </>
                         )}
-                        <span className="text-xs text-slate-400">
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                           / {product.unit || "piece"}
                         </span>
                       </div>
 
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-                        <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 font-bold text-emerald-300">
+                      <div className="mt-2.5 flex flex-wrap items-center gap-3 text-xs">
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 font-bold text-emerald-700 dark:text-emerald-300">
                           {product.deliveryByPlatform
                             ? "⚡ 35–45 Min Local Buddy Delivery"
                             : "📦 Direct Manufacturer Dispatch"}
                         </span>
-                        <span className="text-slate-400">
+                        <span className="font-medium text-slate-600 dark:text-slate-400">
                           In Stock ({activeVarObj?.stock ?? product.stock} {product.unit}s available)
                         </span>
                       </div>

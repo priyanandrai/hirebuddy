@@ -235,6 +235,13 @@ export const adminApi = {
     });
   },
 
+  verifyAndPublishService: async (serviceId, payload) => {
+    return apiRequest(`/marketplace/admin/services/${serviceId}/verify`, {
+      method: 'PATCH',
+      body: payload,
+    });
+  },
+
   processDailyNeftSettlement: async (payload = {}) => {
     return apiRequest('/marketplace/admin/settlements/process-neft', {
       method: 'POST',

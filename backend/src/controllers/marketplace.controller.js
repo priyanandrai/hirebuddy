@@ -24,6 +24,34 @@ export const getPublishedProductDetail = async (req, res) => {
   }
 };
 
+export const getPublishedServices = async (req, res) => {
+  try {
+    const result = await marketplaceService.searchPublishedSellerServices(req.query);
+    res.json(result);
+  } catch (error) {
+    console.error("getPublishedServices error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getPublishedServiceDetail = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const { sellerId } = req.query;
+    const result = await marketplaceService.getPublishedSellerServiceBySlug(
+      slug,
+      sellerId || null
+    );
+    if (!result) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+    res.json(result);
+  } catch (error) {
+    console.error("getPublishedServiceDetail error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const onboardSeller = async (req, res) => {
   try {
     const profile = await marketplaceService.onboardOrUpdateSeller(req.user.id, req.body);
@@ -50,6 +78,27 @@ export const addSellerProduct = async (req, res) => {
     res.status(201).json({ success: true, product });
   } catch (error) {
     console.error("addSellerProduct error:", error);
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const addSellerService = async (req, res) => {
+  try {
+    const service = await marketplaceService.createSellerService(req.user.id, req.body);
+    res.status(201).json({ success: true, service });
+  } catch (error) {
+    console.error("addSellerService error:", error);
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const updateSellerService = async (req, res) => {
+  try {
+    const { serviceId } = req.params;
+    const service = await marketplaceService.updateSellerService(req.user.id, serviceId, req.body);
+    res.json({ success: true, service });
+  } catch (error) {
+    console.error("updateSellerService error:", error);
     res.status(400).json({ error: error.message });
   }
 };
@@ -128,6 +177,17 @@ export const adminVerifyProduct = async (req, res) => {
     res.json({ success: true, product: updated });
   } catch (error) {
     console.error("adminVerifyProduct error:", error);
+    res.status(400).json({ error: error.message });
+  }
+};
+
+export const adminVerifyService = async (req, res) => {
+  try {
+    const { serviceId } = req.params;
+    const updated = await marketplaceService.adminVerifyAndPublishService(serviceId, req.body);
+    res.json({ success: true, service: updated });
+  } catch (error) {
+    console.error("adminVerifyService error:", error);
     res.status(400).json({ error: error.message });
   }
 };

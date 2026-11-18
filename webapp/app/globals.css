@@ -29,9 +29,14 @@ html[data-theme="light"] .bg-slate-950,
 html[data-theme="light"] .bg-\[\#030814\],
 html[data-theme="light"] .bg-\[\#050b18\],
 html[data-theme="light"] .bg-\[\#050c1a\],
+html[data-theme="light"] .bg-\[\#050d1c\],
+html[data-theme="light"] .bg-\[\#050d1d\],
+html[data-theme="light"] .bg-\[\#050d1e\],
 html[data-theme="light"] .bg-\[\#060913\],
 html[data-theme="light"] .bg-\[\#060c1b\],
-html[data-theme="light"] .bg-\[\#060d1d\] {
+html[data-theme="light"] .bg-\[\#060d1d\],
+html[data-theme="light"] .bg-\[\#060f20\],
+html[data-theme="light"] .bg-\[\#061022\] {
   background-color: #f8fafc !important;
   background-image: none !important;
 }
@@ -83,11 +88,17 @@ html[data-theme="light"] .bg-\[\#0b1426\],
 html[data-theme="light"] .bg-\[\#0b1528\],
 html[data-theme="light"] .bg-\[\#0b1528\]\/95,
 html[data-theme="light"] .bg-\[\#0b162c\],
+html[data-theme="light"] .bg-\[\#0b162d\],
 html[data-theme="light"] .bg-\[\#0b1730\],
+html[data-theme="light"] .bg-\[\#0b1830\],
 html[data-theme="light"] .bg-\[\#0b1831\],
+html[data-theme="light"] .bg-\[\#0b1833\],
+html[data-theme="light"] .bg-\[\#071126\],
+html[data-theme="light"] .bg-\[\#071526\],
 html[data-theme="light"] .bg-\[\#0c162c\],
 html[data-theme="light"] .bg-\[\#0c172c\],
-html[data-theme="light"] .bg-\[\#0c1830\] {
+html[data-theme="light"] .bg-\[\#0c1830\],
+html[data-theme="light"] .bg-\[\#0c1a35\] {
   background-color: #ffffff !important;
   box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04) !important;
 }
@@ -104,6 +115,9 @@ html[data-theme="light"] .bg-slate-950\/60,
 html[data-theme="light"] .bg-slate-950\/50,
 html[data-theme="light"] .bg-slate-950\/40,
 html[data-theme="light"] .bg-\[\#0d1424\],
+html[data-theme="light"] .bg-\[\#0a152b\],
+html[data-theme="light"] .bg-\[\#0a162d\],
+html[data-theme="light"] .bg-\[\#0a162f\],
 html[data-theme="light"] .bg-\[\#0d1526\]\/90,
 html[data-theme="light"] .bg-\[\#0d182e\],
 html[data-theme="light"] .bg-\[\#0d1b36\],
@@ -111,8 +125,10 @@ html[data-theme="light"] .bg-\[\#0e1629\],
 html[data-theme="light"] .bg-\[\#0f1c36\],
 html[data-theme="light"] .bg-\[\#101c35\],
 html[data-theme="light"] .bg-\[\#101d38\],
+html[data-theme="light"] .bg-\[\#10203d\],
 html[data-theme="light"] .bg-\[\#111e38\],
 html[data-theme="light"] .bg-\[\#111e38\]\/70,
+html[data-theme="light"] .bg-\[\#122240\],
 html[data-theme="light"] .bg-\[\#122241\],
 html[data-theme="light"] .bg-\[\#122449\],
 html[data-theme="light"] .bg-\[\#131c31\],
@@ -130,6 +146,7 @@ html[data-theme="light"] .hover\:bg-slate-800\/40:hover,
 html[data-theme="light"] .hover\:bg-\[\#0b1831\]:hover,
 html[data-theme="light"] .hover\:bg-\[\#111e38\]:hover,
 html[data-theme="light"] .hover\:bg-\[\#111e38\]\/70:hover,
+html[data-theme="light"] .hover\:bg-\[\#111f3d\]:hover,
 html[data-theme="light"] .hover\:bg-\[\#122241\]:hover,
 html[data-theme="light"] .hover\:bg-\[\#122449\]:hover,
 html[data-theme="light"] .hover\:bg-\[\#13203b\]:hover,
@@ -165,6 +182,7 @@ html[data-theme="light"] .hover\:text-slate-200:hover {
 /* 5. Dark Gradient Section Overrides in Light Mode */
 html[data-theme="light"] .from-\[\#071327\],
 html[data-theme="light"] .from-\[\#081126\],
+html[data-theme="light"] .from-\[\#08152b\],
 html[data-theme="light"] .from-\[\#08152d\],
 html[data-theme="light"] .from-\[\#08162f\],
 html[data-theme="light"] .from-\[\#0b1528\],
@@ -177,6 +195,7 @@ html[data-theme="light"] .from-emerald-600\/20 {
   --tw-gradient-from: #eff6ff !important;
 }
 html[data-theme="light"] .via-\[\#091832\],
+html[data-theme="light"] .via-\[\#0b1e3d\],
 html[data-theme="light"] .via-\[\#0b1f42\],
 html[data-theme="light"] .via-\[\#0c2044\],
 html[data-theme="light"] .via-slate-950,
@@ -186,6 +205,7 @@ html[data-theme="light"] .via-slate-900 {
 html[data-theme="light"] .to-\[\#060c1b\],
 html[data-theme="light"] .to-\[\#061022\],
 html[data-theme="light"] .to-\[\#061527\],
+html[data-theme="light"] .to-\[\#071528\],
 html[data-theme="light"] .to-\[\#07182b\],
 html[data-theme="light"] .to-\[\#050b18\],
 html[data-theme="light"] .to-slate-950,
@@ -211,25 +231,37 @@ html[data-theme="light"] .border-\[\#152238\],
 html[data-theme="light"] .border-\[\#15223a\],
 html[data-theme="light"] .border-\[\#15233e\],
 html[data-theme="light"] .border-\[\#152544\],
+html[data-theme="light"] .border-\[\#152647\],
 html[data-theme="light"] .border-\[\#152849\],
 html[data-theme="light"] .border-\[\#15284a\],
 html[data-theme="light"] .border-\[\#162542\],
 html[data-theme="light"] .border-\[\#162645\],
 html[data-theme="light"] .border-\[\#162646\],
 html[data-theme="light"] .border-\[\#162749\],
+html[data-theme="light"] .border-\[\#16284a\],
+html[data-theme="light"] .border-\[\#16294b\],
 html[data-theme="light"] .border-\[\#162a4f\],
 html[data-theme="light"] .border-\[\#172642\],
+html[data-theme="light"] .border-\[\#17294a\],
 html[data-theme="light"] .border-\[\#17294d\],
 html[data-theme="light"] .border-\[\#172a4f\],
 html[data-theme="light"] .border-\[\#182949\],
+html[data-theme="light"] .border-\[\#182a4c\],
+html[data-theme="light"] .border-\[\#182a4d\],
+html[data-theme="light"] .border-\[\#182b50\],
 html[data-theme="light"] .border-\[\#192a4a\],
 html[data-theme="light"] .border-\[\#192b4d\],
+html[data-theme="light"] .border-\[\#192c4e\],
 html[data-theme="light"] .border-\[\#192d52\],
+html[data-theme="light"] .border-\[\#192e56\],
+html[data-theme="light"] .border-\[\#192f59\],
 html[data-theme="light"] .border-\[\#1a2b4c\],
+html[data-theme="light"] .border-\[\#1a2f56\],
 html[data-theme="light"] .border-\[\#1a3058\],
 html[data-theme="light"] .border-\[\#1b2b4b\],
 html[data-theme="light"] .border-\[\#1b2c4d\],
 html[data-theme="light"] .border-\[\#1b2e54\],
+html[data-theme="light"] .border-\[\#1b3159\],
 html[data-theme="light"] .border-\[\#1c2f52\],
 html[data-theme="light"] .border-\[\#1c325c\],
 html[data-theme="light"] .border-\[\#1d2d4e\],
@@ -238,10 +270,14 @@ html[data-theme="light"] .border-\[\#1d3156\],
 html[data-theme="light"] .border-\[\#1d3158\],
 html[data-theme="light"] .border-\[\#1d3159\],
 html[data-theme="light"] .border-\[\#1d325a\],
+html[data-theme="light"] .border-\[\#1d325c\],
+html[data-theme="light"] .border-\[\#1d3461\],
 html[data-theme="light"] .border-\[\#1d3562\],
 html[data-theme="light"] .border-\[\#1e3152\],
 html[data-theme="light"] .border-\[\#1e3154\],
 html[data-theme="light"] .border-\[\#1e3156\],
+html[data-theme="light"] .border-\[\#1e3561\],
+html[data-theme="light"] .border-\[\#1e3563\],
 html[data-theme="light"] .border-\[\#1f3664\],
 html[data-theme="light"] .border-\[\#203864\],
 html[data-theme="light"] .border-\[\#223966\],
@@ -312,10 +348,17 @@ html[data-theme="light"] .bg-\[\#050d1e\]\/90,
 html[data-theme="light"] .bg-\[\#050d1e\]\/80,
 html[data-theme="light"] .from-\[\#0a41d8\],
 html[data-theme="light"] .from-blue-600,
+html[data-theme="light"] .from-cyan-500,
 html[data-theme="light"] .from-emerald-600,
 html[data-theme="light"] .from-emerald-500,
 html[data-theme="light"] .from-rose-600,
+html[data-theme="light"] .bg-cyan-600,
+html[data-theme="light"] .bg-cyan-500,
+html[data-theme="light"] .hover\:bg-cyan-600:hover,
+html[data-theme="light"] .hover\:bg-cyan-500:hover,
 html[data-theme="light"] .bg-blue-600 .text-white,
+html[data-theme="light"] .bg-cyan-600 .text-white,
+html[data-theme="light"] .from-cyan-500 .text-white,
 html[data-theme="light"] .bg-emerald-600 .text-white,
 html[data-theme="light"] .bg-emerald-500 .text-white,
 html[data-theme="light"] .bg-rose-600 .text-white,
@@ -331,16 +374,51 @@ html[data-theme="light"] .from-\[\#0a41d8\] .text-white {
   color: #ffffff !important;
 }
 
-/* Readable accent badges in light mode */
+/* Readable accent badges & banners in light mode */
+html[data-theme="light"] .text-emerald-200,
 html[data-theme="light"] .text-emerald-300,
 html[data-theme="light"] .text-\[\#34d399\] { color: #047857 !important; }
 html[data-theme="light"] .text-emerald-400 { color: #059669 !important; }
-html[data-theme="light"] .text-amber-300 { color: #b45309 !important; }
-html[data-theme="light"] .text-amber-400 { color: #d97706 !important; }
+html[data-theme="light"] .text-amber-100,
+html[data-theme="light"] .text-amber-200,
+html[data-theme="light"] .text-amber-300 { color: #92400e !important; }
+html[data-theme="light"] .text-amber-400 { color: #b45309 !important; }
+html[data-theme="light"] .text-yellow-200,
+html[data-theme="light"] .text-yellow-300,
+html[data-theme="light"] .text-yellow-400 { color: #a16207 !important; }
+html[data-theme="light"] .text-blue-200,
 html[data-theme="light"] .text-blue-300 { color: #1d4ed8 !important; }
 html[data-theme="light"] .text-blue-400 { color: #2563eb !important; }
-html[data-theme="light"] .text-rose-300 { color: #be123c !important; }
-html[data-theme="light"] .text-rose-400 { color: #e11d48 !important; }
+html[data-theme="light"] .text-cyan-200,
+html[data-theme="light"] .text-cyan-300 { color: #0e7490 !important; }
+html[data-theme="light"] .text-cyan-400 { color: #0891b2 !important; }
+html[data-theme="light"] .text-indigo-200,
+html[data-theme="light"] .text-indigo-300 { color: #4338ca !important; }
+html[data-theme="light"] .text-purple-200,
+html[data-theme="light"] .text-purple-300 { color: #7e22ce !important; }
+html[data-theme="light"] .text-rose-200,
+html[data-theme="light"] .text-rose-300,
+html[data-theme="light"] .text-red-300 { color: #be123c !important; }
+html[data-theme="light"] .text-rose-400,
+html[data-theme="light"] .text-red-400 { color: #e11d48 !important; }
+
+html[data-theme="light"] .bg-rose-950\/90,
+html[data-theme="light"] .bg-red-950\/60 {
+  background-color: #fff1f2 !important;
+  border-color: #fecdd3 !important;
+}
+
+html[data-theme="light"] select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+/* Prevent native <select> longest-<option> intrinsic width from overflowing CSS Grid / Flex containers (especially in Firefox) */
+select {
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
 
 /* Shimmer skeletons in light mode */
 html[data-theme="light"] .shimmer-skeleton,

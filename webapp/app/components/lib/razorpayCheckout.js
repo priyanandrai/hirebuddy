@@ -32,10 +32,12 @@ export function loadRazorpayScript() {
  */
 export async function openRazorpayCheckout({
   amountInRupees,
+  amountRupees,
+  amountPaise,
   orderId,
   keyId,
-  title = "HireBuddy Escrow Payment",
-  description = "100% Payout Protected in HireBuddy Escrow",
+  title = "HireBuddy",
+  description = "Secure Payment via Razorpay",
   prefill = {},
 }) {
   const resolvedKey =
@@ -46,49 +48,78 @@ export async function openRazorpayCheckout({
   const isLiveKey =
     Boolean(resolvedKey) &&
     !resolvedKey.includes("your_razorpay") &&
+    !resolvedKey.includes("placeholder") &&
     resolvedKey.startsWith("rzp_");
 
-  if (!isLiveKey || !orderId || String(orderId).startsWith("order_sim_")) {
+  const resolvedPaise =
+    amountPaise !== undefined && amountPaise !== null
+      ? Math.round(Number(amountPaise))
+      : Math.round(Number(amountInRupees ?? amountRupees ?? 0) * 100);
+
+  if (!isLiveKey) {
+    const simOrderId = orderId || `order_sim_${Date.now()}`;
+    const simPaymentId = `pay_sim_${Date.now()}`;
+    const simSignature = "simulated_signature";
     return {
       simulated: true,
-      razorpayOrderId: orderId || `order_sim_${Date.now()}`,
-      razorpayPaymentId: `pay_sim_${Date.now()}`,
-      razorpaySignature: "simulated_signature",
+      razorpayOrderId: simOrderId,
+      razorpayPaymentId: simPaymentId,
+      razorpaySignature: simSignature,
+      razorpay_order_id: simOrderId,
+      razorpay_payment_id: simPaymentId,
+      razorpay_signature: simSignature,
     };
+  }
+
+  if (!orderId || String(orderId).startsWith("order_sim_") || String(orderId).startsWith("order_escrow_")) {
+    throw new Error(
+      "Could not initialize Razorpay order. Please ensure you are signed in and try again."
+    );
   }
 
   const loaded = await loadRazorpayScript();
   if (!loaded || typeof window.Razorpay !== "function") {
-    return {
-      simulated: true,
-      razorpayOrderId: orderId,
-      razorpayPaymentId: `pay_fallback_${Date.now()}`,
-      razorpaySignature: "fallback_signature",
-    };
+    throw new Error(
+      "Unable to load Razorpay Checkout SDK. Please check your internet connection and retry."
+    );
+  }
+
+  let storedUser = null;
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem("user");
+      if (raw) storedUser = JSON.parse(raw);
+    } catch {}
   }
 
   return new Promise((resolve, reject) => {
     const rzp = new window.Razorpay({
       key: resolvedKey,
-      amount: Math.round(Number(amountInRupees || 0) * 100),
+      amount: resolvedPaise,
       currency: "INR",
-      name: "HireBuddy",
+      name: title || "HireBuddy",
       description,
       order_id: orderId,
       prefill: {
-        name: prefill.name || "",
-        email: prefill.email || "",
-        contact: prefill.phone || "",
+        name: prefill.name || storedUser?.name || "",
+        email: prefill.email || storedUser?.email || "",
+        contact: prefill.phone || prefill.contact || storedUser?.phone || "",
       },
       theme: {
         color: "#2563eb",
       },
       handler: (response) => {
+        const finalOrderId = response.razorpay_order_id || orderId;
+        const finalPaymentId = response.razorpay_payment_id;
+        const finalSignature = response.razorpay_signature;
         resolve({
           simulated: false,
-          razorpayOrderId: response.razorpay_order_id || orderId,
-          razorpayPaymentId: response.razorpay_payment_id,
-          razorpaySignature: response.razorpay_signature,
+          razorpayOrderId: finalOrderId,
+          razorpayPaymentId: finalPaymentId,
+          razorpaySignature: finalSignature,
+          razorpay_order_id: finalOrderId,
+          razorpay_payment_id: finalPaymentId,
+          razorpay_signature: finalSignature,
         });
       },
       modal: {
@@ -96,6 +127,13 @@ export async function openRazorpayCheckout({
           reject(new Error("Payment cancelled by user"));
         },
       },
+    });
+    rzp.on("payment.failed", (resp) => {
+      const desc =
+        resp?.error?.description ||
+        resp?.error?.reason ||
+        "Payment failed in Razorpay Checkout. Please try again.";
+      reject(new Error(desc));
     });
     rzp.open();
   });

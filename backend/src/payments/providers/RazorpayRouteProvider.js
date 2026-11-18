@@ -27,10 +27,26 @@ export class RazorpayRouteProvider extends PaymentGatewayInterface {
         !this.keyId.includes('mock')
     );
 
+    this.isRouteEnabled =
+      this.isLiveConfigured &&
+      String(process.env.RAZORPAY_ROUTE_ENABLED || '').toLowerCase() === 'true';
+
     this.client = new Razorpay({
       key_id: this.keyId || 'rzp_test_placeholder',
       key_secret: this.keySecret || 'rzp_secret_placeholder',
     });
+  }
+
+  isSyntheticId(id, prefixes = []) {
+    if (!id) return true;
+    const str = String(id);
+    return prefixes.some((prefix) => str.startsWith(prefix));
+  }
+
+  isRealGatewayPaymentId(id) {
+    if (!id) return false;
+    // Real Razorpay payment IDs are strictly `pay_` followed by alphanumeric chars (e.g. `pay_Pxyz1234567890`), never containing underscores after `pay_`
+    return /^pay_[A-Za-z0-9]{10,24}$/.test(String(id));
   }
 
   /**
@@ -49,19 +65,30 @@ export class RazorpayRouteProvider extends PaymentGatewayInterface {
       throw new Error('Order amount in paise must be greater than zero');
     }
 
-    if (this.isLiveConfigured) {
+    const safeReceipt = String(receipt || `rcpt_${Date.now()}`).slice(0, 40);
+
+    if (this.isLiveConfigured && process.env.RAZORPAY_FORCE_SIMULATION !== 'true') {
+      const sanitizedNotes = {};
+      for (const [k, v] of Object.entries({ ...notes, idempotencyKey: idempotencyKey || '' })) {
+        if (v !== undefined && v !== null) {
+          sanitizedNotes[String(k).slice(0, 64)] = String(v).slice(0, 255);
+        }
+      }
+
       const options = {
         amount: validatedPaise,
         currency,
-        receipt: receipt || `rcpt_${Date.now()}`,
+        receipt: safeReceipt,
         payment_capture: 1,
-        notes: {
-          ...notes,
-          idempotencyKey: idempotencyKey || '',
-        },
+        notes: sanitizedNotes,
       };
 
-      if (routeTransfer?.linkedAccountId && routeTransfer?.amountPaise > 0) {
+      if (
+        this.isRouteEnabled &&
+        routeTransfer?.linkedAccountId &&
+        !this.isSyntheticId(routeTransfer.linkedAccountId, ['acc_mock_', 'acc_rzp_', 'acc_sandbox_']) &&
+        routeTransfer?.amountPaise > 0
+      ) {
         options.transfers = [
           {
             account: routeTransfer.linkedAccountId,
@@ -77,6 +104,7 @@ export class RazorpayRouteProvider extends PaymentGatewayInterface {
       const order = await this.client.orders.create(options);
       return {
         provider: 'RAZORPAY',
+        keyId: this.keyId,
         orderId: order.id,
         amountPaise: order.amount,
         currency: order.currency,
@@ -97,7 +125,7 @@ export class RazorpayRouteProvider extends PaymentGatewayInterface {
       amount_paid: 0,
       amount_due: validatedPaise,
       currency,
-      receipt: receipt || `rcpt_${Date.now()}`,
+      receipt: safeReceipt,
       status: 'created',
       notes,
       created_at: Math.floor(Date.now() / 1000),
@@ -105,6 +133,7 @@ export class RazorpayRouteProvider extends PaymentGatewayInterface {
 
     return {
       provider: 'RAZORPAY',
+      keyId: this.keyId || null,
       orderId: mockOrder.id,
       amountPaise: mockOrder.amount,
       currency: mockOrder.currency,
@@ -121,7 +150,7 @@ export class RazorpayRouteProvider extends PaymentGatewayInterface {
       throw new Error('gatewayPaymentId is required');
     }
 
-    if (this.isLiveConfigured && !String(gatewayPaymentId).startsWith('pay_mock_') && !String(gatewayPaymentId).startsWith('pay_test_')) {
+    if (this.isLiveConfigured && this.isRealGatewayPaymentId(gatewayPaymentId)) {
       const payment = await this.client.payments.fetch(gatewayPaymentId);
       return {
         provider: 'RAZORPAY',
@@ -228,7 +257,12 @@ export class RazorpayRouteProvider extends PaymentGatewayInterface {
       throw new Error('Transfer amount in paise must be greater than zero');
     }
 
-    if (this.isLiveConfigured && linkedAccountId && !String(linkedAccountId).startsWith('acc_mock_')) {
+    if (
+      this.isRouteEnabled &&
+      linkedAccountId &&
+      !this.isSyntheticId(linkedAccountId, ['acc_mock_', 'acc_rzp_', 'acc_sandbox_']) &&
+      (!gatewayPaymentId || this.isRealGatewayPaymentId(gatewayPaymentId))
+    ) {
       const transferPayload = {
         transfers: [
           {
@@ -357,7 +391,7 @@ export class RazorpayRouteProvider extends PaymentGatewayInterface {
       throw new Error('Refund amount in paise must be greater than zero');
     }
 
-    if (this.isLiveConfigured && gatewayPaymentId && !String(gatewayPaymentId).startsWith('pay_')) {
+    if (this.isLiveConfigured && this.isRealGatewayPaymentId(gatewayPaymentId)) {
       const refund = await this.client.payments.refund(gatewayPaymentId, {
         amount: validatedPaise,
         speed: 'normal',

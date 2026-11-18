@@ -164,10 +164,23 @@ export default function AuthenticatedHeader({
             ? currentUser.image
             : session?.user?.image || "",
         role: currentUser?.role || session?.user?.role || "USER",
+        sellerType:
+          currentUser?.sellerProfile?.sellerType ||
+          currentUser?.sellerType ||
+          session?.user?.sellerType ||
+          null,
+        sellerProfile: currentUser?.sellerProfile || null,
         city: currentUser?.city || "",
         address: currentUser?.address || "",
       }
     : null;
+
+  const isSeller = displayUser?.role === "SELLER";
+  const isHelper = displayUser?.role === "HELPER";
+  const isServiceSeller =
+    isSeller &&
+    (displayUser?.sellerType === "SERVICE" ||
+      /wash\s*o\s*dry|dry\s*clean|laundry|spa/i.test(displayUser?.name || ""));
 
   // Fetch real notifications and listen to socket events only when authenticated
   useEffect(() => {
@@ -263,8 +276,10 @@ export default function AuthenticatedHeader({
           href={
             !isAuthenticated
               ? "/"
-              : displayUser?.role === "HELPER"
+              : isHelper
               ? "/dashboard-tasker"
+              : isSeller
+              ? "/become-a-seller"
               : "/dashboard"
           }
           className="text-[22px] font-extrabold tracking-tight shrink-0"
@@ -366,19 +381,36 @@ export default function AuthenticatedHeader({
           </Link>
 
           <Link
-            href="/marketplace"
+            href={isServiceSeller ? "/marketplace?mode=services" : "/marketplace"}
             className="hidden md:inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-500/20"
           >
             <span>🛍️ Meerut Market</span>
           </Link>
 
-          <Link
-            href="/dashboard/create-task"
-            className="hidden sm:inline-flex items-center justify-center gap-1.5 rounded-full bg-[#1361f5] px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-600"
-          >
-            <span className="text-sm leading-none font-normal">+</span>
-            <span>Post a Task</span>
-          </Link>
+          {!isHelper && (
+            <Link
+              href="/become-a-seller"
+              className="hidden lg:inline-flex items-center justify-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs font-bold text-amber-400 transition hover:bg-amber-500/20"
+            >
+              <span>
+                {isServiceSeller
+                  ? "🧺 Service Seller Hub"
+                  : isSeller
+                  ? "🏪 Seller Hub"
+                  : "🏪 Sell on HireBuddy"}
+              </span>
+            </Link>
+          )}
+
+          {!isSeller && !isHelper && (
+            <Link
+              href="/dashboard/create-task"
+              className="hidden sm:inline-flex items-center justify-center gap-1.5 rounded-full bg-[#1361f5] px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-600"
+            >
+              <span className="text-sm leading-none font-normal">+</span>
+              <span>Post a Task</span>
+            </Link>
+          )}
 
           <div className="relative">
             <button
@@ -505,11 +537,13 @@ export default function AuthenticatedHeader({
                   {displayUser.name}
                 </span>
                 <span className="text-[10.5px] text-slate-400">
-                  {displayUser.role === "USER"
-                    ? "User"
-                    : displayUser.role === "SELLER"
-                    ? "Meerut Seller"
-                    : "Buddy"}
+                  {isServiceSeller
+                    ? "Service Provider"
+                    : isSeller
+                    ? "Product Seller"
+                    : isHelper
+                    ? "Buddy"
+                    : "User"}
                 </span>
               </div>
               <svg
@@ -553,19 +587,64 @@ export default function AuthenticatedHeader({
                   </div>
 
                   <DropdownItem
-                    href={displayUser?.role === "HELPER" ? "/dashboard-tasker" : "/dashboard"}
+                    href={
+                      isHelper
+                        ? "/dashboard-tasker"
+                        : isSeller
+                        ? "/become-a-seller"
+                        : "/dashboard"
+                    }
                     setOpen={setProfileOpen}
                   >
-                    📊 Dashboard
+                    {isSeller ? "🏪 Seller Hub & Rate Cards" : "📊 Dashboard"}
                   </DropdownItem>
-                  <DropdownItem href="/dashboard/wallet" setOpen={setProfileOpen}>💳 My Wallet (₹{Math.round((displayUser?.walletBalance || 0) / 100)})</DropdownItem>
-                  <DropdownItem href="/dashboard/my-tasks" setOpen={setProfileOpen}>📝 My Tasks</DropdownItem>
-                  <DropdownItem href="/dashboard/helpers" setOpen={setProfileOpen}>🤝 Browse Buddies</DropdownItem>
-                  <DropdownItem href="/marketplace" setOpen={setProfileOpen}>🛍️ Meerut Marketplace</DropdownItem>
-                  <DropdownItem href="/become-a-seller" setOpen={setProfileOpen}>🏭 Seller Hub (Manufacturers)</DropdownItem>
-                  <DropdownItem href="/dashboard/services" setOpen={setProfileOpen}>🧰 Services</DropdownItem>
-                  <DropdownItem href="/dashboard/settings" setOpen={setProfileOpen}>⚙️ Settings</DropdownItem>
-                  <DropdownItem href="/dashboard/support" setOpen={setProfileOpen}>💬 Support</DropdownItem>
+                  <DropdownItem
+                    href={isHelper ? "/dashboard-tasker/wallet" : "/dashboard/wallet"}
+                    setOpen={setProfileOpen}
+                  >
+                    💳 My Wallet (₹{Math.round((displayUser?.walletBalance || 0) / 100)})
+                  </DropdownItem>
+                  {!isSeller && (
+                    <DropdownItem
+                      href={isHelper ? "/dashboard-tasker/my-tasks" : "/dashboard/my-tasks"}
+                      setOpen={setProfileOpen}
+                    >
+                      📝 My Tasks
+                    </DropdownItem>
+                  )}
+                  {!isSeller && !isHelper && (
+                    <DropdownItem href="/dashboard/helpers" setOpen={setProfileOpen}>
+                      🤝 Browse Buddies
+                    </DropdownItem>
+                  )}
+                  <DropdownItem
+                    href={isServiceSeller ? "/marketplace?mode=services" : "/marketplace"}
+                    setOpen={setProfileOpen}
+                  >
+                    🛍️ Meerut Marketplace
+                  </DropdownItem>
+                  {!isSeller && !isHelper && (
+                    <DropdownItem href="/become-a-seller" setOpen={setProfileOpen}>
+                      🏪 Sell Products / Services
+                    </DropdownItem>
+                  )}
+                  {!isSeller && !isHelper && (
+                    <DropdownItem href="/dashboard/services" setOpen={setProfileOpen}>
+                      🧰 Services
+                    </DropdownItem>
+                  )}
+                  <DropdownItem
+                    href={isHelper ? "/dashboard-tasker/profile" : "/dashboard/settings"}
+                    setOpen={setProfileOpen}
+                  >
+                    ⚙️ Settings
+                  </DropdownItem>
+                  <DropdownItem
+                    href={isHelper ? "/dashboard-tasker/support" : "/dashboard/support"}
+                    setOpen={setProfileOpen}
+                  >
+                    💬 Support
+                  </DropdownItem>
 
                   <div className="border-t border-slate-700">
                     <button onClick={handleLogout} className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-slate-800">

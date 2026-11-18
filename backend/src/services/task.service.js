@@ -1428,13 +1428,24 @@ export const updateTaskStatus = async (taskId, userId, newStatus, user = null, o
     }
 
     if (newStatus === "IN_PROGRESS") {
-      // Sync MarketplaceOrder status if this is a platform delivery task
-      await prisma.marketplaceOrder
-        .updateMany({
+      // Sync MarketplaceOrder status if this is a platform delivery / service pickup task
+      try {
+        const linkedOrders = await prisma.marketplaceOrder.findMany({
           where: { deliveryTaskId: taskId },
-          data: { orderStatus: "OUT_FOR_DELIVERY" },
-        })
-        .catch(() => {});
+          select: { id: true, orderType: true, orderStatus: true },
+        });
+        for (const ord of linkedOrders) {
+          const nextOrdStatus =
+            ord.orderType === "SERVICE" &&
+            (ord.orderStatus === "CONFIRMED" || ord.orderStatus === "PLACED")
+              ? "PICKED_UP"
+              : "OUT_FOR_DELIVERY";
+          await prisma.marketplaceOrder.update({
+            where: { id: ord.id },
+            data: { orderStatus: nextOrdStatus },
+          });
+        }
+      } catch {}
     } else if (newStatus === "COMPLETED") {
       // Automatically release held escrow payment or trigger Razorpay Route helper payout when task is completed
       try {

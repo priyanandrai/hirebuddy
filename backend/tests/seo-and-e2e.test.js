@@ -21,8 +21,12 @@ import { createTask, searchTasks, assignHelper } from "../src/services/task.serv
 import {
   onboardOrUpdateSeller,
   createSellerProduct,
+  createSellerService,
+  updateSellerService,
+  getPublishedSellerServiceBySlug,
   adminVerifySeller,
   adminVerifyAndPublishProduct,
+  adminVerifyAndPublishService,
   placeMarketplaceOrder,
   getPublishedProductBySlug,
   updateMarketplaceOrderStatus,
@@ -801,7 +805,9 @@ describe("HireBuddy Technical SEO & End-to-End Platform Validation Suite (17 Sce
         `Service "${svc.title}" on /dashboard must not show a single pre-assigned helperName by default`
       );
       assert.ok(
-        typeof svc.image === "string" && svc.image.startsWith("/images/service_"),
+        typeof svc.image === "string" &&
+          (svc.image.startsWith("/images/service_") ||
+            (svc.isSellerStore && svc.image.startsWith("/images/"))),
         `Service "${svc.title}" must have a dedicated relative image (got ${svc.image})`
       );
     }
@@ -867,5 +873,107 @@ describe("HireBuddy Technical SEO & End-to-End Platform Validation Suite (17 Sce
     const acceptedTask = await assignHelper(buddy, openTask.id);
     assert.equal(acceptedTask.status, "ASSIGNED");
     assert.equal(acceptedTask.assignedToId, buddy.id);
+  });
+
+  it("23. Dual Seller Types (PRODUCT vs SERVICE): Multi-Seller Dry Cleaning comparison, Seller custom service & rate updates, and Service Order lifecycle", async () => {
+    const suffix = Date.now();
+    const sellerUser = await prisma.user.create({
+      data: {
+        name: "Sparkle Dry Clean Seller",
+        email: `sparkle-dryclean-${suffix}@hirebuddy.in`,
+        phone: `93${String(suffix).slice(-8)}`,
+        role: "USER",
+        city: "Meerut",
+        address: "Saket, Meerut",
+      },
+    });
+    const customer = await prisma.user.create({
+      data: {
+        name: "Dry Clean Customer",
+        email: `dryclean-cust-${suffix}@hirebuddy.in`,
+        phone: `94${String(suffix).slice(-8)}`,
+        role: "USER",
+        city: "Meerut",
+        address: "Modipuram, Meerut",
+      },
+    });
+
+    // 1. Onboard as SERVICE Seller & verify by Admin
+    const sellerProf = await onboardOrUpdateSeller(sellerUser.id, {
+      sellerType: "SERVICE",
+      businessName: `Sparkle Dry Cleaners ${suffix}`,
+      businessCategory: "Laundry & Dry Cleaning",
+      contactPersonName: "Rohit Gupta",
+      contactPersonPhone: `93${String(suffix).slice(-8)}`,
+      pickupAddress: "Shop 12, Saket Main Market, Meerut",
+      pickupCity: "Meerut",
+      pickupPincode: "250001",
+      panNumber: "AABCS9988D",
+      bankAccountName: "Sparkle Dry Cleaners",
+      bankAccountNumber: "50200011223399",
+      bankIfscCode: "HDFC0000254",
+      bankName: "HDFC Bank",
+    });
+    assert.equal(sellerProf.sellerType, "SERVICE");
+    await adminVerifySeller(sellerProf.id, { verificationStatus: "VERIFIED", commissionRate: 14 });
+
+    // 2. Seller creates "Dry Cleaning" with their own custom per-option rates
+    const createdSvc = await createSellerService(sellerUser.id, {
+      name: "Dry Cleaning",
+      category: "Laundry & Dry Cleaning",
+      turnaroundLabel: "24 Hours Express",
+      unit: "piece",
+      defaultDeliveryMode: "SELLER_SELF",
+      options: [
+        { groupName: "Men's Wear", title: "Shirt", unit: "piece", priceRupees: 85 },
+        { groupName: "Men's Wear", title: "2-Pc Suit", unit: "set", priceRupees: 275 },
+      ],
+    });
+    assert.equal(createdSvc.serviceSlug, "dry-cleaning");
+    assert.equal(createdSvc.priceRupees, 85);
+
+    // 3. Seller updates their rate card (Shirt 85 -> 80) immediately
+    const updatedSvc = await updateSellerService(sellerUser.id, createdSvc.id, {
+      options: [
+        { id: createdSvc.options[0].id, groupName: "Men's Wear", title: "Shirt", unit: "piece", priceRupees: 80 },
+        { id: createdSvc.options[1].id, groupName: "Men's Wear", title: "2-Pc Suit", unit: "set", priceRupees: 275 },
+      ],
+    });
+    assert.equal(updatedSvc.priceRupees, 80);
+
+    // 4. Customer views "dry-cleaning" and sees MULTIPLE sellers (Wash O Dry, Crystal Care, Sparkle)
+    const detail = await getPublishedSellerServiceBySlug("dry-cleaning", sellerProf.id);
+    assert.ok(detail.sellersCount >= 3, `Expected >= 3 Dry Cleaning sellers, got ${detail.sellersCount}`);
+    assert.equal(detail.service.id, updatedSvc.id);
+
+    // 5. Customer books multiple options (2x Shirt + 1x 2-Pc Suit = 2*80 + 275 = ₹435)
+    const orderRes = await placeMarketplaceOrder(customer.id, {
+      items: [
+        { sellerServiceId: updatedSvc.id, serviceOptionId: updatedSvc.options[0].id, quantity: 2 },
+        { sellerServiceId: updatedSvc.id, serviceOptionId: updatedSvc.options[1].id, quantity: 1 },
+      ],
+      pickupTimeSlot: "09:00 AM – 11:00 AM (Morning Slot)",
+    });
+    assert.equal(orderRes.order.orderType, "SERVICE");
+    assert.equal(orderRes.order.productSubtotalRupees, 435);
+
+    // 6. Service Seller updates status across SERVICE lifecycle
+    const step1 = await updateMarketplaceOrderStatus(orderRes.order.id, "PICKED_UP");
+    assert.equal(step1.orderStatus, "PICKED_UP");
+    const step2 = await updateMarketplaceOrderStatus(orderRes.order.id, "IN_PROCESS");
+    assert.equal(step2.orderStatus, "IN_PROCESS");
+    const step3 = await updateMarketplaceOrderStatus(orderRes.order.id, "READY_FOR_DELIVERY");
+    assert.equal(step3.orderStatus, "READY_FOR_DELIVERY");
+    const step4 = await updateMarketplaceOrderStatus(orderRes.order.id, "DELIVERED");
+    assert.equal(step4.orderStatus, "DELIVERED");
+
+    // Cleanup temporary test seller & order so live storefront stays clean
+    await prisma.marketplaceOrderItem.deleteMany({ where: { orderId: orderRes.order.id } });
+    await prisma.marketplaceOrder.delete({ where: { id: orderRes.order.id } });
+    await prisma.sellerServiceOption.deleteMany({ where: { sellerServiceId: updatedSvc.id } });
+    await prisma.sellerService.delete({ where: { id: updatedSvc.id } });
+    await prisma.sellerProfile.delete({ where: { id: sellerProf.id } });
+    await prisma.notification.deleteMany({ where: { OR: [{ senderId: sellerUser.id }, { receiverId: sellerUser.id }, { senderId: customer.id }, { receiverId: customer.id }] } });
+    await prisma.user.deleteMany({ where: { id: { in: [sellerUser.id, customer.id] } } });
   });
 });

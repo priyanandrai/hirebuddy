@@ -8,6 +8,7 @@ import HeaderAfterlogin from "../components/layout/HeaderAfterlogin";
 import Footer from "../components/layout/Footer";
 import {
   getMarketplaceProducts,
+  getMarketplaceServices,
   placeMarketplaceOrder,
   getCustomerMarketplaceOrders,
   rateMarketplaceOrder,
@@ -23,6 +24,8 @@ export default function MeerutMarketplacePage() {
   const { data: session } = useSession();
 
   const [products, setProducts] = useState([]);
+  const [serviceGroups, setServiceGroups] = useState([]);
+  const [catalogMode, setCatalogMode] = useState("products"); // "products" | "services"
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState("store"); // "store" | "orders"
@@ -135,14 +138,32 @@ export default function MeerutMarketplacePage() {
       .catch(() => {});
   }, [session, applyProfileToShipping]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("mode") === "services") {
+      setCatalogMode("services");
+    }
+    if (sp.get("view") === "orders") {
+      setActiveView("orders");
+    }
+    if (sp.get("search")) {
+      setSearchQuery(sp.get("search"));
+    }
+  }, []);
+
   const fetchCatalog = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getMarketplaceProducts({});
-      const list = res?.products || [];
+      const [prodRes, svcRes] = await Promise.all([
+        getMarketplaceProducts({}),
+        getMarketplaceServices({}).catch(() => ({ serviceGroups: [] })),
+      ]);
+      const list = prodRes?.products || [];
       setProducts(list);
-      if (Array.isArray(res?.categories) && res.categories.length > 0) {
-        setCategories(res.categories);
+      setServiceGroups(svcRes?.serviceGroups || []);
+      if (Array.isArray(prodRes?.categories) && prodRes.categories.length > 0) {
+        setCategories(prodRes.categories);
       }
     } catch (err) {
       console.error("Failed to load Meerut marketplace products:", err);
@@ -431,15 +452,17 @@ export default function MeerutMarketplacePage() {
     setOrderError("");
 
     try {
-      let paymentOrderData = {};
-      try {
-        paymentOrderData = await createPaymentOrder(null, grandTotalRupees);
-      } catch {
-        // Proceed with client-side checkout fallback if payment order endpoint is unavailable
-      }
+      const paymentOrderData = await createPaymentOrder({
+        amountRupees: grandTotalRupees,
+        purpose: "MARKETPLACE_ORDER",
+        notes: {
+          checkoutMode: isCartCheckout ? "CART" : "DIRECT",
+        },
+      });
 
       const rzpResponse = await openRazorpayCheckout({
         amountRupees: grandTotalRupees,
+        amountPaise: paymentOrderData?.amountPaise,
         orderId: paymentOrderData?.orderId,
         keyId: paymentOrderData?.keyId,
         title: "HireBuddy Marketplace",
@@ -452,6 +475,12 @@ export default function MeerutMarketplacePage() {
         },
       });
 
+      const rzpPaymentFields = {
+        razorpayPaymentId: rzpResponse?.razorpayPaymentId || rzpResponse?.razorpay_payment_id,
+        razorpayOrderId: rzpResponse?.razorpayOrderId || rzpResponse?.razorpay_order_id,
+        razorpaySignature: rzpResponse?.razorpaySignature || rzpResponse?.razorpay_signature,
+      };
+
       if (isCartCheckout && cart.length > 0) {
         const res = await placeMarketplaceOrder({
           items: cart.map((item) => ({
@@ -460,8 +489,7 @@ export default function MeerutMarketplacePage() {
             selectedVariant: item.selectedVariant || null,
           })),
           ...shippingForm,
-          razorpayPaymentId: rzpResponse?.razorpay_payment_id,
-          razorpayOrderId: rzpResponse?.razorpay_order_id,
+          ...rzpPaymentFields,
         });
         setOrderResult(res);
         setCart([]);
@@ -475,8 +503,7 @@ export default function MeerutMarketplacePage() {
             },
           ],
           ...shippingForm,
-          razorpayPaymentId: rzpResponse?.razorpay_payment_id,
-          razorpayOrderId: rzpResponse?.razorpay_order_id,
+          ...rzpPaymentFields,
         });
         setOrderResult(res);
       }
@@ -800,13 +827,52 @@ export default function MeerutMarketplacePage() {
           <div>
             {activeView === "store" ? (
               <>
+                {/* Segmented Switch: Physical Products vs Multi-Seller Partner Services */}
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#1c325c] bg-[#0a1428] p-2">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCatalogMode("products")}
+                      className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
+                        catalogMode === "products"
+                          ? "bg-[#1361f5] text-white shadow"
+                          : "text-slate-300 hover:bg-[#111f3d] hover:text-white"
+                      }`}
+                    >
+                      🛍️ Physical Products ({filteredProducts.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCatalogMode("services")}
+                      className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
+                        catalogMode === "services"
+                          ? "bg-cyan-600 text-white shadow"
+                          : "text-slate-300 hover:bg-[#111f3d] hover:text-white"
+                      }`}
+                    >
+                      🧺 Partner Services &amp; Rate Cards ({serviceGroups.length})
+                    </button>
+                  </div>
+                  <span className="hidden sm:inline text-[11px] text-slate-400 pr-2">
+                    {catalogMode === "services"
+                      ? "Multiple verified sellers per service • Choose seller & customize options"
+                      : "Factory-direct physical products from verified Meerut sellers"}
+                  </span>
+                </div>
+
                 {/* Header Row — Matches Dashboard Header Row */}
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2.5">
                     <h2 className="text-[18px] font-bold text-white">
-                      Available Products{" "}
+                      {catalogMode === "services"
+                        ? "Available Partner Services"
+                        : "Available Products"}{" "}
                       <span className="ml-1 text-sm font-medium text-slate-400">
-                        ({filteredProducts.length})
+                        (
+                        {catalogMode === "services"
+                          ? serviceGroups.length
+                          : filteredProducts.length}
+                        )
                       </span>
                     </h2>
                     {selectedCategory && selectedCategory !== "all" && (
@@ -887,9 +953,117 @@ export default function MeerutMarketplacePage() {
                   </div>
                 </div>
 
-                {/* Product Grid — Matches Dashboard ServiceCard Grid */}
+                {/* Product or Partner Services Grid */}
                 {loading ? (
                   <ServiceGridCardShimmer count={6} />
+                ) : catalogMode === "services" ? (
+                  serviceGroups.length === 0 ? (
+                    <div className="rounded-2xl border border-[#162542] bg-[#0a1326]/90 p-12 text-center">
+                      <p className="text-base font-semibold text-white">
+                        No partner services published yet
+                      </p>
+                      <p className="mt-1.5 text-xs text-slate-400">
+                        Service Sellers can create Dry Cleaning, Laundry, Shoe Spa &amp; custom
+                        services from the Seller Hub.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {serviceGroups
+                        .filter((grp) => {
+                          const q = String(searchQuery || "").trim().toLowerCase();
+                          if (!q) return true;
+                          return (
+                            grp.name.toLowerCase().includes(q) ||
+                            grp.category.toLowerCase().includes(q) ||
+                            (grp.offerings || []).some((o) =>
+                              (o.sellerName || "").toLowerCase().includes(q)
+                            )
+                          );
+                        })
+                        .map((grp) => (
+                          <div
+                            key={grp.serviceSlug}
+                            className="group flex flex-col overflow-hidden rounded-2xl border border-[#162645] bg-[#0b1528]/95 shadow-lg transition duration-200 hover:-translate-y-0.5 hover:border-cyan-500/50"
+                          >
+                            <div className="relative h-[136px] w-full overflow-hidden bg-[#0d182e]">
+                              <Link
+                                href={`/marketplace/services/${grp.serviceSlug}`}
+                                className="block h-full w-full"
+                              >
+                                <img
+                                  src={grp.image || "/images/wash_o_dry_banner.jpeg"}
+                                  alt={grp.name}
+                                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                                />
+                              </Link>
+                              <span className="absolute left-2.5 top-2.5 rounded-md bg-cyan-400 px-2.5 py-0.5 text-[10px] font-extrabold text-slate-950 shadow">
+                                {grp.sellersCount}{" "}
+                                {grp.sellersCount === 1 ? "Verified Seller" : "Verified Sellers"}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-1 flex-col p-4">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-300">
+                                  {grp.category}
+                                </span>
+                                <span className="text-xs font-bold text-amber-400">
+                                  ★ {Number(grp.maxRating || 4.8).toFixed(1)} ({grp.totalReviews}{" "}
+                                  reviews)
+                                </span>
+                              </div>
+
+                              <Link
+                                href={`/marketplace/services/${grp.serviceSlug}`}
+                                className="mt-2 text-[16px] font-extrabold text-white hover:text-cyan-300 transition"
+                              >
+                                {grp.name}
+                              </Link>
+
+                              <p className="mt-1 line-clamp-2 text-xs text-slate-300/90">
+                                {grp.description}
+                              </p>
+
+                              {/* Seller Rate Comparison Pills */}
+                              <div className="mt-3 space-y-1.5">
+                                {(grp.offerings || []).slice(0, 3).map((off) => (
+                                  <Link
+                                    key={off.id}
+                                    href={`/marketplace/services/${grp.serviceSlug}?sellerId=${off.sellerId}`}
+                                    className="flex items-center justify-between rounded-xl border border-[#1a2f56] bg-[#071124] px-2.5 py-1.5 text-[11px] hover:border-cyan-500/40 transition"
+                                  >
+                                    <span className="truncate pr-2 font-semibold text-slate-200">
+                                      🧺 {off.sellerName}
+                                    </span>
+                                    <span className="shrink-0 font-bold text-emerald-400">
+                                      from ₹{off.startingPriceRupees}/{off.unit}
+                                    </span>
+                                  </Link>
+                                ))}
+                              </div>
+
+                              <div className="mt-auto pt-3 flex items-center justify-between gap-2">
+                                <div>
+                                  <span className="text-[11px] text-slate-400 block">
+                                    Starting Rate
+                                  </span>
+                                  <span className="text-base font-extrabold text-white">
+                                    ₹{grp.startingPriceRupees}/{grp.unit || "piece"}
+                                  </span>
+                                </div>
+                                <Link
+                                  href={`/marketplace/services/${grp.serviceSlug}`}
+                                  className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 px-4 py-2 text-xs font-extrabold text-white shadow transition"
+                                >
+                                  Choose Options →
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )
                 ) : filteredProducts.length === 0 ? (
                   <div className="rounded-2xl border border-[#162542] bg-[#0a1326]/90 p-12 text-center">
                     <p className="text-base font-semibold text-white">
@@ -1173,13 +1347,22 @@ export default function MeerutMarketplacePage() {
                             <span className="text-sm font-bold text-white">
                               {ord.orderNumber}
                             </span>
+                            <span
+                              className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                                ord.orderType === "SERVICE"
+                                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
+                                  : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                              }`}
+                            >
+                              {ord.orderType === "SERVICE" ? "🧺 SERVICE BOOKING" : "📦 PRODUCT"}
+                            </span>
                             <span className="rounded-md bg-blue-500/20 px-2.5 py-0.5 text-[11px] font-bold text-blue-300">
-                              {ord.orderStatus}
+                              {ord.orderStatusLabel || ord.orderStatus}
                             </span>
                             <span className="rounded-md bg-[#0d6e52]/90 px-2.5 py-0.5 text-[11px] font-semibold text-[#34d399]">
                               {ord.deliveryMode === "PLATFORM_HELPER"
-                                ? "⚡ HireBuddy Partner Delivery"
-                                : "📦 Seller Direct Delivery"}
+                                ? "⚡ HireBuddy Partner Pickup/Delivery"
+                                : "🏪 Seller Direct"}
                             </span>
                             {ord.deliveryOtp && ord.orderStatus !== "DELIVERED" && (
                               <span className="rounded-md border border-indigo-500/40 bg-indigo-500/20 px-2.5 py-0.5 text-[11px] font-bold text-indigo-300">
@@ -1188,9 +1371,26 @@ export default function MeerutMarketplacePage() {
                             )}
                           </div>
                           <p className="mt-1.5 text-xs text-slate-300">
-                            Seller: <strong>{ord.seller?.businessName}</strong> • Deliver to:{" "}
+                            Seller: <strong>{ord.seller?.businessName}</strong> • Address:{" "}
                             {ord.shippingAddress}
+                            {ord.pickupTimeSlot ? (
+                              <span className="ml-2 text-cyan-300 font-semibold">
+                                • Slot: {ord.pickupTimeSlot}
+                              </span>
+                            ) : null}
                           </p>
+                          {Array.isArray(ord.items) && ord.items.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {ord.items.map((it) => (
+                                <span
+                                  key={it.id}
+                                  className="rounded-md border border-slate-800 bg-slate-900/80 px-2 py-0.5 text-[11px] text-slate-200"
+                                >
+                                  {it.quantity} × {it.productName}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           <div className="mt-1.5 text-[11px] text-slate-400 flex flex-wrap gap-3">
                             <span>Order Amount: ₹{ord.productSubtotalRupees}</span>
                             <span>Payment: {ord.paymentStatus || "PAID"}</span>

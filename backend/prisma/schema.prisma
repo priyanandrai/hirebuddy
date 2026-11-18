@@ -406,20 +406,28 @@ model SupportTicket {
   @@index([status])
 }
 
-// ===== MEERUT MANUFACTURERS MARKETPLACE MODELS =====
+// ===== DUAL SELLER MARKETPLACE MODELS (PRODUCT SELLERS & SERVICE SELLERS) =====
+
+enum SellerType {
+  PRODUCT
+  SERVICE
+}
 
 model SellerProfile {
-  id                  String   @id @default(uuid())
-  userId              String   @unique
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String     @id @default(uuid())
+  userId              String     @unique
+  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  sellerType          SellerType @default(PRODUCT)
   businessName        String
-  businessCategory    String   // Sports Goods, Scissors/Cutlery, Food/Gajak, Brassware, Textiles, Handloom, etc.
+  businessCategory    String     // Product categories (Sarees, Sports Goods, Food) OR Service categories (Laundry & Dry Cleaning, Shoe Spa, etc.)
   contactPersonName   String
   contactPersonPhone  String
   contactEmail        String?
+  storeBannerUrl      String?    @db.VarChar(1000)
+  rateCardDocUrl      String?    @db.VarChar(1000)
 
-  // Pickup Point Address
+  // Pickup Point / Shop Address
   pickupAddress       String   @db.Text
   pickupCity          String   @default("Meerut")
   pickupPincode       String
@@ -456,11 +464,77 @@ model SellerProfile {
   verifiedAt          DateTime?
 
   products            Product[]
+  services            SellerService[]
   orders              MarketplaceOrder[]
   settlements         SettlementBatch[]
 
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+
+  @@index([sellerType])
+}
+
+model SellerService {
+  id                  String        @id @default(uuid())
+  sellerId            String
+  seller              SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  name                String        // e.g. "Dry Cleaning", "Wash & Fold Laundry", "Shoe & Sneaker Spa"
+  serviceSlug         String        // Normalized group slug e.g. "dry-cleaning" (groups multiple sellers offering the same service)
+  slug                String        @unique // Unique seller-service URL slug e.g. "wash-o-dry-dry-cleaning"
+  description         String        @db.Text
+  category            String        // e.g. "Laundry & Dry Cleaning"
+  images              Json?         // Array of image URLs
+  highlights          Json?         // Array of bullet point strings
+  avgRating           Float         @default(4.8)
+  reviewCount         Int           @default(16)
+  basePricePaise      Int           // Starting service rate in paise (lowest active option price)
+  mrpPaise            Int?
+  unit                String        @default("piece") // "piece" | "kg" | "set" | "pair" | "sqft" | "visit"
+  turnaroundLabel     String        @default("24–48 Hours")
+
+  // Admin-configurable commission (10% - 20%) & verification
+  commissionRate      Float         @default(15.0)
+  status              String        @default("PENDING_APPROVAL") // "DRAFT" | "PENDING_APPROVAL" | "PUBLISHED" | "REJECTED" | "ARCHIVED"
+  rejectionReason     String?       @db.Text
+  approvedAt          DateTime?
+  approvedByAdmin     String?
+
+  // Pickup & Drop Fulfillment mode ("SELLER_SELF" | "PLATFORM_HELPER")
+  defaultDeliveryMode String        @default("SELLER_SELF")
+
+  options             SellerServiceOption[]
+  orderItems          MarketplaceOrderItem[]
+
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([sellerId])
+  @@index([serviceSlug, status])
+  @@index([status])
+  @@index([category])
+}
+
+model SellerServiceOption {
+  id                  String        @id @default(uuid())
+  sellerServiceId     String
+  sellerService       SellerService @relation(fields: [sellerServiceId], references: [id], onDelete: Cascade)
+
+  groupName           String        @default("Standard Options") // e.g. "Men's Wear", "Women's Wear", "Woolen", "Household"
+  title               String        // e.g. "Shirt / T-Shirt", "2-Piece Suit", "Silk Saree"
+  description         String?       @db.VarChar(500)
+  unit                String        @default("piece") // "piece" | "set" | "kg" | "pair" | "sqft"
+  pricePaise          Int           // Seller's custom rate in paise
+  mrpPaise            Int?
+  isActive            Boolean       @default(true)
+  sortOrder           Int           @default(0)
+
+  orderItems          MarketplaceOrderItem[]
+
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([sellerServiceId])
 }
 
 model Product {
@@ -506,6 +580,7 @@ model Product {
 model MarketplaceOrder {
   id                      String   @id @default(uuid())
   orderNumber             String   @unique
+  orderType               String   @default("PRODUCT")     // "PRODUCT" | "SERVICE"
   customerId              String
   sellerId                String
 
@@ -513,7 +588,7 @@ model MarketplaceOrder {
   seller                  SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   items                   MarketplaceOrderItem[]
 
-  // Customer Delivery Address
+  // Customer Delivery / Pickup Address
   shippingName            String
   shippingPhone           String
   shippingAddress         String   @db.Text
@@ -521,6 +596,10 @@ model MarketplaceOrder {
   shippingPincode         String
   shippingLatitude        Float?
   shippingLongitude       Float?
+
+  // Service Pickup Scheduling (for orderType = "SERVICE")
+  scheduledPickupAt       DateTime?
+  pickupTimeSlot          String?
 
   // Delivery Mode & 2% Platform Auto-Task
   deliveryMode            String   @default("SELLER_SELF") // "SELLER_SELF" | "PLATFORM_HELPER"
@@ -544,7 +623,9 @@ model MarketplaceOrder {
   settledAt               DateTime?
   settlementBatchId       String?
 
-  orderStatus             String   @default("PLACED")      // "PLACED" | "CONFIRMED" | "PACKED" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELLED"
+  // Product statuses: PLACED | CONFIRMED | PACKED | OUT_FOR_DELIVERY | DELIVERED | CANCELLED
+  // Service statuses: PLACED | CONFIRMED | PICKED_UP | IN_PROCESS | READY_FOR_DELIVERY | OUT_FOR_DELIVERY | DELIVERED | CANCELLED
+  orderStatus             String   @default("PLACED")
   cartGroupId             String?                          // Groups multi-seller cart orders checked out in a single payment
   pickupOtp               String?                          // 4-digit OTP for Helper pickup at Seller shop
   deliveryOtp             String?                          // 4-digit OTP for Helper drop-off at Customer doorstep
@@ -555,27 +636,34 @@ model MarketplaceOrder {
 
   @@index([customerId])
   @@index([sellerId])
+  @@index([orderType])
   @@index([settlementStatus])
   @@index([cartGroupId])
 }
 
 model MarketplaceOrderItem {
-  id                  String           @id @default(uuid())
+  id                  String               @id @default(uuid())
   orderId             String
-  productId           String
-  productName         String
-  selectedVariant     String?          // e.g. "Crimson Red Zari", "1 Kg Festive Pack", "Size XL"
+  productId           String?
+  sellerServiceId     String?
+  serviceOptionId     String?
+  productName         String               // Snapshot of Product name OR Service name
+  selectedVariant     String?              // e.g. "Crimson Red Zari" OR "Men's Wear • Shirt / T-Shirt (per piece)"
   quantity            Int
   unitPricePaise      Int
   commissionRate      Float
   platformSharePaise  Int
   sellerSharePaise    Int
 
-  order               MarketplaceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product             Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order               MarketplaceOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product             Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
+  sellerService       SellerService?       @relation(fields: [sellerServiceId], references: [id], onDelete: SetNull)
+  serviceOption       SellerServiceOption? @relation(fields: [serviceOptionId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([productId])
+  @@index([sellerServiceId])
+  @@index([serviceOptionId])
 }
 
 model SettlementBatch {

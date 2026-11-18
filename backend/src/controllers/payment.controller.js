@@ -1,4 +1,5 @@
 import * as paymentService from '../services/payment.service.js';
+import { getPaymentGateway } from '../payments/PaymentGatewayFactory.js';
 import {
   createMarketplacePaymentOrder,
   finalizeCapturedMarketplacePayment,
@@ -72,7 +73,10 @@ export const createPaymentOrder = async (req, res) => {
       taskId,
       bookingId,
       amount,
+      amountPaise,
+      amountRupees,
       baseServicePaise,
+      purpose = 'TASK_ESCROW',
       payeeId,
       promoCode = null,
       discountPaise = 0,
@@ -82,21 +86,72 @@ export const createPaymentOrder = async (req, res) => {
       commissionGstMode = 'INCLUSIVE',
       idempotencyKey = null,
       providerCode = 'RAZORPAY',
+      notes = {},
     } = req.body;
 
     const resolvedTaskId = taskId || bookingId;
     const userId = req.user.id;
 
+    // Standalone Razorpay Order (Marketplace Product/Service Order, Wallet Top-up, Buddy Subscription Pass)
     if (!resolvedTaskId) {
-      return res.status(400).json({ error: 'taskId (or bookingId) is required' });
+      const standalonePaise =
+        amountPaise !== undefined && amountPaise !== null
+          ? Math.round(Number(amountPaise))
+          : baseServicePaise !== undefined && baseServicePaise !== null
+            ? Math.round(Number(baseServicePaise))
+            : amountRupees !== undefined && amountRupees !== null
+              ? Math.round(Number(amountRupees) * 100)
+              : amount !== undefined && amount !== null
+                ? Math.round(Number(amount) * 100)
+                : 0;
+
+      if (!standalonePaise || standalonePaise <= 0) {
+        return res.status(400).json({
+          error: 'taskId (or positive amountRupees / amountPaise) is required',
+        });
+      }
+
+      const gateway = getPaymentGateway(providerCode);
+      const resolvedIdempKey =
+        idempotencyKey ||
+        req.headers['idempotency-key'] ||
+        `hb_${String(purpose || 'ord').toLowerCase().slice(0, 8)}_${userId.slice(0, 8)}_${Date.now()}`;
+
+      const gatewayOrder = await gateway.createOrder({
+        amountPaise: standalonePaise,
+        currency: 'INR',
+        receipt: `hb_${String(purpose || 'ord').toLowerCase().slice(0, 6)}_${Date.now()}`.slice(0, 40),
+        idempotencyKey: resolvedIdempKey,
+        notes: {
+          ...notes,
+          userId,
+          purpose: String(purpose || 'MARKETPLACE_ORDER'),
+        },
+      });
+
+      return res.json({
+        success: true,
+        provider: gatewayOrder.provider,
+        keyId: gatewayOrder.keyId || process.env.RAZORPAY_KEY_ID || null,
+        orderId: gatewayOrder.orderId,
+        amount: gatewayOrder.amountPaise,
+        amountPaise: gatewayOrder.amountPaise,
+        amountRupees: Number((gatewayOrder.amountPaise / 100).toFixed(2)),
+        currency: gatewayOrder.currency || 'INR',
+        purpose,
+      });
     }
 
     const resolvedBasePaise =
       baseServicePaise !== undefined && baseServicePaise !== null
         ? Math.round(Number(baseServicePaise))
-        : amount !== undefined && amount !== null
-          ? Math.round(Number(amount))
-          : null;
+        : amountPaise !== undefined && amountPaise !== null
+          ? Math.round(Number(amountPaise))
+          : amountRupees !== undefined && amountRupees !== null
+            ? Math.round(Number(amountRupees) * 100)
+            : amount !== undefined && amount !== null
+              ? Math.round(Number(amount))
+              : null;
 
     const result = await createMarketplacePaymentOrder({
       taskId: resolvedTaskId,
@@ -240,12 +295,25 @@ export const getSubscriptionStatus = async (req, res) => {
  */
 export const activateSubscription = async (req, res) => {
   try {
-    const { planType = 'DAILY', paymentMethod = 'ONLINE', razorpayPaymentId } = req.body;
+    const {
+      planType = 'DAILY',
+      paymentMethod = 'ONLINE',
+      razorpayPaymentId,
+      razorpayOrderId,
+      razorpaySignature,
+      razorpay_payment_id,
+      razorpay_order_id,
+      razorpay_signature,
+    } = req.body;
     const result = await paymentService.activatePartnerSubscription(
       req.user.id,
       planType,
       paymentMethod,
-      razorpayPaymentId
+      {
+        razorpayPaymentId: razorpayPaymentId || razorpay_payment_id || null,
+        razorpayOrderId: razorpayOrderId || razorpay_order_id || null,
+        razorpaySignature: razorpaySignature || razorpay_signature || null,
+      }
     );
     res.json(result);
   } catch (error) {

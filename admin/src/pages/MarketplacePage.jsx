@@ -84,6 +84,7 @@ export default function MarketplacePage() {
     stats: {},
     sellers: [],
     products: [],
+    services: [],
     orders: [],
     settlements: [],
   });
@@ -105,6 +106,7 @@ export default function MarketplacePage() {
   });
   const [tickets, setTickets] = useState([]);
   const [commissionEdits, setCommissionEdits] = useState({});
+  const [serviceCommissionEdits, setServiceCommissionEdits] = useState({});
   const [sellerCommissionEdits, setSellerCommissionEdits] = useState({});
   const [replyText, setReplyText] = useState({});
   const [actionLoading, setActionLoading] = useState(null);
@@ -119,12 +121,19 @@ export default function MarketplacePage() {
       ]);
 
       const products = Array.isArray(mktData?.products) ? mktData.products : [];
+      const services = Array.isArray(mktData?.services) ? mktData.services : [];
       const sellersList = Array.isArray(mktData?.sellers) ? mktData.sellers : [];
       const initialCommissions = {};
       products.forEach((p) => {
         initialCommissions[p.id] = p.commissionPct ?? 15;
       });
       setCommissionEdits((prev) => ({ ...initialCommissions, ...prev }));
+
+      const initialServiceCommissions = {};
+      services.forEach((sv) => {
+        initialServiceCommissions[sv.id] = sv.commissionPct ?? 15;
+      });
+      setServiceCommissionEdits((prev) => ({ ...initialServiceCommissions, ...prev }));
 
       const initialSellerCommissions = {};
       sellersList.forEach((s) => {
@@ -136,6 +145,7 @@ export default function MarketplacePage() {
         stats: mktData?.stats || {},
         sellers: sellersList,
         products,
+        services,
         orders: Array.isArray(mktData?.orders) ? mktData.orders : [],
         settlements: Array.isArray(mktData?.settlements) ? mktData.settlements : [],
       });
@@ -178,6 +188,28 @@ export default function MarketplacePage() {
       await loadAll();
     } catch (err) {
       await swalAlert(err.message || 'Failed to update product', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleVerifyService = async (svc, status) => {
+    setActionLoading(`service-${svc.id}`);
+    setBannerMsg(null);
+    try {
+      const commissionPct = Number(serviceCommissionEdits[svc.id] ?? svc.commissionPct ?? 15);
+      await adminApi.verifyAndPublishService(svc.id, {
+        status,
+        commissionPct,
+      });
+      setBannerMsg(
+        status === 'PUBLISHED'
+          ? `Published service "${svc.name}" with ${commissionPct}% platform commission (${100 - commissionPct}% to seller).`
+          : `Updated service "${svc.name}" to ${status}.`
+      );
+      await loadAll();
+    } catch (err) {
+      await swalAlert(err.message || 'Failed to update service', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -260,7 +292,7 @@ export default function MarketplacePage() {
     }
   };
 
-  const { stats, sellers, products, orders, settlements } = overview;
+  const { stats, sellers, products, services, orders, settlements } = overview;
 
   return (
     <div className="space-y-6">
@@ -307,14 +339,20 @@ export default function MarketplacePage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-          <p className="text-xs font-semibold text-slate-400">Meerut Sellers</p>
+          <p className="text-xs font-semibold text-slate-400">Onboarded Sellers</p>
           <p className="mt-1 text-2xl font-extrabold text-white">{stats.totalSellers || sellers.length}</p>
-          <p className="mt-1 text-[11px] text-amber-400">{stats.pendingSellers || 0} pending KYC</p>
+          <p className="mt-1 text-[11px] text-amber-400">
+            {stats.productSellers ?? 0} Product • {stats.serviceSellers ?? 0} Service ({stats.pendingSellers || 0} pending)
+          </p>
         </div>
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-          <p className="text-xs font-semibold text-slate-400">Products</p>
-          <p className="mt-1 text-2xl font-extrabold text-white">{stats.totalProducts || products.length}</p>
-          <p className="mt-1 text-[11px] text-amber-400">{stats.pendingProducts || 0} awaiting Admin publish</p>
+          <p className="text-xs font-semibold text-slate-400">Products & Services</p>
+          <p className="mt-1 text-2xl font-extrabold text-white">
+            {stats.totalProducts || products.length} / {(services || []).length}
+          </p>
+          <p className="mt-1 text-[11px] text-cyan-400">
+            {stats.totalProducts || products.length} Products • {(services || []).length} Partner Services
+          </p>
         </div>
         <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
           <p className="text-xs font-semibold text-slate-400">Platform Commission Earned</p>
@@ -344,8 +382,9 @@ export default function MarketplacePage() {
       {/* Navigation Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
         {[
-          { id: 'products', label: `Product Verification & Commission (${products.length})`, icon: Package },
-          { id: 'sellers', label: `Seller KYC, FSSAI & Bank (${sellers.length})`, icon: ShieldCheck },
+          { id: 'products', label: `Product Verification (${products.length})`, icon: Package },
+          { id: 'services', label: `Service Verification & Rate Cards (${(services || []).length})`, icon: Store },
+          { id: 'sellers', label: `Seller KYC & Type (${sellers.length})`, icon: ShieldCheck },
           { id: 'orders', label: `Orders, Split & Daily NEFT (${orders.length})`, icon: ShoppingBag },
           { id: 'support', label: `Customer Support (${tickets.length})`, icon: MessageSquare },
           { id: 'promo', label: `Popup Ad (Product / Service)`, icon: Sparkles },
@@ -485,6 +524,114 @@ export default function MarketplacePage() {
         </div>
       )}
 
+      {/* TAB 1B: SERVICE VERIFICATION, RATE CARDS & COMMISSION */}
+      {activeTab === 'services' && (
+        <div className="space-y-4">
+          {(services || []).length === 0 ? (
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-10 text-center text-sm text-slate-400">
+              No seller services created yet.
+            </div>
+          ) : (
+            (services || []).map((svc) => {
+              const comm = Number(serviceCommissionEdits[svc.id] ?? svc.commissionPct ?? 15);
+              return (
+                <div
+                  key={svc.id}
+                  className="rounded-3xl border border-slate-800 bg-slate-900/70 p-5 space-y-3"
+                >
+                  <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase ${
+                            svc.status === 'PUBLISHED'
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : svc.status === 'PENDING_APPROVAL'
+                              ? 'bg-amber-500/20 text-amber-300'
+                              : 'bg-rose-500/20 text-rose-300'
+                          }`}
+                        >
+                          {svc.status}
+                        </span>
+                        <span className="rounded-full bg-cyan-500/15 border border-cyan-500/30 px-2.5 py-0.5 text-[11px] font-bold text-cyan-300">
+                          {svc.category} • Group: {svc.serviceSlug}
+                        </span>
+                        <span className="text-xs text-slate-400">
+                          Seller: <strong className="text-slate-200">{svc.seller?.businessName || 'Service Partner'}</strong>
+                        </span>
+                      </div>
+                      <h3 className="text-base font-extrabold text-white">{svc.name}</h3>
+                      <p className="text-xs text-slate-400 max-w-2xl">{svc.description}</p>
+                      <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-slate-300">
+                        <span>
+                          Starting Rate: <strong className="text-emerald-400">₹{svc.priceRupees}</strong> / {svc.unit}
+                        </span>
+                        <span>Options: {(svc.options || []).length}</span>
+                        <span>Turnaround: {svc.turnaroundLabel || '24–48 Hours'}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                      <div className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs">
+                        <Percent className="h-3.5 w-3.5 text-amber-400" />
+                        <span className="font-bold text-slate-300">Comm %:</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="50"
+                          step="0.5"
+                          value={comm}
+                          onChange={(e) =>
+                            setServiceCommissionEdits((prev) => ({
+                              ...prev,
+                              [svc.id]: Number(e.target.value),
+                            }))
+                          }
+                          className="w-16 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs font-extrabold text-emerald-300"
+                        />
+                      </div>
+                      <button
+                        onClick={() => handleVerifyService(svc, 'PUBLISHED')}
+                        disabled={actionLoading === `service-${svc.id}`}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-extrabold text-white hover:bg-emerald-500"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {svc.status === 'PUBLISHED' ? 'Update Commission' : 'Verify & Publish'}
+                      </button>
+                      {svc.status !== 'REJECTED' && (
+                        <button
+                          onClick={() => handleVerifyService(svc, 'REJECTED')}
+                          disabled={actionLoading === `service-${svc.id}`}
+                          className="inline-flex items-center gap-1 rounded-xl bg-rose-600/20 border border-rose-500/30 px-3 py-2 text-xs font-bold text-rose-300 hover:bg-rose-600/30"
+                        >
+                          <XCircle className="h-3.5 w-3.5" />
+                          Reject
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Option Rate Card Preview */}
+                  {(svc.options || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-800/80">
+                      {(svc.options || []).slice(0, 12).map((opt) => (
+                        <span
+                          key={opt.id}
+                          className="rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1 text-[11px] text-slate-300"
+                        >
+                          {opt.groupName}: <strong className="text-white">{opt.title}</strong> —{' '}
+                          <span className="text-emerald-400 font-bold">₹{opt.priceRupees}</span>/{opt.unit}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
       {/* TAB 2: SELLER KYC, FSSAI, PICKUP POINT & BANK VERIFICATION */}
       {activeTab === 'sellers' && (
         <div className="space-y-4">
@@ -501,6 +648,15 @@ export default function MarketplacePage() {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase ${
+                          seller.sellerType === 'SERVICE'
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                            : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                        }`}
+                      >
+                        {seller.sellerType === 'SERVICE' ? '🧺 SERVICE SELLER' : '🏭 PRODUCT SELLER'}
+                      </span>
                       <span
                         className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase ${
                           seller.verificationStatus === 'APPROVED' ||
@@ -660,8 +816,17 @@ export default function MarketplacePage() {
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs font-extrabold text-blue-400">{order.orderNumber}</span>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold ${
+                          order.orderType === 'SERVICE'
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                            : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                        }`}
+                      >
+                        {order.orderType === 'SERVICE' ? '🧺 SERVICE BOOKING' : '📦 PRODUCT ORDER'}
+                      </span>
                       <span className="rounded-full bg-slate-800 px-2.5 py-0.5 text-[10px] font-bold text-slate-200">
-                        Order: {order.orderStatus}
+                        Status: {order.orderStatusLabel || order.orderStatus}
                       </span>
                       <span
                         className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${

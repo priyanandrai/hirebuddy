@@ -6,7 +6,8 @@ import { getFilteredServices } from "../components/services/task.service";
 import { ServiceGridCardShimmer } from "../components/ui/Shimmer";
 
 const DEFAULT_CATEGORIES = [
-  { name: "All Services", slug: "all", count: 9, iconType: "all" },
+  { name: "All Services", slug: "all", count: 10, iconType: "all" },
+  { name: "Laundry & Dry Cleaning", slug: "laundry-dry-cleaning", count: 1, iconType: "laundry" },
   { name: "Home Cleaning", slug: "home-cleaning", count: 1, iconType: "cleaning" },
   { name: "Driver Services", slug: "driver-services", count: 1, iconType: "driver" },
   { name: "Delivery & Pickup", slug: "delivery-pickup", count: 1, iconType: "delivery" },
@@ -19,7 +20,13 @@ const DEFAULT_CATEGORIES = [
 ];
 
 const resolveServiceImage = (service = {}) => {
+  if (service.isSellerStore && service.image) {
+    return service.image;
+  }
   const key = `${service.slug || ""} ${service.title || ""} ${service.category || ""}`.toLowerCase();
+  if (key.includes("wash o dry")) {
+    return "/images/wash_o_dry_banner.jpeg";
+  }
   if (key.includes("carpentr") || key.includes("carpenter") || key.includes("wood")) {
     return "/images/service_carpenter.png";
   }
@@ -54,6 +61,40 @@ const resolveServiceImage = (service = {}) => {
 };
 
 const FALLBACK_SERVICES = [
+  {
+    id: "multi-svc-dry-cleaning",
+    title: "Dry Cleaning",
+    category: "Laundry & Dry Cleaning",
+    slug: "dry-cleaning",
+    serviceSlug: "dry-cleaning",
+    taskCategory: "Laundry & Dry Cleaning",
+    image: "/images/wash_o_dry_banner.jpeg",
+    rateCardImage: "/images/wash_o_dry_ratecard.jpeg",
+    iconType: "laundry",
+    verified: true,
+    isSellerStore: true,
+    isMultiSellerService: true,
+    sellersCount: 2,
+    productsCount: 15,
+    marketplaceUrl: "/marketplace/services/dry-cleaning",
+    marketplaceServiceUrl: "/marketplace/services/dry-cleaning",
+    rating: 4.8,
+    reviewsCount: 96,
+    location: "Multiple Verified Partners in Meerut (Wash O Dry, Crystal Care)",
+    description:
+      "Compare multiple Dry Cleaning sellers & their rates • Choose Men's, Women's, Woolen & Household options starting ₹75/piece",
+    price: 75,
+    priceUnit: "piece",
+    relevanceOrder: 0.4,
+    availableHelpers: 2,
+    subServices: [
+      "Shirt / T-Shirt Dry Clean — from ₹99/piece",
+      "Trouser / Jeans Dry Clean — from ₹99/piece",
+      "2-Pc Suit Dry Clean — from ₹299/set",
+      "Silk / Heavy Work Saree — from ₹299/piece",
+      "Double Blanket / Quilt — from ₹399/piece",
+    ],
+  },
   {
     id: "svc-home-cleaning",
     title: "Home Cleaning",
@@ -292,6 +333,7 @@ export default function UserHomePage() {
   // Interactive UI States
   const [favorites, setFavorites] = useState([]);
   const [detailService, setDetailService] = useState(null);
+  const [showRateCard, setShowRateCard] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
 
   const effectiveMinRating =
@@ -877,7 +919,10 @@ export default function UserHomePage() {
                     service={service}
                     isFavorite={favorites.includes(service.id)}
                     onToggleFavorite={() => toggleFavorite(service.id)}
-                    onViewDetails={() => setDetailService(service)}
+                    onViewDetails={() => {
+                      setShowRateCard(false);
+                      setDetailService(service);
+                    }}
                   />
                 ))}
               </div>
@@ -893,10 +938,10 @@ export default function UserHomePage() {
           onClick={() => setDetailService(null)}
         >
           <div
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-[#1e3156] bg-[#0a1326] shadow-2xl"
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#1e3156] bg-[#0a1326] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative h-44 w-full">
+            <div className="relative h-48 w-full">
               <img
                 src={resolveServiceImage(detailService)}
                 alt={detailService.title}
@@ -912,21 +957,26 @@ export default function UserHomePage() {
             </div>
 
             <div className="p-5">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-lg font-bold text-white">{detailService.title}</h3>
                   {detailService.verified && (
                     <span className="rounded-md bg-[#0d6e52]/90 px-2 py-0.5 text-[10px] font-semibold text-[#34d399]">
                       Verified
                     </span>
                   )}
+                  {detailService.isSellerStore && (
+                    <span className="rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                      🏪 Partner Store
+                    </span>
+                  )}
                 </div>
-                <span className="text-sm font-bold text-emerald-400">
+                <span className="shrink-0 text-sm font-bold text-emerald-400">
                   from ₹{detailService.price}/{detailService.priceUnit || "day"}
                 </span>
               </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-300">
+              <div className="mt-2 flex flex-wrap items-center gap-2.5 text-xs text-slate-300">
                 <span className="flex items-center gap-1">
                   <span className="text-amber-400">★</span>
                   <strong className="text-white">{detailService.rating}</strong> (
@@ -935,16 +985,96 @@ export default function UserHomePage() {
                 <span>•</span>
                 <span>📍 {detailService.location}</span>
                 <span>•</span>
-                <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
-                  👥 {detailService.availableHelpers || 5}+ Verified Buddies Available
-                </span>
+                {detailService.isSellerStore ? (
+                  <span className="rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-semibold text-cyan-300">
+                    🚚 Free Pickup &amp; Delivery • {detailService.productsCount || 8} Catalog Items
+                  </span>
+                ) : (
+                  <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
+                    👥 {detailService.availableHelpers || 5}+ Verified Buddies Available
+                  </span>
+                )}
               </div>
 
               <p className="mt-3 text-xs leading-relaxed text-slate-300">
                 {detailService.description}
               </p>
 
-              {Array.isArray(detailService.subServices) &&
+              {detailService.rateCardImage && (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowRateCard((v) => !v)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/20 transition"
+                  >
+                    <span>📄 {showRateCard ? "Hide Full Price List" : "View Full Price List Flyer"}</span>
+                  </button>
+                  {showRateCard && (
+                    <div className="mt-2.5 overflow-hidden rounded-xl border border-[#1e3156] bg-slate-950 p-1.5">
+                      <img
+                        src={detailService.rateCardImage}
+                        alt={`${detailService.title} Rate Card`}
+                        className="w-full rounded-lg object-contain"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {Array.isArray(detailService.sellerOfferings) &&
+                detailService.sellerOfferings.length > 0 && (
+                  <div className="mt-4">
+                    <p className="mb-2 text-xs font-semibold text-cyan-300">
+                      Verified Sellers Offering {detailService.title} (Compare Rates):
+                    </p>
+                    <div className="grid grid-cols-1 gap-1.5 text-xs">
+                      {detailService.sellerOfferings.map((off) => (
+                        <Link
+                          key={off.id}
+                          href={`/marketplace/services/${
+                            detailService.serviceSlug || detailService.slug
+                          }?sellerId=${off.sellerId}`}
+                          className="flex items-center justify-between rounded-lg border border-cyan-500/30 bg-[#0b1830] px-3 py-2 text-slate-200 transition hover:border-cyan-400"
+                        >
+                          <span className="truncate pr-2 font-semibold">
+                            🧺 {off.sellerName} ({off.turnaroundLabel})
+                          </span>
+                          <span className="shrink-0 font-bold text-emerald-400">
+                            from ₹{off.startingPrice}/{off.unit} →
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {Array.isArray(detailService.sellerProducts) &&
+              detailService.sellerProducts.length > 0 ? (
+                <div className="mt-4">
+                  <p className="mb-2 text-xs font-semibold text-slate-200">
+                    Selectable Options &amp; Starting Rates:
+                  </p>
+                  <div className="grid grid-cols-1 gap-1.5 text-xs">
+                    {detailService.sellerProducts.map((prod) => (
+                      <Link
+                        key={prod.id || prod.slug}
+                        href={
+                          prod.isServiceOption
+                            ? `/marketplace/services/${prod.slug}`
+                            : `/marketplace/${prod.slug}`
+                        }
+                        className="flex items-center justify-between rounded-lg border border-[#1c2f52] bg-[#0d182e] px-3 py-2 text-slate-200 transition hover:border-emerald-500/50 hover:bg-[#122240]"
+                      >
+                        <span className="truncate pr-2">✓ {prod.name}</span>
+                        <span className="shrink-0 font-bold text-emerald-400">
+                          ₹{prod.price}/{prod.unit} →
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                Array.isArray(detailService.subServices) &&
                 detailService.subServices.length > 0 && (
                   <div className="mt-4">
                     <p className="mb-2 text-xs font-semibold text-slate-200">
@@ -959,27 +1089,55 @@ export default function UserHomePage() {
                       ))}
                     </ul>
                   </div>
-                )}
+                )
+              )}
 
               <div className="mt-5 flex items-center gap-3">
-                <Link
-                  href={`/dashboard/helpers?category=${encodeURIComponent(
-                    detailService.taskCategory || detailService.title
-                  )}`}
-                  className="flex-1 rounded-lg border border-[#243860] bg-[#0f1c36] py-2.5 text-center text-xs font-semibold text-slate-200 hover:bg-[#162749]"
-                >
-                  Browse Helpers ({detailService.availableHelpers || 5})
-                </Link>
-                <Link
-                  href={`/dashboard/create-task?category=${encodeURIComponent(
-                    detailService.taskCategory || detailService.title
-                  )}&service=${encodeURIComponent(
-                    detailService.title
-                  )}&price=${encodeURIComponent(detailService.price || "")}`}
-                  className="flex-1 rounded-lg bg-[#2fa97c] py-2.5 text-center text-xs font-semibold text-white hover:bg-[#27946b]"
-                >
-                  Post Task for Buddies
-                </Link>
+                {detailService.isSellerStore ? (
+                  <>
+                    <Link
+                      href={`/dashboard/create-task?category=${encodeURIComponent(
+                        detailService.taskCategory || detailService.title
+                      )}&service=${encodeURIComponent(
+                        detailService.title
+                      )}&price=${encodeURIComponent(detailService.price || "")}`}
+                      className="flex-1 rounded-lg border border-[#243860] bg-[#0f1c36] py-2.5 text-center text-xs font-semibold text-slate-200 hover:bg-[#162749]"
+                    >
+                      Book Pickup Task
+                    </Link>
+                    <Link
+                      href={
+                        detailService.marketplaceServiceUrl ||
+                        detailService.marketplaceUrl ||
+                        "/marketplace?mode=services"
+                      }
+                      className="flex-1 rounded-lg bg-[#2fa97c] py-2.5 text-center text-xs font-semibold text-white hover:bg-[#27946b]"
+                    >
+                      Choose Seller &amp; Options →
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href={`/dashboard/helpers?category=${encodeURIComponent(
+                        detailService.taskCategory || detailService.title
+                      )}`}
+                      className="flex-1 rounded-lg border border-[#243860] bg-[#0f1c36] py-2.5 text-center text-xs font-semibold text-slate-200 hover:bg-[#162749]"
+                    >
+                      Browse Helpers ({detailService.availableHelpers || 5})
+                    </Link>
+                    <Link
+                      href={`/dashboard/create-task?category=${encodeURIComponent(
+                        detailService.taskCategory || detailService.title
+                      )}&service=${encodeURIComponent(
+                        detailService.title
+                      )}&price=${encodeURIComponent(detailService.price || "")}`}
+                      className="flex-1 rounded-lg bg-[#2fa97c] py-2.5 text-center text-xs font-semibold text-white hover:bg-[#27946b]"
+                    >
+                      Post Task for Buddies
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -1002,6 +1160,12 @@ function ServiceCard({ service, isFavorite, onToggleFavorite, onViewDetails }) {
           className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
         />
         <div className=" inset-0 bg-gradient-to-t from-[#0b1528] via-transparent to-transparent opacity-65" />
+
+        {service.isSellerStore && (
+          <span className="absolute left-2.5 top-2.5 rounded-full bg-amber-500/95 px-2.5 py-0.5 text-[10px] font-extrabold text-slate-950 shadow">
+            25% OFF 1st Order
+          </span>
+        )}
 
         {/* Favorite Heart Button */}
         <button
@@ -1046,14 +1210,21 @@ function ServiceCard({ service, isFavorite, onToggleFavorite, onViewDetails }) {
           )}
         </div>
 
-        {/* Rating & Available Buddies */}
+        {/* Rating & Available Buddies / Partner Store */}
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
           <span className="text-amber-400 text-sm leading-none">★</span>
           <span className="font-bold text-white">{service.rating}</span>
           <span className="text-slate-400">({service.reviewsCount} reviews)</span>
-          <span className="ml-auto rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
-            👥 {service.availableHelpers || 5}+ Buddies
-          </span>
+          {service.isSellerStore ? (
+            <span className="ml-auto rounded border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-300">
+              🧺 {service.sellersCount > 1 ? `${service.sellersCount} Sellers • ` : ""}
+              {service.productsCount || 8} Options
+            </span>
+          ) : (
+            <span className="ml-auto rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+              👥 {service.availableHelpers || 5}+ Buddies
+            </span>
+          )}
         </div>
 
         {/* Location */}
@@ -1092,17 +1263,21 @@ function ServiceCard({ service, isFavorite, onToggleFavorite, onViewDetails }) {
             onClick={onViewDetails}
             className="rounded-lg border border-[#1e3154] bg-[#0b162c] py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-[#132240] hover:text-white"
           >
-            View Details
+            {service.isSellerStore ? "Rate Card" : "View Details"}
           </button>
           <Link
-            href={`/dashboard/create-task?category=${encodeURIComponent(
-              service.taskCategory || service.title
-            )}&service=${encodeURIComponent(
-              service.title
-            )}&price=${encodeURIComponent(service.price || "")}`}
+            href={
+              service.isSellerStore
+                ? service.marketplaceUrl || "/marketplace"
+                : `/dashboard/create-task?category=${encodeURIComponent(
+                    service.taskCategory || service.title
+                  )}&service=${encodeURIComponent(
+                    service.title
+                  )}&price=${encodeURIComponent(service.price || "")}`
+            }
             className="rounded-lg bg-[#34b27b] py-2 text-center text-xs font-bold text-white shadow-md shadow-emerald-950/30 transition hover:bg-[#2ca16d]"
           >
-            Book Now
+            {service.isSellerStore ? "Order Now" : "Book Now"}
           </Link>
         </div>
       </div>
@@ -1112,6 +1287,24 @@ function ServiceCard({ service, isFavorite, onToggleFavorite, onViewDetails }) {
 
 function ServiceCategoryBadge({ type }) {
   switch (type) {
+    case "laundry":
+      return (
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0891b2] text-white shadow-md border-2 border-[#0b1528]">
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <rect x="4" y="2" width="16" height="20" rx="2" />
+            <circle cx="12" cy="13" r="5" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 6h.01M11 6h.01" />
+          </svg>
+        </div>
+      );
+    case "store":
+      return (
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f59e0b] text-white shadow-md border-2 border-[#0b1528]">
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 9l2-5h14l2 5M4 10h16v10H4V10z" />
+          </svg>
+        </div>
+      );
     case "cleaning":
       return (
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#2563eb] text-white shadow-md border-2 border-[#0b1528]">
@@ -1195,6 +1388,20 @@ function CategorySidebarIcon({ type }) {
       return (
         <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
           <path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm0 8a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4z" />
+        </svg>
+      );
+    case "laundry":
+    case "laundry-dry-cleaning":
+      return (
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+          <rect x="4" y="2" width="16" height="20" rx="2" />
+          <circle cx="12" cy="13" r="4.5" />
+        </svg>
+      );
+    case "store":
+      return (
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9l2-5h14l2 5M4 10h16v10H4V10z" />
         </svg>
       );
     case "cleaning":

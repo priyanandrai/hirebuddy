@@ -1,5 +1,6 @@
 import prisma from "../utils/prisma.js";
 import { CATEGORIES_DATA } from "../../scripts/seed-categories.js";
+import { ensureInitialMeerutMarketplace } from "./marketplace.service.js";
 
 /**
  * Helper to convert category name into URL-friendly slug
@@ -408,6 +409,8 @@ export const HOME_SERVICES_TEMPLATES = {
  * Filter & sort services catalog dynamically from DB Categories (`prisma.category`)
  */
 export const getFilteredServices = async (filters = {}) => {
+  await ensureInitialMeerutMarketplace();
+
   const {
     category,
     location,
@@ -418,8 +421,8 @@ export const getFilteredServices = async (filters = {}) => {
     search,
   } = filters;
 
-  // 1. Always fetch categories from DB and verified Helpers for direct booking
-  const [dbCategories, dbHelpers] = await Promise.all([
+  // 1. Fetch categories from DB, verified Helpers, and verified Service Sellers + Published Services
+  const [dbCategories, dbHelpers, publishedSellerServices] = await Promise.all([
     getAllCategories(),
     prisma.user.findMany({
       where: { role: "HELPER" },
@@ -435,6 +438,23 @@ export const getFilteredServices = async (filters = {}) => {
         idVerificationStatus: true,
       },
       orderBy: [{ idVerificationStatus: "desc" }, { createdAt: "desc" }],
+    }),
+    prisma.sellerService.findMany({
+      where: {
+        status: "PUBLISHED",
+        seller: {
+          sellerType: "SERVICE",
+          verificationStatus: "VERIFIED",
+        },
+      },
+      include: {
+        options: {
+          where: { isActive: true },
+          orderBy: { sortOrder: "asc" },
+        },
+        seller: true,
+      },
+      orderBy: { createdAt: "asc" },
     }),
   ]);
 
@@ -469,8 +489,114 @@ export const getFilteredServices = async (filters = {}) => {
     return matched || helperPool[idx % helperPool.length];
   };
 
-  // 2. Build services catalog directly from DB categories
-  const fullCatalog = dbCategories.map((dbCat, index) => {
+  // 2a. Build Multi-Seller Service Group cards (e.g., "Dry Cleaning" offered by Wash O Dry + Crystal Care Dry Cleaners)
+  const serviceGroupMap = new Map();
+  for (const svc of publishedSellerServices) {
+    const grpKey = svc.serviceSlug || slugify(svc.name);
+    if (!serviceGroupMap.has(grpKey)) {
+      serviceGroupMap.set(grpKey, []);
+    }
+    serviceGroupMap.get(grpKey).push(svc);
+  }
+
+  const sellerServiceCards = Array.from(serviceGroupMap.entries()).map(
+    ([serviceSlug, offerings], idx) => {
+      const primary = offerings[0];
+      const allOptions = offerings.flatMap((o) => o.options || []);
+      const lowestPaise =
+        allOptions.length > 0
+          ? Math.min(...allOptions.map((opt) => opt.pricePaise))
+          : Math.min(...offerings.map((o) => o.basePricePaise));
+      const startingPriceRupees = Math.max(1, Math.round(lowestPaise / 100));
+
+      const avgRatingRaw =
+        offerings.reduce((sum, o) => sum + Number(o.avgRating || 4.8), 0) / offerings.length;
+      const totalReviews = offerings.reduce((sum, o) => sum + Number(o.reviewCount || 16), 0);
+
+      const sellerNames = offerings.map(
+        (o) => (o.seller?.businessName || "Partner").split(/[—–-]/)[0].trim()
+      );
+      const isLaundry =
+        (primary.category || "").toLowerCase().includes("laundry") ||
+        (primary.name || "").toLowerCase().includes("dry clean");
+
+      const primaryImages = Array.isArray(primary.images) ? primary.images : [];
+      const bannerImage =
+        primaryImages[0] ||
+        primary.seller?.storeBannerUrl ||
+        inferServiceImage(primary.name);
+
+      const sampleOptions = (primary.options || []).slice(0, 6).map((opt) => {
+        const optRs = Math.round((opt.pricePaise || 0) / 100);
+        return `${opt.title} — ₹${optRs}/${opt.unit || primary.unit || "piece"}`;
+      });
+
+      return {
+        id: `multi-svc-${serviceSlug}`,
+        title: primary.name,
+        category: primary.category || "Laundry & Dry Cleaning",
+        slug: serviceSlug,
+        serviceSlug,
+        taskCategory: primary.category || "Laundry & Dry Cleaning",
+        image: bannerImage,
+        rateCardImage: primary.seller?.rateCardDocUrl || primaryImages[1] || null,
+        icon: isLaundry ? "🧺" : "🏪",
+        iconType: isLaundry ? "laundry" : "store",
+        verified: true,
+        rating: Number(avgRatingRaw.toFixed(1)),
+        reviewsCount: totalReviews,
+        location:
+          offerings.length > 1
+            ? `${offerings.length} Verified Partners in Meerut (${sellerNames.join(", ")})`
+            : primary.seller?.pickupAddress || `${primary.seller?.pickupCity || "Meerut"}`,
+        description:
+          offerings.length > 1
+            ? `Choose from ${offerings.length} verified sellers (${sellerNames.join(" & ")}) • Compare seller rates & customize options starting ₹${startingPriceRupees}/${primary.unit || "piece"}`
+            : primary.description,
+        price: startingPriceRupees,
+        priceUnit: primary.unit || "piece",
+        relevanceOrder: 0.4 + idx * 0.1,
+        availableHelpers: offerings.length,
+        sellersCount: offerings.length,
+        isExtended: false,
+        isSellerStore: true,
+        isMultiSellerService: true,
+        sellerId: primary.sellerId,
+        sellerPhone: primary.seller?.contactPersonPhone || null,
+        productsCount: (primary.options || []).length,
+        marketplaceUrl: `/marketplace/services/${serviceSlug}`,
+        marketplaceServiceUrl: `/marketplace/services/${serviceSlug}`,
+        primaryServiceSlug: serviceSlug,
+        primaryProductSlug: null,
+        sellerOfferings: offerings.map((o) => ({
+          id: o.id,
+          slug: o.slug,
+          sellerId: o.sellerId,
+          sellerName: o.seller?.businessName || "Verified Partner",
+          startingPrice: Math.round((o.basePricePaise || 0) / 100),
+          unit: o.unit || "piece",
+          turnaroundLabel: o.turnaroundLabel || "24–48 Hours",
+          optionsCount: (o.options || []).length,
+        })),
+        sellerProducts: (primary.options || []).slice(0, 8).map((opt) => ({
+          id: opt.id,
+          name: opt.title,
+          slug: serviceSlug,
+          isServiceOption: true,
+          price: Math.round((opt.pricePaise || 0) / 100),
+          unit: opt.unit || primary.unit || "piece",
+        })),
+        subServices: sampleOptions,
+        helperId: null,
+        helperName: null,
+        helperPhone: null,
+        helperImage: null,
+      };
+    }
+  );
+
+  // 2b. Build services catalog directly from DB categories
+  const categoryCatalog = dbCategories.map((dbCat, index) => {
     const template = HOME_SERVICES_TEMPLATES[dbCat.slug] || null;
     const matchedBuddy = findBestBuddyForCategory(dbCat.name, dbCat.slug, index);
     const subServices = Array.isArray(dbCat.subServices)
@@ -510,6 +636,8 @@ export const getFilteredServices = async (filters = {}) => {
     };
   });
 
+  const fullCatalog = [...sellerServiceCards, ...categoryCatalog];
+
   // 3. Apply non-category filters first so category counts reflect available services
   let baseCatalog = [...fullCatalog];
 
@@ -548,7 +676,31 @@ export const getFilteredServices = async (filters = {}) => {
     baseCatalog = baseCatalog.filter((s) => s.rating >= minR);
   }
 
-  // 4. Build dynamic category sidebar list from DB categories
+  // 4. Build dynamic category sidebar list from seller categories + DB categories
+  const existingDbCatNames = new Set(dbCategories.map((c) => c.name.toLowerCase()));
+  const extraSellerCategories = [];
+  for (const card of sellerServiceCards) {
+    const catLower = card.category.toLowerCase();
+    if (!existingDbCatNames.has(catLower)) {
+      existingDbCatNames.add(catLower);
+      const catSlug = slugify(card.category);
+      const matchingCount = baseCatalog.filter(
+        (s) => s.category.toLowerCase() === catLower
+      ).length;
+      extraSellerCategories.push({
+        id: `seller-cat-${catSlug}`,
+        name: card.category,
+        slug: catSlug,
+        icon: card.icon || "🧺",
+        iconType: card.iconType || "laundry",
+        description: card.description,
+        subServices: card.subServices,
+        count: matchingCount,
+        servicesCount: matchingCount,
+      });
+    }
+  }
+
   const categoriesWithCounts = [
     {
       name: "All Services",
@@ -558,6 +710,7 @@ export const getFilteredServices = async (filters = {}) => {
       count: baseCatalog.length,
       servicesCount: baseCatalog.length,
     },
+    ...extraSellerCategories,
     ...dbCategories.map((dbCat) => {
       const catLower = dbCat.name.toLowerCase();
       const slugLower = (dbCat.slug || "").toLowerCase();
@@ -605,8 +758,8 @@ export const getFilteredServices = async (filters = {}) => {
     results.sort((a, b) => a.price - b.price);
   } else if (sortBy === "price_desc" || sortBy === "price_high") {
     results.sort((a, b) => b.price - a.price);
-  } else if (sortBy === "rating") {
-    results.sort((a, b) => b.rating - a.rating);
+  } else if (sortBy === "rating" || sortBy === "rating_desc") {
+    results.sort((a, b) => b.rating - a.rating || b.reviewsCount - a.reviewsCount);
   } else {
     results.sort((a, b) => a.relevanceOrder - b.relevanceOrder);
   }

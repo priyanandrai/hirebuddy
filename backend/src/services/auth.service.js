@@ -73,6 +73,16 @@ export const verifyOtpService = async (identifier, otp) => {
                 (p) => ({ phone: p })
               ),
             },
+      include: {
+        sellerProfile: {
+          select: {
+            id: true,
+            sellerType: true,
+            businessName: true,
+            verificationStatus: true,
+          },
+        },
+      },
     });
 
     if (!user) {
@@ -119,6 +129,8 @@ export const verifyOtpService = async (identifier, otp) => {
         email: user.email,
         phone: user.phone,
         role: user.role || "USER",
+        sellerType: user.sellerProfile?.sellerType || null,
+        sellerProfile: user.sellerProfile || null,
         city: user.city,
         address: user.address,
         skills: user.skills,

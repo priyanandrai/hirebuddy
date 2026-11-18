@@ -62,9 +62,11 @@ export default function Header({ variant = "dark" }) {
             </Link>
 
             <nav className="hidden items-center gap-7 text-sm font-medium text-slate-800 md:flex">
-              <Link href="/post-task" className="hover:text-[#0b8a4e] transition">
-                Post a Task
-              </Link>
+              {(!isLoggedIn || (activeRole !== "SELLER" && activeRole !== "HELPER")) && (
+                <Link href="/post-task" className="hover:text-[#0b8a4e] transition">
+                  Post a Task
+                </Link>
+              )}
               <Link
                 href="/services"
                 className="inline-flex items-center gap-1 hover:text-[#0b8a4e] transition"
@@ -91,7 +93,7 @@ export default function Header({ variant = "dark" }) {
                     href={dashboardHref}
                     className="px-3 py-2 text-sm font-semibold text-slate-800 hover:text-[#0b8a4e] transition"
                   >
-                    Dashboard
+                    {activeRole === "SELLER" ? "Seller Hub" : "Dashboard"}
                   </Link>
                   <button
                     onClick={handlePublicLogout}
@@ -108,12 +110,14 @@ export default function Header({ variant = "dark" }) {
                   Log In
                 </Link>
               )}
-              <Link
-                href="/become-a-helper"
-                className="rounded-full bg-[#0b8a4e] px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#097542] transition"
-              >
-                Become a Helper
-              </Link>
+              {(!isLoggedIn || (activeRole !== "SELLER" && activeRole !== "HELPER")) && (
+                <Link
+                  href="/become-a-helper"
+                  className="rounded-full bg-[#0b8a4e] px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[#097542] transition"
+                >
+                  Become a Helper
+                </Link>
+              )}
             </div>
 
             <button
@@ -132,13 +136,15 @@ export default function Header({ variant = "dark" }) {
           {menuOpen && (
             <div className="md:hidden border-t border-slate-200 bg-white px-6 py-5 shadow-xl">
               <div className="space-y-2.5">
-                <Link
-                  href="/post-task"
-                  onClick={() => setMenuOpen(false)}
-                  className="block rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Post a Task
-                </Link>
+                {(!isLoggedIn || (activeRole !== "SELLER" && activeRole !== "HELPER")) && (
+                  <Link
+                    href="/post-task"
+                    onClick={() => setMenuOpen(false)}
+                    className="block rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Post a Task
+                  </Link>
+                )}
                 <Link
                   href="/services"
                   onClick={() => setMenuOpen(false)}
@@ -153,13 +159,15 @@ export default function Header({ variant = "dark" }) {
                 >
                   📍 Meerut Market
                 </Link>
-                <Link
-                  href="/become-a-seller"
-                  onClick={() => setMenuOpen(false)}
-                  className="block rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Sell Products
-                </Link>
+                {activeRole !== "HELPER" && (
+                  <Link
+                    href="/become-a-seller"
+                    onClick={() => setMenuOpen(false)}
+                    className="block rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    {activeRole === "SELLER" ? "Seller Hub" : "Sell on HireBuddy"}
+                  </Link>
+                )}
                 <Link
                   href="/how-it-works"
                   onClick={() => setMenuOpen(false)}
@@ -174,7 +182,7 @@ export default function Header({ variant = "dark" }) {
                       onClick={() => setMenuOpen(false)}
                       className="block rounded-xl px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
                     >
-                      Dashboard
+                      {activeRole === "SELLER" ? "Seller Hub" : "Dashboard"}
                     </Link>
                     <button
                       onClick={() => {
@@ -195,13 +203,15 @@ export default function Header({ variant = "dark" }) {
                     Log In
                   </Link>
                 )}
-                <Link
-                  href="/become-a-helper"
-                  onClick={() => setMenuOpen(false)}
-                  className="block rounded-xl bg-[#0b8a4e] px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-[#097542] transition"
-                >
-                  Become a Helper
-                </Link>
+                {(!isLoggedIn || (activeRole !== "SELLER" && activeRole !== "HELPER")) && (
+                  <Link
+                    href="/become-a-helper"
+                    onClick={() => setMenuOpen(false)}
+                    className="block rounded-xl bg-[#0b8a4e] px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-[#097542] transition"
+                  >
+                    Become a Helper
+                  </Link>
+                )}
               </div>
             </div>
           )}
@@ -226,28 +236,34 @@ export default function Header({ variant = "dark" }) {
         </Link>
 
         <nav className={`hidden items-center gap-6 text-sm font-medium md:flex ${navTextClass}`}>
-          <Link href="/post-task" className={`${linkHoverClass} transition`}>
-            Post a Task
-          </Link>
+          {(!isLoggedIn || (activeRole !== "SELLER" && activeRole !== "HELPER")) && (
+            <Link href="/post-task" className={`${linkHoverClass} transition`}>
+              Post a Task
+            </Link>
+          )}
           <Link href="/services" className={`${linkHoverClass} transition`}>
             Services
           </Link>
-          <Link href="/hire-buddy" className="rounded-full bg-emerald-500 px-3 py-1 text-sm font-medium text-white hover:bg-emerald-600 transition">
-            Hire Buddy
-          </Link>
+          {(!isLoggedIn || (activeRole !== "SELLER" && activeRole !== "HELPER")) && (
+            <Link href="/hire-buddy" className="rounded-full bg-emerald-500 px-3 py-1 text-sm font-medium text-white hover:bg-emerald-600 transition">
+              Hire Buddy
+            </Link>
+          )}
           <Link href="/marketplace" className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-sm font-semibold text-amber-300 hover:bg-amber-500/20 transition">
             🛍️ Meerut Market
           </Link>
-          <Link href="/become-a-seller" className={`${linkHoverClass} transition`}>
-            Sell Products
-          </Link>
+          {activeRole !== "HELPER" && (
+            <Link href="/become-a-seller" className={`${linkHoverClass} transition`}>
+              {activeRole === "SELLER" ? "Seller Hub" : "Sell on HireBuddy"}
+            </Link>
+          )}
           <Link href="/how-it-works" className={`${linkHoverClass} transition`}>
             How it Works
           </Link>
           {isLoggedIn ? (
             <>
               <Link href={dashboardHref} className={`${linkHoverClass} transition`}>
-                Dashboard
+                {activeRole === "SELLER" ? "Seller Hub" : "Dashboard"}
               </Link>
               <button
                 onClick={handlePublicLogout}
@@ -261,12 +277,14 @@ export default function Header({ variant = "dark" }) {
               Log In
             </Link>
           )}
-          <Link
-            href="/become-a-helper"
-            className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 hover:bg-emerald-700 transition"
-          >
-            Become a Buddy
-          </Link>
+          {(!isLoggedIn || (activeRole !== "SELLER" && activeRole !== "HELPER")) && (
+            <Link
+              href="/become-a-helper"
+              className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-emerald-500/20 hover:bg-emerald-700 transition"
+            >
+              Become a Buddy
+            </Link>
+          )}
         </nav>
 
         <button
@@ -285,12 +303,14 @@ export default function Header({ variant = "dark" }) {
       {menuOpen && (
         <div className="md:hidden border-t border-slate-200 bg-white/95 px-6 py-5 shadow-2xl shadow-slate-950/10 backdrop-blur-xl">
           <div className="space-y-3">
-            <Link
-              href="/post-task"
-              className="block rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Post a Task
-            </Link>
+            {(!isLoggedIn || (activeRole !== "SELLER" && activeRole !== "HELPER")) && (
+              <Link
+                href="/post-task"
+                className="block rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Post a Task
+              </Link>
+            )}
             <Link
               href="/how-it-works"
               className="block rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
