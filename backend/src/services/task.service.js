@@ -3,7 +3,6 @@ import { notificationEvents } from "./notification.service.js";
 import { releaseEscrowForTask } from "./payment.service.js";
 import { processHelperPayoutForBooking } from "./payout.service.js";
 import { indexTask, deleteTask } from "./es.client.js";
-import { emitToTaskRoom, emitToUser, emitBroadcast } from "../config/socket.config.js";
 import {
   getAllCategories,
   ensureCategoryInDb,
@@ -226,7 +225,7 @@ export const createTask = async (data, userParam) => {
       selectedServices: normalizedSelectedServices,
       createdById: user.id,
       assignedToId: resolvedHelperId || null,
-      status: isDirectAssignment ? "ASSIGNED" : "OPEN",
+      status: isDirectAssignment ? "REQUESTED" : "OPEN",
       paymentStatus: "PENDING",
     },
     include: {
@@ -249,53 +248,19 @@ export const createTask = async (data, userParam) => {
     },
   });
 
+  // Battery-friendly flow: send a single push/DB notification (no persistent socket spam).
+  // Helpers see the task immediately when they open/resume the app.
   if (isDirectAssignment && resolvedHelperId) {
     try {
       await notificationEvents.taskRequested(task.id, user.id, resolvedHelperId);
-      emitToUser(resolvedHelperId, 'task_requested', {
-        taskId: task.id,
-        task,
-        customerName: user.name || 'A customer',
-        message: `${user.name || 'A customer'} booked and assigned you for "${task.title}"`,
-      });
-      emitToUser(resolvedHelperId, 'task_status_changed', {
-        taskId: task.id,
-        newStatus: 'ASSIGNED',
-        task,
-      });
     } catch (notifErr) {
-      console.warn('Failed to send direct assignment alert:', notifErr?.message);
+      console.warn('Failed to send direct assignment notification:', notifErr?.message);
     }
   } else {
-    try {
-      const formattedLiveTask = {
-        ...task,
-        image: task.image || getCategoryImageForTask(task.category, task.title),
-        isNew: true,
-        dateLabel: task.preferredAt
-          ? new Date(task.preferredAt).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : new Date().toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            }),
-        timeSlot: task.timeSlot || "10:00 AM - 12:00 PM",
-      };
-      emitBroadcast('new_task_available', {
-        taskId: task.id,
-        task: formattedLiveTask,
-        category: task.category,
-        customerName: user.name || 'A customer',
-      });
-      // Notify available helpers in background
-      notificationEvents.newTaskPosted(task, user).catch(() => {});
-    } catch (broadcastErr) {
-      console.warn('Failed to broadcast new task:', broadcastErr?.message);
-    }
+    // Notify available helpers once via push/DB notification in background
+    notificationEvents.newTaskPosted(task, user).catch((notifErr) => {
+      console.warn('Failed to send new task notification:', notifErr?.message);
+    });
   }
 
   return enrichTaskWithRelations(task);
@@ -983,15 +948,8 @@ export const assignHelper = async (user, taskId) => {
     },
   });
 
-  // Send notification to customer
+  // Send a single push/DB notification to customer
   await notificationEvents.taskAccepted(taskId, user.id, task.createdById);
-  try {
-    emitToTaskRoom(taskId, 'task_status_changed', { taskId, newStatus: 'ASSIGNED', task: updatedTask });
-    emitToUser(task.createdById, 'task_status_changed', { taskId, newStatus: 'ASSIGNED', task: updatedTask });
-    emitBroadcast('task_updated', { taskId, newStatus: 'ASSIGNED', assignedToId: user.id });
-  } catch (e) {
-    console.warn('Socket emit error:', e?.message);
-  }
 
   return updatedTask;
 };
@@ -1046,23 +1004,6 @@ export const declineHelperRequest = async (user, taskId, reason = "Helper is una
 
   try {
     await notificationEvents.taskDeclined(taskId, user.id, task.createdById, reason);
-    emitToTaskRoom(taskId, 'task_status_changed', {
-      taskId,
-      newStatus: nextStatus,
-      task: enrichTaskWithRelations(updatedTask),
-    });
-    emitToUser(task.createdById, 'task_status_changed', {
-      taskId,
-      newStatus: nextStatus,
-      task: enrichTaskWithRelations(updatedTask),
-    });
-    if (nextStatus === "OPEN") {
-      emitBroadcast('new_task_available', {
-        taskId: updatedTask.id,
-        task: enrichTaskWithRelations(updatedTask),
-        category: updatedTask.category,
-      });
-    }
   } catch (e) {
     console.warn('Decline notification error:', e?.message);
   }
@@ -1140,7 +1081,8 @@ export const updateTaskDetails = async (taskId, userId, payload = {}, user = nul
       if (resolvedId) {
         updateData.assignedToId = resolvedId;
         newlyAssignedHelperId = resolvedId;
-        updateData.status = payload.bookNow === false ? "REQUESTED" : "ASSIGNED";
+        updateData.status =
+          isAdmin && payload.status === "ASSIGNED" ? "ASSIGNED" : "REQUESTED";
       }
     }
   } else if (payload.status && ["OPEN", "REQUESTED", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"].includes(payload.status)) {
@@ -1179,32 +1121,9 @@ export const updateTaskDetails = async (taskId, userId, payload = {}, user = nul
   try {
     if (newlyAssignedHelperId) {
       await notificationEvents.taskRequested(taskId, task.createdById, newlyAssignedHelperId);
-      emitToUser(newlyAssignedHelperId, 'task_requested', {
-        taskId,
-        task: enriched,
-        customerName: updatedTask.createdBy?.name || 'Customer',
-        message: `${updatedTask.createdBy?.name || 'Customer'} assigned you to "${updatedTask.title}"`,
-      });
     }
-    if (updatedTask.assignedToId) {
-      emitToUser(updatedTask.assignedToId, 'task_status_changed', {
-        taskId,
-        newStatus: updatedTask.status,
-        task: enriched,
-      });
-    }
-    emitToUser(updatedTask.createdById, 'task_status_changed', {
-      taskId,
-      newStatus: updatedTask.status,
-      task: enriched,
-    });
-    emitToTaskRoom(taskId, 'task_status_changed', {
-      taskId,
-      newStatus: updatedTask.status,
-      task: enriched,
-    });
   } catch (e) {
-    console.warn("Socket emit warning in updateTaskDetails:", e?.message);
+    console.warn("Notification warning in updateTaskDetails:", e?.message);
   }
 
   return enriched;
@@ -1471,16 +1390,6 @@ export const updateTaskStatus = async (taskId, userId, newStatus, user = null, o
           data: { orderStatus: "DELIVERED" },
         })
         .catch(() => {});
-    }
-
-    try {
-      emitToTaskRoom(taskId, 'task_status_changed', { taskId, newStatus, task: updatedTask });
-      if (otherUserId) {
-        emitToUser(otherUserId, 'task_status_changed', { taskId, newStatus, task: updatedTask });
-      }
-      emitBroadcast('task_updated', { taskId, newStatus });
-    } catch (e) {
-      console.warn('Socket emitToTaskRoom error:', e?.message);
     }
 
     return updatedTask;

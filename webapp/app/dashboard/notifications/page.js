@@ -10,10 +10,6 @@ import {
   sendTestPushNotification,
 } from "@/app/components/services/notification.service";
 import {
-  initializeSocket,
-  onReceiveNotification,
-} from "@/app/components/config/socketClient";
-import {
   initializeFirebasePush,
   showServiceWorkerNotification,
 } from "@/app/components/config/firebaseClient";
@@ -166,41 +162,20 @@ export default function NotificationsPage() {
     }
   };
 
-  // WebSocket real-time listener
+  // Refresh notifications when screen is opened or focused (no persistent socket required)
   useEffect(() => {
-    let unsubscribe = () => {};
-
-    const setupSocket = async () => {
-      try {
-        await initializeSocket();
-        unsubscribe = onReceiveNotification((newNotif) => {
-          if (!newNotif || !newNotif.id) return;
-
-          setNotifications((prev) => {
-            // Check if already in list
-            if (prev.some((n) => n.id === newNotif.id)) return prev;
-            return [newNotif, ...prev];
-          });
-
-          // Highlight newly arrived alert
-          setLivePings((prev) => new Set(prev).add(newNotif.id));
-          setTimeout(() => {
-            setLivePings((prev) => {
-              const updated = new Set(prev);
-              updated.delete(newNotif.id);
-              return updated;
-            });
-          }, 4000);
-        });
-      } catch (err) {
-        console.warn("Socket initialization failed on notifications page", err);
+    const handleResume = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        loadNotifications();
       }
     };
 
-    setupSocket();
+    window.addEventListener("focus", handleResume);
+    document.addEventListener("visibilitychange", handleResume);
 
     return () => {
-      unsubscribe();
+      window.removeEventListener("focus", handleResume);
+      document.removeEventListener("visibilitychange", handleResume);
     };
   }, []);
 

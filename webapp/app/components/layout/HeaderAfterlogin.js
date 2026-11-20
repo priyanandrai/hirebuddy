@@ -14,7 +14,6 @@ import {
   markAllNotificationsAsRead,
 } from "../services/notification.service";
 import { getUserProfile } from "../services/user.service";
-import { initializeSocket } from "../config/socketClient";
 import DailyPromotionalPopup from "../ui/DailyPromotionalPopup";
 
 export default function AuthenticatedHeader({
@@ -230,13 +229,22 @@ export default function AuthenticatedHeader({
       loadData();
     };
 
-    loadData();
-    initializeSocket().catch(() => {});
+    const handleVisibilityOrFocus = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        loadData();
+      }
+    };
 
+    loadData();
+
+    window.addEventListener("focus", handleVisibilityOrFocus);
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
     window.addEventListener("hirebuddy:notification-received", handleLiveNotif);
     window.addEventListener("hirebuddy:notifications-updated", handleNotifsSynced);
 
     return () => {
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
       window.removeEventListener("hirebuddy:notification-received", handleLiveNotif);
       window.removeEventListener("hirebuddy:notifications-updated", handleNotifsSynced);
     };

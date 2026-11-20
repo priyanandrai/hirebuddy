@@ -151,6 +151,24 @@ export const sendFcmPushToToken = async (
             body: body || "You have a new notification on HireBuddy",
           },
           data: stringifiedData,
+          android: {
+            priority: "high",
+            notification: {
+              sound: "default",
+              click_action: "OPEN_TASK_SCREEN",
+            },
+          },
+          apns: {
+            headers: {
+              "apns-priority": "10",
+            },
+            payload: {
+              aps: {
+                sound: "default",
+                contentAvailable: true,
+              },
+            },
+          },
           webpush: {
             fcm_options: {
               link: String(link || "/dashboard/notifications"),

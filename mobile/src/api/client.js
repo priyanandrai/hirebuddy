@@ -1,6 +1,7 @@
 /**
  * HireBuddy Mobile API Client (React Native / Expo)
- * Connects to the HireBuddy Express Backend + Socket.IO + FCM Push Registry
+ * Battery-friendly architecture: stateless REST + OS Push (FCM) — NO persistent background sockets.
+ * Tasks & notifications are fetched cleanly whenever the user opens or resumes the app.
  */
 
 export const API_BASE_URL =
@@ -36,15 +37,23 @@ export const mobileApiFetch = async (path, options = {}) => {
 };
 
 export const mobileApi = {
-  getTasks: () => mobileApiFetch("/tasks/open"),
+  getOpenTasks: () => mobileApiFetch("/tasks/search?status=OPEN&limit=30"),
+  getTasks: () => mobileApiFetch("/tasks/search?status=OPEN&limit=30"),
   getMyTasks: () => mobileApiFetch("/tasks/my"),
   getAssignedTasks: () => mobileApiFetch("/tasks/assigned"),
   acceptTask: (taskId) => mobileApiFetch(`/tasks/${taskId}/accept`, { method: "POST" }),
+  declineTask: (taskId, reason = "Helper unavailable") =>
+    mobileApiFetch(`/tasks/${taskId}/decline`, {
+      method: "POST",
+      body: { reason },
+    }),
   updateTaskStatus: (taskId, status, otp) =>
     mobileApiFetch(`/tasks/${taskId}/status`, {
-      method: "PATCH",
+      method: "PUT",
       body: { status, ...(otp ? { otp } : {}) },
     }),
+  getNotifications: (limit = 20) =>
+    mobileApiFetch(`/notifications?limit=${limit}`),
   getMarketplaceProducts: (search = "") =>
     mobileApiFetch(`/marketplace/products${search ? `?search=${encodeURIComponent(search)}` : ""}`),
   placeMarketplaceOrder: (payload) =>

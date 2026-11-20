@@ -252,7 +252,19 @@ export const handleRazorpayWebhook = async (req, res) => {
  */
 export const releaseEscrowPayment = async (req, res) => {
   try {
-    const { taskId, paymentId, method, markAsPaid } = req.body;
+    const {
+      taskId,
+      paymentId,
+      method,
+      markAsPaid,
+      holdInEscrow,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature,
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+    } = req.body;
     if (!taskId && !paymentId) {
       return res.status(400).json({ error: 'taskId or paymentId is required' });
     }
@@ -269,6 +281,10 @@ export const releaseEscrowPayment = async (req, res) => {
     const result = await paymentService.releaseEscrowForTask(taskId, req.user?.id, {
       method,
       markAsPaid,
+      holdInEscrow,
+      razorpayOrderId: razorpayOrderId || razorpay_order_id || null,
+      razorpayPaymentId: razorpayPaymentId || razorpay_payment_id || null,
+      razorpaySignature: razorpaySignature || razorpay_signature || null,
     });
     res.json(result);
   } catch (error) {

@@ -9,10 +9,6 @@ import {
   sendTestPushNotification,
 } from "@/app/components/services/notification.service";
 import {
-  initializeSocket,
-  onReceiveNotification,
-} from "@/app/components/config/socketClient";
-import {
   initializeFirebasePush,
   showServiceWorkerNotification,
 } from "@/app/components/config/firebaseClient";
@@ -26,13 +22,18 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     loadNotifications();
-    initializeSocket().catch(() => {});
     getCurrentUser()
       .then((res) => {
         const uid = res?.data?.id || res?.id;
         if (uid) initializeFirebasePush(uid).catch(() => {});
       })
       .catch(() => {});
+
+    const handleResume = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        loadNotifications();
+      }
+    };
 
     const handleLiveNotif = (e) => {
       const newNotif = e.detail;
@@ -43,8 +44,12 @@ export default function NotificationsPage() {
       });
     };
 
+    window.addEventListener("focus", handleResume);
+    document.addEventListener("visibilitychange", handleResume);
     window.addEventListener("hirebuddy:notification-received", handleLiveNotif);
     return () => {
+      window.removeEventListener("focus", handleResume);
+      document.removeEventListener("visibilitychange", handleResume);
       window.removeEventListener("hirebuddy:notification-received", handleLiveNotif);
     };
   }, []);

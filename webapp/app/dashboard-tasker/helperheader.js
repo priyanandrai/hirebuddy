@@ -7,7 +7,6 @@ import { Search, Bell, ChevronDown, Moon, Sun, X, Wallet } from "lucide-react";
 import { ThemeContext } from "@/app/providers";
 import { getUnreadNotificationCount } from "@/app/components/services/notification.service";
 import { getUserProfile } from "@/app/components/services/user.service";
-import { initializeSocket } from "@/app/components/config/socketClient";
 
 export default function HelperHeader() {
   const router = useRouter();
@@ -91,7 +90,6 @@ export default function HelperHeader() {
     };
 
     loadData();
-    initializeSocket().catch(() => {});
 
     const handleProfileUpdate = () => {
       try {
@@ -112,7 +110,7 @@ export default function HelperHeader() {
 
     const handleWindowFocus = () => {
       if (localStorage.getItem("token")) {
-        getUserProfile().catch(() => {});
+        loadData();
       } else {
         setCurrentUser(null);
         router.replace("/login");

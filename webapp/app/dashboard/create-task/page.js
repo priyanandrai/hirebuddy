@@ -399,7 +399,7 @@ function CreateTaskContent() {
       image: firstImage,
       attachments: files.length > 0 ? files : null,
       helperId: isDirect ? form.helperId : null,
-      bookNow: isDirect,
+      bookNow: false,
       selectedServices: selectedServices.length > 0 ? selectedServices : null,
     };
 
@@ -407,12 +407,12 @@ function CreateTaskContent() {
       .then(async () => {
         await swalAlert(
           isDirect
-            ? `Task booked! ${
-                selectedHelper?.name || "Your selected Buddy"
-              } has been directly assigned to your task.`
+            ? `Invitation sent to ${
+                selectedHelper?.name || "your selected Buddy"
+              }! Your task will move to Confirmed as soon as they accept your request.`
             : "Task posted! All verified Buddies can now see your task on their dashboard and apply/accept it.",
           {
-            title: isDirect ? "Task Booked!" : "Task Posted!",
+            title: isDirect ? "Request Sent to Buddy!" : "Task Posted!",
             icon: "success",
           }
         );

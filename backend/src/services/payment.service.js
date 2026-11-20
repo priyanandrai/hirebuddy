@@ -345,8 +345,21 @@ export const releaseEscrowForTask = async (taskId, triggeredByUserId = null, opt
     const methodLabel = options.method || heldPayment?.method || 'UPI';
 
     if (!heldPayment) {
-      // Only create a direct completed payment when explicitly triggered via Pay & Release / Mark Payment Received
-      if (!options.markAsPaid) {
+      // Verify Razorpay signature whenever an online Razorpay order/signature is supplied
+      const { razorpayOrderId, razorpayPaymentId, razorpaySignature, holdInEscrow } = options;
+      if (isRealRazorpayOrderId(razorpayOrderId) || razorpaySignature) {
+        const isValid = verifyPaymentSignature(
+          razorpayOrderId,
+          razorpayPaymentId,
+          razorpaySignature
+        );
+        if (!isValid) {
+          throw new Error('Razorpay payment signature verification failed');
+        }
+      }
+
+      // Only create a payment record when explicitly triggered via Pay & Release / Hold in Escrow / Mark Payment Received
+      if (!options.markAsPaid && !holdInEscrow) {
         return { released: false, message: 'No held escrow payment found for this task' };
       }
 
@@ -367,11 +380,42 @@ export const releaseEscrowForTask = async (taskId, triggeredByUserId = null, opt
         return { released: true, payment: existingCompleted, paymentStatus: 'COMPLETED' };
       }
 
-      // Create & complete payment record directly so DB is 100% in sync
-      // Note: task.budget may be stored in rupees (e.g. 500) or paise; if < 100000 we treat budget as rupees for wallet paise or match createPaymentOrder convention
       const rawBudget = Number(task.budget || 0);
       const amountPaise = rawBudget > 0 ? Math.round(rawBudget * 100) : 0;
       const targetPayeeId = payeeId || triggeredByUserId || task.createdById;
+
+      if (holdInEscrow && !options.markAsPaid) {
+        const escrowPayment = await prisma.$transaction(async (tx) => {
+          const p = await tx.payment.create({
+            data: {
+              taskId,
+              payerId: task.createdById,
+              payeeId: targetPayeeId,
+              amount: amountPaise,
+              method: methodLabel,
+              razorpayOrderId: razorpayOrderId || `escrow_${taskId.slice(0, 8)}_${Date.now()}`,
+              razorpayPaymentId: razorpayPaymentId || null,
+              razorpaySignature: razorpaySignature || null,
+              status: 'HELD_IN_ESCROW',
+            },
+          });
+          await tx.task.update({
+            where: { id: taskId },
+            data: {
+              paymentStatus: 'HELD_IN_ESCROW',
+              ...(razorpayOrderId ? { razorpayOrderId } : {}),
+            },
+          });
+          return p;
+        });
+
+        return {
+          released: false,
+          heldInEscrow: true,
+          payment: escrowPayment,
+          paymentStatus: 'HELD_IN_ESCROW',
+        };
+      }
 
       const createdPayment = await prisma.$transaction(async (tx) => {
         const p = await tx.payment.create({
@@ -381,7 +425,9 @@ export const releaseEscrowForTask = async (taskId, triggeredByUserId = null, opt
             payeeId: targetPayeeId,
             amount: amountPaise,
             method: methodLabel,
-            razorpayOrderId: `direct_${taskId.slice(0, 8)}_${Date.now()}`,
+            razorpayOrderId: razorpayOrderId || `direct_${taskId.slice(0, 8)}_${Date.now()}`,
+            razorpayPaymentId: razorpayPaymentId || null,
+            razorpaySignature: razorpaySignature || null,
             status: 'COMPLETED',
             completedAt: new Date(),
           },
@@ -389,7 +435,10 @@ export const releaseEscrowForTask = async (taskId, triggeredByUserId = null, opt
 
         await tx.task.update({
           where: { id: taskId },
-          data: { paymentStatus: 'COMPLETED' },
+          data: {
+            paymentStatus: 'COMPLETED',
+            ...(razorpayOrderId ? { razorpayOrderId } : {}),
+          },
         });
 
         if (payeeId && amountPaise > 0) {

@@ -347,6 +347,7 @@ html[data-theme="light"] .bg-\[\#ef4444\],
 html[data-theme="light"] .bg-\[\#050d1e\]\/90,
 html[data-theme="light"] .bg-\[\#050d1e\]\/80,
 html[data-theme="light"] .from-\[\#0a41d8\],
+html[data-theme="light"] .from-\[\#d97706\],
 html[data-theme="light"] .from-blue-600,
 html[data-theme="light"] .from-cyan-500,
 html[data-theme="light"] .from-emerald-600,
@@ -370,7 +371,8 @@ html[data-theme="light"] .bg-\[\#2563eb\] .text-white,
 html[data-theme="light"] .bg-\[\#10b981\] .text-white,
 html[data-theme="light"] .bg-\[\#2fa97c\] .text-white,
 html[data-theme="light"] .bg-\[\#ef4444\] .text-white,
-html[data-theme="light"] .from-\[\#0a41d8\] .text-white {
+html[data-theme="light"] .from-\[\#0a41d8\] .text-white,
+html[data-theme="light"] .from-\[\#d97706\] .text-white {
   color: #ffffff !important;
 }
 

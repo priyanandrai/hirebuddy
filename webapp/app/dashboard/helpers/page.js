@@ -636,56 +636,77 @@ function HelpersPageContent() {
     setSortBy("recommended");
   };
 
-  // Invite & Assign helper directly to the task from `/dashboard/my-tasks`
+  // Invite helper to the task from `/dashboard/my-tasks` (status = REQUESTED until Buddy accepts)
   const handleInviteForTask = async (helper) => {
     if (taskIdParam && typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem(TASK_OVERRIDES_STORAGE_KEY);
-        const map = raw ? JSON.parse(raw) : {};
-        map[taskIdParam] = {
-          ...(map[taskIdParam] || {}),
-          status: "REQUESTED",
-          confirmedTimeLabel: "Pending acceptance",
-          assignedTo: {
-            id: helper.id,
-            name: helper.name,
-            image: helper.image || null,
-            phone: helper.phone || "+91 98765 43210",
-            city: helper.location,
-            location: helper.location,
-            averageRating: helper.rating,
-            totalReviews: helper.jobs,
-            isAvailable: true,
-            bio: helper.bio,
-            skills: helper.skills,
-          },
-        };
-        localStorage.setItem(TASK_OVERRIDES_STORAGE_KEY, JSON.stringify(map));
-      } catch {
-        // Ignore storage error
-      }
-
-      // Persist Buddy invitation / reassignment to PostgreSQL
       const token =
         session?.token ||
         (typeof window !== "undefined" ? localStorage.getItem("token") : null);
-      if (token && !String(taskIdParam).startsWith("demo-")) {
+      const isDemoTask =
+        String(taskIdParam).startsWith("demo-") ||
+        String(taskIdParam).startsWith("reorder-") ||
+        taskIdParam === "06b0b88d-dfbf-4fe2-866f-daf948e59e2f";
+
+      let backendUpdated = false;
+      if (token && !isDemoTask) {
         try {
           await updateTask(
             taskIdParam,
             {
               helperId: helper.id,
-              bookNow: true,
+              bookNow: false,
+              status: "REQUESTED",
             },
             token
           );
+          backendUpdated = true;
         } catch (err) {
           console.warn("Backend updateTask for Buddy invite warning:", err?.message);
         }
       }
 
+      try {
+        const raw = localStorage.getItem(TASK_OVERRIDES_STORAGE_KEY);
+        const map = raw ? JSON.parse(raw) : {};
+        if (backendUpdated) {
+          // Clear any stale local status override so live DB status (REQUESTED -> ASSIGNED / OPEN) stays authoritative
+          if (map[taskIdParam]) {
+            const { status: _s, confirmedTimeLabel: _c, assignedTo: _a, ...rest } =
+              map[taskIdParam];
+            if (Object.keys(rest).length > 0) {
+              map[taskIdParam] = rest;
+            } else {
+              delete map[taskIdParam];
+            }
+            localStorage.setItem(TASK_OVERRIDES_STORAGE_KEY, JSON.stringify(map));
+          }
+        } else {
+          map[taskIdParam] = {
+            ...(map[taskIdParam] || {}),
+            status: "REQUESTED",
+            confirmedTimeLabel: "Pending acceptance",
+            assignedTo: {
+              id: helper.id,
+              name: helper.name,
+              image: helper.image || null,
+              phone: helper.phone || "+91 98765 43210",
+              city: helper.location,
+              location: helper.location,
+              averageRating: helper.rating,
+              totalReviews: helper.jobs,
+              isAvailable: true,
+              bio: helper.bio,
+              skills: helper.skills,
+            },
+          };
+          localStorage.setItem(TASK_OVERRIDES_STORAGE_KEY, JSON.stringify(map));
+        }
+      } catch {
+        // Ignore storage error
+      }
+
       setToast(
-        `Assigned ${helper.name} to "${taskTitleParam || "your task"}"! Redirecting to My Tasks...`
+        `Invited ${helper.name} for "${taskTitleParam || "your task"}"! Waiting for Buddy acceptance...`
       );
       setTimeout(() => {
         router.push("/dashboard/my-tasks");
@@ -696,7 +717,6 @@ function HelpersPageContent() {
     // If not coming from a specific task, go to create-task with this helper preselected
     const params = new URLSearchParams();
     params.set("helper", String(helper.id));
-    params.set("bookNow", "1");
     if (selectedTaskType !== "ALL") {
       params.set("category", selectedTaskType);
     } else if (helper.category) {

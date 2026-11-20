@@ -142,18 +142,22 @@ export default function TaskerMyTasksPage() {
     const handleStorageSync = () => {
       setTasks((prev) => applyStoredPaymentOverrides(prev));
     };
-    const handleLiveTaskAssigned = () => {
-      fetchAssignedTasks();
+    const handleAppOpenOrResume = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        fetchAssignedTasks();
+      }
     };
     window.addEventListener("storage", handleStorageSync);
-    window.addEventListener("focus", handleStorageSync);
-    window.addEventListener("hirebuddy:task-requested", handleLiveTaskAssigned);
-    window.addEventListener("hirebuddy:task-status-changed", handleLiveTaskAssigned);
+    window.addEventListener("focus", handleAppOpenOrResume);
+    document.addEventListener("visibilitychange", handleAppOpenOrResume);
+    window.addEventListener("hirebuddy:task-requested", handleAppOpenOrResume);
+    window.addEventListener("hirebuddy:task-status-changed", handleAppOpenOrResume);
     return () => {
       window.removeEventListener("storage", handleStorageSync);
-      window.removeEventListener("focus", handleStorageSync);
-      window.removeEventListener("hirebuddy:task-requested", handleLiveTaskAssigned);
-      window.removeEventListener("hirebuddy:task-status-changed", handleLiveTaskAssigned);
+      window.removeEventListener("focus", handleAppOpenOrResume);
+      document.removeEventListener("visibilitychange", handleAppOpenOrResume);
+      window.removeEventListener("hirebuddy:task-requested", handleAppOpenOrResume);
+      window.removeEventListener("hirebuddy:task-status-changed", handleAppOpenOrResume);
     };
   }, []);
 

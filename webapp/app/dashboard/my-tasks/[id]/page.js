@@ -88,15 +88,42 @@ export default function TaskDetailsPage() {
     setPaymentActionLoading(true);
     setPaymentMessage("");
     try {
-      await releaseEscrowPayment(task.id);
+      const pStatus = String(task.paymentStatus || "").toUpperCase();
+      if (pStatus === "HELD_IN_ESCROW" || pStatus === "CONFIRMED") {
+        await releaseEscrowPayment(task.id, { markAsPaid: true });
+      } else {
+        const budgetRupees = Math.max(1, Number(task.budget || 300));
+        const orderRes = await createPaymentOrder({
+          amountRupees: budgetRupees,
+          purpose: "TASK_PAYMENT",
+          notes: { taskId: task.id },
+        });
+        const checkoutRes = await openRazorpayCheckout({
+          amountRupees: budgetRupees,
+          amountPaise: orderRes?.amountPaise,
+          orderId: orderRes?.orderId,
+          keyId: orderRes?.keyId,
+          title: `Pay & Release: ${task.title}`,
+          description: `Pay ₹${budgetRupees} & release 100% to ${
+            task.assignedTo?.name || "your Buddy"
+          }`,
+        });
+        await releaseEscrowPayment(task.id, {
+          method: "Razorpay Online",
+          markAsPaid: true,
+          razorpayOrderId: checkoutRes.razorpayOrderId,
+          razorpayPaymentId: checkoutRes.razorpayPaymentId,
+          razorpaySignature: checkoutRes.razorpaySignature,
+        });
+      }
       setPaymentMessage(
-        `🎉 100% of ₹${task.budget} has been released from Escrow directly to ${
+        `🎉 100% of ₹${task.budget} has been paid via Razorpay & released directly to ${
           task.assignedTo?.name || "your Buddy"
         }'s wallet!`
       );
       loadTask();
     } catch (err) {
-      setPaymentMessage(err?.message || "Failed to release escrow payment.");
+      setPaymentMessage(err?.message || "Failed to process payment.");
     } finally {
       setPaymentActionLoading(false);
     }

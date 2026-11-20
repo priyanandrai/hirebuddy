@@ -100,6 +100,18 @@ export default function HelperTasksPage() {
     } catch (e) {}
 
     loadData();
+
+    const handleResume = () => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") {
+        loadData();
+      }
+    };
+    window.addEventListener("focus", handleResume);
+    document.addEventListener("visibilitychange", handleResume);
+    return () => {
+      window.removeEventListener("focus", handleResume);
+      document.removeEventListener("visibilitychange", handleResume);
+    };
   }, []);
 
   async function checkVerificationStatus() {

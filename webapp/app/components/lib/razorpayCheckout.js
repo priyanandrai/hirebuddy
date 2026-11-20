@@ -40,10 +40,15 @@ export async function openRazorpayCheckout({
   description = "Secure Payment via Razorpay",
   prefill = {},
 }) {
+  const isRealBackendOrder =
+    Boolean(orderId) &&
+    String(orderId).startsWith("order_") &&
+    !/^(order_sim_|order_mock_|order_escrow_|order_rzp_|order_mkt_)/.test(String(orderId));
+
   const resolvedKey =
     keyId ||
     process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
-    "";
+    (isRealBackendOrder ? "rzp_test_U18E0SPXVUzHts" : "");
 
   const isLiveKey =
     Boolean(resolvedKey) &&

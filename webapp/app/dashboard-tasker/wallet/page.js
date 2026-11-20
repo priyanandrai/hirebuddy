@@ -344,27 +344,40 @@ export default function BuddyWalletPage() {
             <button
               type="button"
               disabled={activatingPlan !== null}
-              onClick={() =>
-                handleActivatePass("DAILY", balanceRupees >= 5 ? "WALLET" : "ONLINE")
-              }
+              onClick={() => handleActivatePass("DAILY", "ONLINE")}
               className="rounded-xl border border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 px-4 py-2 text-xs font-bold text-emerald-300 transition"
             >
-              {activatingPlan?.startsWith("DAILY")
-                ? "Activating..."
-                : `Activate ₹5/Day (${balanceRupees >= 5 ? "Wallet" : "Online"})`}
+              {activatingPlan === "DAILY_ONLINE"
+                ? "Opening Razorpay..."
+                : "₹5/Day Pass (Razorpay)"}
             </button>
             <button
               type="button"
               disabled={activatingPlan !== null}
-              onClick={() =>
-                handleActivatePass("MONTHLY", balanceRupees >= 99 ? "WALLET" : "ONLINE")
-              }
+              onClick={() => handleActivatePass("MONTHLY", "ONLINE")}
               className="rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2 text-xs font-bold text-white transition"
             >
-              {activatingPlan?.startsWith("MONTHLY")
-                ? "Activating..."
-                : `Activate ₹99/Month (${balanceRupees >= 99 ? "Wallet" : "Online"})`}
+              {activatingPlan === "MONTHLY_ONLINE"
+                ? "Opening Razorpay..."
+                : "₹99/Month Pass (Razorpay)"}
             </button>
+            {balanceRupees >= 5 && (
+              <button
+                type="button"
+                disabled={activatingPlan !== null}
+                onClick={() =>
+                  handleActivatePass(
+                    balanceRupees >= 99 ? "MONTHLY" : "DAILY",
+                    "WALLET"
+                  )
+                }
+                className="rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition"
+              >
+                {activatingPlan?.endsWith("_WALLET")
+                  ? "Activating..."
+                  : `Use Wallet (₹${balanceRupees >= 99 ? 99 : 5})`}
+              </button>
+            )}
           </div>
         </div>
 

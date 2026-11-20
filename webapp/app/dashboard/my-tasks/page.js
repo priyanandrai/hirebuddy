@@ -12,16 +12,17 @@ import {
   updateTaskStatus,
 } from "@/app/components/services/task.service";
 import { getUserProfile } from "@/app/components/services/user.service";
-import { releaseEscrowPayment } from "@/app/components/services/payment.service";
+import {
+  createPaymentOrder,
+  releaseEscrowPayment,
+  payTaskWithWallet,
+} from "@/app/components/services/payment.service";
+import { openRazorpayCheckout } from "@/app/components/lib/razorpayCheckout";
 import { createReview } from "@/app/components/services/review.service";
 import {
   sendMessage as sendTaskMessageApi,
   getTaskMessages,
 } from "@/app/components/services/message.service";
-import {
-  initializeSocket,
-  onTaskUpdate,
-} from "@/app/components/config/socketClient";
 import { MyTaskCardShimmer } from "@/app/components/ui/Shimmer";
 import {
   Plus,
@@ -155,7 +156,7 @@ export default function MyTasksPage() {
   // Payment Modal State
   const [paymentModalTask, setPaymentModalTask] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("UPI");
-  const [upiId, setUpiId] = useState("priyasharma@okaxis");
+  const [paymentError, setPaymentError] = useState("");
   const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   // Rate & Review Helper Modal State
@@ -241,19 +242,30 @@ export default function MyTasksPage() {
             }
           : override.assignedTo || null;
 
-        // If DB task has progressed to IN_PROGRESS / COMPLETED / CANCELLED, do not let stale local override revert it
-        const dbStatusUpper = String(t.status || "").toUpperCase();
-        const resolvedStatus =
-          isRealDbTask &&
-          ["IN_PROGRESS", "COMPLETED", "CANCELLED"].includes(dbStatusUpper)
-            ? t.status
-            : override.status || t.status;
+        // For real DB tasks, always trust the authoritative DB status & assignedTo so Helper Accept/Decline reflects immediately
+        const resolvedStatus = isRealDbTask
+          ? t.status
+          : override.status || t.status;
+        const resolvedConfirmedLabel =
+          isRealDbTask && String(t.status || "").toUpperCase() !== "REQUESTED"
+            ? t.confirmedTimeLabel || undefined
+            : override.confirmedTimeLabel || t.confirmedTimeLabel;
 
         return {
           ...t,
           ...override,
           status: resolvedStatus,
-          assignedTo: mergedAssignedTo,
+          paymentStatus: isRealDbTask
+            ? t.paymentStatus || "PENDING"
+            : override.paymentStatus || t.paymentStatus,
+          paidMethod: isRealDbTask
+            ? t.paidMethod || (t.paymentStatus === "COMPLETED" ? override.paidMethod : null)
+            : override.paidMethod || t.paidMethod,
+          paidAtLabel: isRealDbTask
+            ? t.paidAtLabel || (t.paymentStatus === "COMPLETED" ? override.paidAtLabel : null)
+            : override.paidAtLabel || t.paidAtLabel,
+          confirmedTimeLabel: resolvedConfirmedLabel,
+          assignedTo: isRealDbTask ? t.assignedTo : mergedAssignedTo,
         };
       });
     } catch {
@@ -314,13 +326,35 @@ export default function MyTasksPage() {
     }
   }, [session]);
 
-  // Listen to real-time socket updates for tasks
+  // Refresh tasks when user opens/focuses the screen (no persistent socket required)
   useEffect(() => {
-    initializeSocket().catch(() => {});
+    const refreshOnOpen = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+      const token =
+        session?.token ||
+        (typeof window !== "undefined" ? localStorage.getItem("token") : null);
+      if (token) {
+        getMyTask(token);
+      }
+    };
 
     const handleStatusChanged = (e) => {
       const data = e.detail;
       if (data?.taskId && data?.newStatus) {
+        try {
+          const raw = localStorage.getItem(TASK_OVERRIDES_STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed[data.taskId]) {
+              delete parsed[data.taskId].status;
+              delete parsed[data.taskId].confirmedTimeLabel;
+              delete parsed[data.taskId].assignedTo;
+              localStorage.setItem(TASK_OVERRIDES_STORAGE_KEY, JSON.stringify(parsed));
+            }
+          }
+        } catch {}
         setTasks((prev) =>
           prev.map((t) =>
             t.id === data.taskId
@@ -335,11 +369,15 @@ export default function MyTasksPage() {
       }
     };
 
+    window.addEventListener("focus", refreshOnOpen);
+    document.addEventListener("visibilitychange", refreshOnOpen);
     window.addEventListener("hirebuddy:task-status-changed", handleStatusChanged);
     return () => {
+      window.removeEventListener("focus", refreshOnOpen);
+      document.removeEventListener("visibilitychange", refreshOnOpen);
       window.removeEventListener("hirebuddy:task-status-changed", handleStatusChanged);
     };
-  }, []);
+  }, [session]);
 
   const getMyTask = async (token) => {
     if (!token) {
@@ -632,14 +670,22 @@ export default function MyTasksPage() {
     e.preventDefault();
     if (!paymentModalTask) return;
     setPaymentProcessing(true);
+    setPaymentError("");
 
     const paidTask = paymentModalTask;
-    const methodLabel =
-      paymentMethod === "UPI"
-        ? `UPI (${upiId || "Instant UPI"})`
-        : paymentMethod === "CARD"
-          ? "Card"
-          : "Cash";
+    const budgetRupees = Math.max(
+      1,
+      Number(paidTask.displayBudget || paidTask.budget || 0)
+    );
+    const isRealDbTask =
+      paidTask.id &&
+      paidTask.id !== DEFAULT_KITCHEN_TASK.id &&
+      !String(paidTask.id).startsWith("reorder-");
+    const isTaskCompleted =
+      String(paidTask.status || "").toUpperCase() === "COMPLETED";
+    const isAlreadyHeldInEscrow =
+      String(paidTask.paymentStatus || "").toUpperCase() === "HELD_IN_ESCROW";
+
     const nowLabel = new Date().toLocaleDateString("en-IN", {
       day: "2-digit",
       month: "short",
@@ -648,32 +694,94 @@ export default function MyTasksPage() {
     });
 
     try {
-      if (
-        paidTask.id !== DEFAULT_KITCHEN_TASK.id &&
-        !String(paidTask.id).startsWith("reorder-")
-      ) {
+      let methodLabel = "Razorpay Online";
+      let nextPaymentStatus = isTaskCompleted ? "COMPLETED" : "HELD_IN_ESCROW";
+
+      // Case 1: Escrow was already paid via Razorpay earlier and task is now COMPLETED -> release held escrow
+      if (isAlreadyHeldInEscrow && isTaskCompleted && isRealDbTask) {
         await releaseEscrowPayment(paidTask.id, {
-          method: methodLabel,
+          method: paidTask.paidMethod || "Razorpay Escrow",
           markAsPaid: true,
         });
+        methodLabel = paidTask.paidMethod || "Razorpay Escrow";
+        nextPaymentStatus = "COMPLETED";
+      } else if (paymentMethod === "WALLET") {
+        // Case 2: Pay from Customer's HireBuddy Wallet balance
+        if (!isRealDbTask) {
+          throw new Error("Wallet payment is available for live tasks.");
+        }
+        await payTaskWithWallet({
+          taskId: paidTask.id,
+          amountRupees: budgetRupees,
+          releaseImmediately: isTaskCompleted,
+        });
+        methodLabel = "HireBuddy Wallet";
+        nextPaymentStatus = isTaskCompleted ? "COMPLETED" : "HELD_IN_ESCROW";
+      } else {
+        // Case 3: Online Payment via Razorpay Checkout (UPI / GPay / PhonePe / Card / NetBanking)
+        const orderData = await createPaymentOrder({
+          amountRupees: budgetRupees,
+          purpose: "TASK_PAYMENT",
+          notes: {
+            taskId: String(paidTask.id || ""),
+            taskCode: String(paidTask.taskCode || ""),
+          },
+        });
+
+        const rzpRes = await openRazorpayCheckout({
+          amountRupees: budgetRupees,
+          amountPaise: orderData?.amountPaise,
+          orderId: orderData?.orderId,
+          keyId: orderData?.keyId,
+          title: "HireBuddy Task Payment",
+          description: `${
+            isTaskCompleted ? "Pay & Release" : "Hold in Escrow"
+          }: ${paidTask.title} (${paidTask.taskCode || "Task"})`,
+        });
+
+        methodLabel =
+          paymentMethod === "CARD"
+            ? "Razorpay (Card / NetBanking)"
+            : "Razorpay (UPI / QR)";
+
+        if (isRealDbTask) {
+          await releaseEscrowPayment(paidTask.id, {
+            method: methodLabel,
+            markAsPaid: isTaskCompleted,
+            holdInEscrow: !isTaskCompleted,
+            razorpayOrderId: rzpRes.razorpayOrderId,
+            razorpayPaymentId: rzpRes.razorpayPaymentId,
+            razorpaySignature: rzpRes.razorpaySignature,
+          });
+        }
+        nextPaymentStatus = isTaskCompleted ? "COMPLETED" : "HELD_IN_ESCROW";
       }
-    } catch (err) {
-      console.warn("Payment release API warning:", err?.message);
-    } finally {
+
       const patch = {
-        paymentStatus: "COMPLETED",
+        paymentStatus: nextPaymentStatus,
         paidMethod: methodLabel,
         paidAtLabel: nowLabel,
       };
-      saveTaskOverride(paidTask.id, patch);
+      if (!isRealDbTask) {
+        saveTaskOverride(paidTask.id, patch);
+      }
       setTasks((prev) =>
         prev.map((t) => (t.id === paidTask.id ? { ...t, ...patch } : t))
       );
-      setPaymentProcessing(false);
       setPaymentModalTask(null);
       showToast(
-        `₹${paidTask.displayBudget} payment (100% payout) released to ${paidTask.helper?.name || "Buddy"}!`
+        nextPaymentStatus === "HELD_IN_ESCROW"
+          ? `₹${budgetRupees} secured in HireBuddy Escrow via ${methodLabel}!`
+          : `₹${budgetRupees} payment (100% payout) released to ${
+              paidTask.helper?.name || "Buddy"
+            } via ${methodLabel}!`
       );
+    } catch (err) {
+      setPaymentError(
+        err?.message || "Payment was cancelled or could not be completed."
+      );
+    } finally {
+      setPaymentProcessing(false);
     }
   };
 
@@ -1052,7 +1160,10 @@ export default function MyTasksPage() {
                   router.push(`/dashboard/helpers?${params.toString()}`);
                 }}
                 onCancelTask={() => setCancelConfirmTask(task)}
-                onOpenPayment={() => setPaymentModalTask(task)}
+                onOpenPayment={() => {
+                  setPaymentError("");
+                  setPaymentModalTask(task);
+                }}
                 onOpenRating={() => handleOpenRatingModal(task)}
                 onOpenReorder={() => {
                   setReorderModalTask(task);
@@ -1473,58 +1584,71 @@ export default function MyTasksPage() {
               </div>
             ) : (
               <form onSubmit={handleReleasePayment} className="mt-5 space-y-4">
-                <div>
-                  <label className="mb-2 block text-xs font-semibold text-slate-300">
-                    Select Payment Method
-                  </label>
-                  <div className="grid grid-cols-3 gap-2.5">
-                    {[
-                      { key: "UPI", label: "UPI App", icon: Wallet },
-                      { key: "CARD", label: "Card", icon: CreditCard },
-                      { key: "CASH", label: "Cash Paid", icon: Banknote },
-                    ].map((item) => {
-                      const IconComp = item.icon;
-                      const active = paymentMethod === item.key;
-                      return (
-                        <button
-                          key={item.key}
-                          type="button"
-                          onClick={() => setPaymentMethod(item.key)}
-                          className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-xs font-semibold transition cursor-pointer ${
-                            active
-                              ? "border-emerald-500 bg-emerald-500/15 text-emerald-300 shadow-md shadow-emerald-500/10"
-                              : "border-slate-800 bg-slate-900/80 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                          }`}
-                        >
-                          <IconComp className="h-4 w-4" />
-                          <span>{item.label}</span>
-                        </button>
-                      );
-                    })}
+                {paymentError && (
+                  <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3.5 py-2.5 text-xs font-semibold text-rose-300">
+                    {paymentError}
                   </div>
-                </div>
+                )}
 
-                {paymentMethod === "UPI" && (
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-slate-400">
-                      UPI ID (GPay / PhonePe / Paytm)
-                    </label>
-                    <input
-                      type="text"
-                      value={upiId}
-                      onChange={(e) => setUpiId(e.target.value)}
-                      placeholder="yourname@upi"
-                      required
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
-                    />
+                {String(paymentModalTask.paymentStatus || "").toUpperCase() ===
+                  "HELD_IN_ESCROW" &&
+                String(paymentModalTask.status || "").toUpperCase() ===
+                  "COMPLETED" ? (
+                  <div className="rounded-2xl border border-emerald-500/35 bg-emerald-500/10 p-3.5 text-xs text-emerald-300">
+                    ✓ ₹{paymentModalTask.displayBudget} is already held safely in
+                    HireBuddy Escrow. Click below to release 100% to{" "}
+                    <strong>{paymentModalTask.helper?.name || "your Buddy"}</strong>.
                   </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold text-slate-300">
+                        Select Payment Method
+                      </label>
+                      <div className="grid grid-cols-3 gap-2.5">
+                        {[
+                          { key: "UPI", label: "UPI / QR", icon: Sparkles },
+                          { key: "CARD", label: "Card / NetBanking", icon: CreditCard },
+                          { key: "WALLET", label: "HB Wallet", icon: Wallet },
+                        ].map((item) => {
+                          const IconComp = item.icon;
+                          const active = paymentMethod === item.key;
+                          return (
+                            <button
+                              key={item.key}
+                              type="button"
+                              onClick={() => {
+                                setPaymentError("");
+                                setPaymentMethod(item.key);
+                              }}
+                              className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-3 text-xs font-semibold transition cursor-pointer ${
+                                active
+                                  ? "border-emerald-500 bg-emerald-500/15 text-emerald-300 shadow-md shadow-emerald-500/10"
+                                  : "border-slate-800 bg-slate-900/80 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                              }`}
+                            >
+                              <IconComp className="h-4 w-4" />
+                              <span>{item.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {paymentMethod !== "WALLET" && (
+                      <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3.5 py-2.5 text-xs text-blue-300">
+                        🔒 Opens secure <strong>Razorpay Checkout</strong> (UPI, GPay,
+                        PhonePe, Paytm, Debit/Credit Cards &amp; NetBanking).
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <div className="flex items-center gap-2 text-[11px] text-slate-400">
                   <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-400" />
                   <span>
-                    100% secure HireBuddy escrow release directly to{" "}
-                    {paymentModalTask.helper?.name}.
+                    100% secure HireBuddy payout protection for{" "}
+                    {paymentModalTask.helper?.name || "your Buddy"}.
                   </span>
                 </div>
 
@@ -1544,8 +1668,15 @@ export default function MyTasksPage() {
                     <CreditCard className="h-4 w-4" />
                     <span>
                       {paymentProcessing
-                        ? "Processing..."
-                        : `Pay ₹${paymentModalTask.displayBudget} & Release`}
+                        ? "Opening Razorpay..."
+                        : String(paymentModalTask.paymentStatus || "").toUpperCase() ===
+                              "HELD_IN_ESCROW" &&
+                            String(paymentModalTask.status || "").toUpperCase() ===
+                              "COMPLETED"
+                          ? `Release ₹${paymentModalTask.displayBudget} Escrow`
+                          : paymentMethod === "WALLET"
+                            ? `Pay ₹${paymentModalTask.displayBudget} via Wallet`
+                            : `Pay ₹${paymentModalTask.displayBudget} via Razorpay`}
                     </span>
                   </button>
                 </div>

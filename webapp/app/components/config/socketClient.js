@@ -6,6 +6,17 @@ import { handleRevokedSession } from "../lib/sessionRevocation";
 let socket = null;
 let initPromise = null;
 let globalEventsBound = false;
+let visibilityListenerBound = false;
+
+const bindVisibilityCleanup = () => {
+  if (visibilityListenerBound || typeof document === "undefined") return;
+  visibilityListenerBound = true;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      disconnectSocket();
+    }
+  });
+};
 
 const bindGlobalBridgeEvents = (sock) => {
   if (!sock || globalEventsBound || typeof window === "undefined") return;
@@ -72,7 +83,20 @@ const bindGlobalBridgeEvents = (sock) => {
   });
 };
 
-export const initializeSocket = async () => {
+export const initializeSocket = async (options = {}) => {
+  const { force = false } = options;
+
+  // Battery-friendly default: avoid keeping persistent WebSockets open globally.
+  // Push notifications wake the user, and screens fetch fresh tasks on open/focus.
+  // Pass `{ force: true }` only when entering an active live chat room.
+  const persistentEnabled =
+    force || process.env.NEXT_PUBLIC_ENABLE_PERSISTENT_SOCKET === "true";
+  if (!persistentEnabled) {
+    return null;
+  }
+
+  bindVisibilityCleanup();
+
   if (socket && (socket.connected || socket.active)) {
     bindGlobalBridgeEvents(socket);
     return socket;

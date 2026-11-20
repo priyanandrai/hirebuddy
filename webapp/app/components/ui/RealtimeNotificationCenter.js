@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import { initializeSocket } from "../config/socketClient";
 import {
   initializeFirebasePush,
   registerPushServiceWorker,
@@ -170,7 +169,7 @@ export default function RealtimeNotificationCenter({ role = "USER" }) {
   );
 
   useEffect(() => {
-    initializeSocket().catch(() => {});
+    // Battery-friendly: register Service Worker + FCM Push (no background persistent WebSocket)
     registerPushServiceWorker().catch(() => {});
 
     let currentUserId = null;

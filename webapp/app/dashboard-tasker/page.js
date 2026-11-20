@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -162,7 +162,8 @@ export default function TaskerDashboardPage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
 
-  const [activeTab, setActiveTab] = useState("ACCEPTED"); // "ACCEPTED" | "AVAILABLE" | "COMPLETED"
+  const [activeTab, setActiveTab] = useState("ACCEPTED"); // "REQUESTS" | "ACCEPTED" | "AVAILABLE" | "COMPLETED"
+  const didAutoFocusRequestsRef = useRef(false);
   const [assignedTasks, setAssignedTasks] = useState([]);
   const [assignedLoading, setAssignedLoading] = useState(true);
 
@@ -425,6 +426,26 @@ export default function TaskerDashboardPage() {
       loadHelperDashboardData();
     };
 
+    const handleTaskRequested = () => {
+      loadHelperDashboardData();
+      setActiveTab("REQUESTS");
+    };
+
+    const handleAppResumeOrFocus = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+      fetchTasksFromBackend({
+        category: selectedCategory,
+        search: searchQuery,
+        location: selectedLocation,
+        viewAll: showAllTasks,
+      });
+      loadHelperDashboardData();
+    };
+
+    window.addEventListener("focus", handleAppResumeOrFocus);
+    document.addEventListener("visibilitychange", handleAppResumeOrFocus);
     window.addEventListener("hirebuddy:helper-search", handleHeaderSearch);
     window.addEventListener("categoriesUpdated", handleCategoriesUpdated);
     window.addEventListener(
@@ -435,7 +456,10 @@ export default function TaskerDashboardPage() {
       "hirebuddy:task-status-changed",
       handleTaskStatusChanged
     );
+    window.addEventListener("hirebuddy:task-requested", handleTaskRequested);
     return () => {
+      window.removeEventListener("focus", handleAppResumeOrFocus);
+      document.removeEventListener("visibilitychange", handleAppResumeOrFocus);
       window.removeEventListener("hirebuddy:helper-search", handleHeaderSearch);
       window.removeEventListener("categoriesUpdated", handleCategoriesUpdated);
       window.removeEventListener(
@@ -446,6 +470,7 @@ export default function TaskerDashboardPage() {
         "hirebuddy:task-status-changed",
         handleTaskStatusChanged
       );
+      window.removeEventListener("hirebuddy:task-requested", handleTaskRequested);
     };
   }, [
     fetchTasksFromBackend,
@@ -468,6 +493,18 @@ export default function TaskerDashboardPage() {
       ),
     [assignedTasks]
   );
+
+  useEffect(() => {
+    if (
+      !assignedLoading &&
+      !didAutoFocusRequestsRef.current &&
+      pendingRequests.length > 0 &&
+      activeTasksList.length === 0
+    ) {
+      didAutoFocusRequestsRef.current = true;
+      setActiveTab("REQUESTS");
+    }
+  }, [assignedLoading, pendingRequests.length, activeTasksList.length]);
 
   const completedTasksList = useMemo(
     () => assignedTasks.filter((t) => t.status === "COMPLETED"),
@@ -779,19 +816,31 @@ export default function TaskerDashboardPage() {
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           <button
             type="button"
-            onClick={() => setActiveTab("ACCEPTED")}
+            onClick={() => setActiveTab("REQUESTS")}
             className={`group flex items-center justify-between rounded-2xl border p-4 sm:p-5 text-left shadow-lg transition ${
-              pendingRequests.length > 0
-                ? "border-amber-500/40 bg-[#0b1528]"
-                : "border-[#152544] bg-[#071124] hover:border-[#243f73]"
+              activeTab === "REQUESTS"
+                ? "border-amber-500 bg-gradient-to-r from-[#d97706] to-[#f59e0b] text-white shadow-amber-950/40"
+                : pendingRequests.length > 0
+                  ? "border-amber-500/40 bg-[#0b1528]"
+                  : "border-[#152544] bg-[#071124] hover:border-[#243f73]"
             }`}
           >
             <div className="flex items-center gap-3.5">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 border border-amber-500/25 text-amber-400">
+              <div
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                  activeTab === "REQUESTS"
+                    ? "bg-white/20 text-white"
+                    : "bg-amber-500/15 border border-amber-500/25 text-amber-400"
+                }`}
+              >
                 <Mail className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-300">
+                <p
+                  className={`text-xs font-semibold ${
+                    activeTab === "REQUESTS" ? "text-white" : "text-slate-300"
+                  }`}
+                >
                   Pending Direct Requests
                 </p>
                 <p className="mt-1 text-2xl font-extrabold text-white leading-none">
@@ -799,7 +848,11 @@ export default function TaskerDashboardPage() {
                 </p>
               </div>
             </div>
-            <ChevronRight className="h-4 w-4 text-slate-400 group-hover:translate-x-0.5 transition" />
+            <ChevronRight
+              className={`h-4 w-4 group-hover:translate-x-0.5 transition ${
+                activeTab === "REQUESTS" ? "text-white" : "text-slate-400"
+              }`}
+            />
           </button>
 
           <button
@@ -949,6 +1002,28 @@ export default function TaskerDashboardPage() {
           <div className="flex items-center gap-6 overflow-x-auto">
             <button
               type="button"
+              onClick={() => setActiveTab("REQUESTS")}
+              className={`flex items-center gap-2 pb-3 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition ${
+                activeTab === "REQUESTS"
+                  ? "border-amber-500 text-amber-500"
+                  : "border-transparent text-slate-400 hover:text-white"
+              }`}
+            >
+              <Mail className="h-4 w-4" />
+              <span>Pending Direct Requests</span>
+              <span
+                className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${
+                  pendingRequests.length > 0
+                    ? "bg-amber-500/20 text-amber-500"
+                    : "bg-slate-800 text-slate-300"
+                }`}
+              >
+                {pendingRequests.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab("ACCEPTED")}
               className={`flex items-center gap-2 pb-3 text-xs sm:text-sm font-semibold border-b-2 whitespace-nowrap transition ${
                 activeTab === "ACCEPTED"
@@ -959,7 +1034,7 @@ export default function TaskerDashboardPage() {
               <User className="h-4 w-4" />
               <span>My Accepted Tasks</span>
               <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-500/20 px-1.5 text-[11px] font-bold text-blue-400">
-                {activeTasksList.length + pendingRequests.length}
+                {activeTasksList.length}
               </span>
             </button>
 
@@ -1013,33 +1088,41 @@ export default function TaskerDashboardPage() {
           </div>
         </div>
 
-        {/* TAB 1: MY ACCEPTED TASKS & DIRECT BOOKING REQUESTS */}
-        {activeTab === "ACCEPTED" && (
+        {/* TAB 0: PENDING DIRECT BOOKING REQUESTS */}
+        {activeTab === "REQUESTS" && (
           <div className="space-y-4">
-            {pendingRequests.length > 0 && (
+            {assignedLoading ? (
+              <HelperTaskCardShimmer count={2} />
+            ) : pendingRequests.length > 0 ? (
               <div className="space-y-3">
                 <h3 className="text-sm sm:text-base font-bold text-white">
-                  Direct Booking Requests ({pendingRequests.length})
+                  Direct Booking Invitations Awaiting Your Response ({pendingRequests.length})
                 </h3>
                 {pendingRequests.map((req) => (
                   <div
                     key={req.id}
                     className="rounded-2xl border border-amber-500/40 bg-[#071124] p-5 shadow-xl"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div>
                         <span className="inline-block rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[11px] font-bold text-amber-400">
-                          ⚡ Direct Booking Request
+                          ⚡ Direct Invitation · Pending Your Acceptance
                         </span>
                         <h4 className="mt-1.5 text-base sm:text-lg font-bold text-white">
                           {req.title}
                         </h4>
-                        <p className="mt-1 text-xs text-slate-300">
+                        {req.description && (
+                          <p className="mt-1 text-xs text-slate-300 line-clamp-2">
+                            {req.description}
+                          </p>
+                        )}
+                        <p className="mt-2 text-xs text-slate-300">
                           📍 {req.location || "Modipuram, Meerut"} • Customer:{" "}
                           <strong>{req.createdBy?.name || "Customer"}</strong>
+                          {req.timeSlot ? ` • 🕒 ${req.timeSlot}` : ""}
                         </p>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3 shrink-0">
                         <span className="text-xl font-extrabold text-emerald-400">
                           ₹{req.budget}
                         </span>
@@ -1051,7 +1134,7 @@ export default function TaskerDashboardPage() {
                         >
                           {actionLoadingId === req.id
                             ? "Accepting..."
-                            : "Accept"}
+                            : "Accept Request"}
                         </button>
                         <button
                           type="button"
@@ -1065,6 +1148,39 @@ export default function TaskerDashboardPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-[#152544] bg-[#071124] p-8 sm:p-10 text-center shadow-xl">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-400 mb-3">
+                  <Mail className="h-6 w-6" />
+                </div>
+                <h3 className="text-base sm:text-lg font-bold text-white">
+                  No Pending Direct Requests
+                </h3>
+                <p className="mt-1 max-w-md mx-auto text-xs sm:text-sm text-slate-400">
+                  When a customer directly invites you for a task, it will appear here so you can Accept or Decline it.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 1: MY ACCEPTED TASKS */}
+        {activeTab === "ACCEPTED" && (
+          <div className="space-y-4">
+            {pendingRequests.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs sm:text-sm">
+                <span className="font-semibold text-amber-300">
+                  ⚡ You have {pendingRequests.length} pending direct invitation
+                  {pendingRequests.length > 1 ? "s" : ""} waiting for your acceptance!
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("REQUESTS")}
+                  className="rounded-xl bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-400 transition"
+                >
+                  Review Pending Request{pendingRequests.length > 1 ? "s" : ""} →
+                </button>
               </div>
             )}
 
@@ -1114,7 +1230,7 @@ export default function TaskerDashboardPage() {
                   </div>
                 ))}
               </div>
-            ) : pendingRequests.length === 0 ? (
+            ) : (
               <div className="rounded-2xl border border-[#152544] bg-[#071124] p-8 sm:p-10 text-center shadow-xl">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-400 mb-3">
                   <ListTodo className="h-6 w-6" />
@@ -1154,7 +1270,7 @@ export default function TaskerDashboardPage() {
                   </Link>
                 </div>
               </div>
-            ) : null}
+            )}
           </div>
         )}
 

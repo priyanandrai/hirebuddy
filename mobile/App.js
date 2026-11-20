@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AppState,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -15,27 +17,97 @@ export default function App() {
   const [role, setRole] = useState("CUSTOMER"); // "CUSTOMER" | "BUDDY"
   const [activeTab, setActiveTab] = useState("TASKS"); // "TASKS" | "MARKETPLACE" | "WALLET"
   const [tasks, setTasks] = useState([]);
+  const [assignedTasks, setAssignedTasks] = useState([]);
   const [products, setProducts] = useState([]);
   const [otpInputs, setOtpInputs] = useState({});
   const [loading, setLoading] = useState(false);
+  const appStateRef = useRef(AppState.currentState);
 
-  const loadData = async () => {
+  /**
+   * Battery-friendly fetch-on-open:
+   * No persistent WebSocket connection is kept open on mobile.
+   * Instead, backend sends ONE FCM push notification, and when the user opens/resumes
+   * the app (or pulls to refresh), fresh tasks appear immediately on screen.
+   */
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tasksRes, mktRes] = await Promise.all([
-        mobileApi.getTasks().catch(() => ({ tasks: [] })),
+      const [openTasksRes, assignedRes, myTasksRes, mktRes] = await Promise.all([
+        mobileApi.getOpenTasks().catch(() => ({ tasks: [] })),
+        role === "BUDDY"
+          ? mobileApi.getAssignedTasks().catch(() => [])
+          : Promise.resolve([]),
+        role === "CUSTOMER"
+          ? mobileApi.getMyTasks().catch(() => [])
+          : Promise.resolve([]),
         mobileApi.getMarketplaceProducts().catch(() => ({ products: [] })),
       ]);
-      setTasks(Array.isArray(tasksRes?.tasks) ? tasksRes.tasks : Array.isArray(tasksRes) ? tasksRes : []);
+
+      const openList = Array.isArray(openTasksRes?.tasks)
+        ? openTasksRes.tasks
+        : Array.isArray(openTasksRes)
+          ? openTasksRes
+          : [];
+      const customerList = Array.isArray(myTasksRes?.tasks)
+        ? myTasksRes.tasks
+        : Array.isArray(myTasksRes)
+          ? myTasksRes
+          : [];
+      const helperAssignedList = Array.isArray(assignedRes?.tasks)
+        ? assignedRes.tasks
+        : Array.isArray(assignedRes)
+          ? assignedRes
+          : [];
+
+      setAssignedTasks(helperAssignedList);
+      setTasks(role === "CUSTOMER" && customerList.length > 0 ? customerList : openList);
       setProducts(Array.isArray(mktRes?.products) ? mktRes.products : []);
     } finally {
       setLoading(false);
     }
-  };
+  }, [role]);
 
+  // Load when screen mounts or role changes
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
+
+  // Automatically refresh tasks when user opens the app from background / push notification
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
+        loadData();
+      }
+      appStateRef.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [loadData]);
+
+  const handleAcceptTask = async (task) => {
+    try {
+      await mobileApi.acceptTask(task.id);
+      Alert.alert("Task Accepted", `You accepted "${task.title}"!`);
+      loadData();
+    } catch (err) {
+      Alert.alert("Unable to Accept", err.message);
+    }
+  };
+
+  const handleDeclineTask = async (task) => {
+    try {
+      await mobileApi.declineTask(task.id, "Helper unavailable");
+      Alert.alert("Declined", `Declined request for "${task.title}".`);
+      loadData();
+    } catch (err) {
+      Alert.alert("Unable to Decline", err.message);
+    }
+  };
 
   const handleVerifyTaskOtp = async (task) => {
     const otp = otpInputs[task.id] || task.completionOtp || "";
@@ -51,6 +123,11 @@ export default function App() {
       Alert.alert("Verification Error", err.message);
     }
   };
+
+  const pendingDirectRequests = assignedTasks.filter((t) => t.status === "REQUESTED");
+  const activeAssignedTasks = assignedTasks.filter((t) =>
+    ["ASSIGNED", "IN_PROGRESS"].includes(t.status)
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -89,13 +166,96 @@ export default function App() {
         ))}
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={loadData}
+            tintColor="#34d399"
+          />
+        }
+      >
         {activeTab === "TASKS" && (
           <View>
+            {/* Direct Booking Requests shown immediately when Buddy opens the app */}
+            {role === "BUDDY" && pendingDirectRequests.length > 0 && (
+              <View style={styles.sectionBlock}>
+                <Text style={styles.requestSectionTitle}>
+                  ⚡ Direct Booking Requests ({pendingDirectRequests.length})
+                </Text>
+                {pendingDirectRequests.map((task) => (
+                  <View key={task.id} style={[styles.card, styles.requestCard]}>
+                    <View style={styles.rowBetween}>
+                      <Text style={styles.cardTitle}>{task.title}</Text>
+                      <Text style={styles.price}>₹{task.budget}</Text>
+                    </View>
+                    <Text style={styles.meta}>
+                      📍 {task.location} • Invited directly by{" "}
+                      {task.createdBy?.name || "Customer"}
+                    </Text>
+                    <View style={styles.otpRow}>
+                      <TouchableOpacity
+                        style={styles.declineBtn}
+                        onPress={() => handleDeclineTask(task)}
+                      >
+                        <Text style={styles.declineBtnText}>Decline</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.primaryBtn}
+                        onPress={() => handleAcceptTask(task)}
+                      >
+                        <Text style={styles.primaryBtnText}>Accept Request</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Active Assigned Jobs for Buddy */}
+            {role === "BUDDY" && activeAssignedTasks.length > 0 && (
+              <View style={styles.sectionBlock}>
+                <Text style={styles.sectionTitle}>
+                  Active Assigned Tasks ({activeAssignedTasks.length})
+                </Text>
+                {activeAssignedTasks.map((task) => (
+                  <View key={task.id} style={styles.card}>
+                    <View style={styles.rowBetween}>
+                      <Text style={styles.cardTitle}>{task.title}</Text>
+                      <Text style={styles.price}>₹{task.budget}</Text>
+                    </View>
+                    <Text style={styles.meta}>
+                      📍 {task.location} • Status: {task.status}
+                    </Text>
+                    <View style={styles.otpRow}>
+                      <TextInput
+                        style={styles.otpInput}
+                        maxLength={4}
+                        keyboardType="number-pad"
+                        placeholder={task.completionOtp || "0000"}
+                        placeholderTextColor="#64748b"
+                        value={otpInputs[task.id] || ""}
+                        onChangeText={(val) =>
+                          setOtpInputs((prev) => ({ ...prev, [task.id]: val }))
+                        }
+                      />
+                      <TouchableOpacity
+                        style={styles.primaryBtn}
+                        onPress={() => handleVerifyTaskOtp(task)}
+                      >
+                        <Text style={styles.primaryBtnText}>Verify 4-Digit OTP</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
             <Text style={styles.sectionTitle}>
               {role === "CUSTOMER"
                 ? "Active Hyperlocal Tasks & 4-Digit Completion PIN"
-                : "Nearby Buddy Tasks & 4-Digit OTP Verification"}
+                : "Nearby Open Buddy Tasks"}
             </Text>
             {tasks.map((task) => (
               <View key={task.id} style={styles.card}>
@@ -115,23 +275,34 @@ export default function App() {
                 )}
                 {role === "BUDDY" && (
                   <View style={styles.otpRow}>
-                    <TextInput
-                      style={styles.otpInput}
-                      maxLength={4}
-                      keyboardType="number-pad"
-                      placeholder={task.completionOtp || "0000"}
-                      placeholderTextColor="#64748b"
-                      value={otpInputs[task.id] || ""}
-                      onChangeText={(val) =>
-                        setOtpInputs((prev) => ({ ...prev, [task.id]: val }))
-                      }
-                    />
-                    <TouchableOpacity
-                      style={styles.primaryBtn}
-                      onPress={() => handleVerifyTaskOtp(task)}
-                    >
-                      <Text style={styles.primaryBtnText}>Verify 4-Digit OTP</Text>
-                    </TouchableOpacity>
+                    {task.status === "OPEN" ? (
+                      <TouchableOpacity
+                        style={styles.primaryBtn}
+                        onPress={() => handleAcceptTask(task)}
+                      >
+                        <Text style={styles.primaryBtnText}>Accept Open Task</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <>
+                        <TextInput
+                          style={styles.otpInput}
+                          maxLength={4}
+                          keyboardType="number-pad"
+                          placeholder={task.completionOtp || "0000"}
+                          placeholderTextColor="#64748b"
+                          value={otpInputs[task.id] || ""}
+                          onChangeText={(val) =>
+                            setOtpInputs((prev) => ({ ...prev, [task.id]: val }))
+                          }
+                        />
+                        <TouchableOpacity
+                          style={styles.primaryBtn}
+                          onPress={() => handleVerifyTaskOtp(task)}
+                        >
+                          <Text style={styles.primaryBtnText}>Verify 4-Digit OTP</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
                 )}
               </View>
@@ -216,11 +387,18 @@ const styles = StyleSheet.create({
   tabBtnActive: { backgroundColor: "#1361f5" },
   tabText: { color: "#ffffff", fontSize: 12, fontWeight: "700" },
   scrollContent: { padding: 16 },
+  sectionBlock: { marginBottom: 14 },
   sectionTitle: {
     color: "#ffffff",
     fontSize: 15,
     fontWeight: "700",
     marginBottom: 12,
+  },
+  requestSectionTitle: {
+    color: "#fbbf24",
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 10,
   },
   card: {
     backgroundColor: "#081225",
@@ -229,6 +407,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     marginBottom: 12,
+  },
+  requestCard: {
+    borderColor: "#f59e0b",
+    backgroundColor: "#141824",
   },
   rowBetween: {
     flexDirection: "row",
@@ -268,4 +450,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   primaryBtnText: { color: "#ffffff", fontSize: 12, fontWeight: "700" },
+  declineBtn: {
+    paddingHorizontal: 14,
+    borderColor: "#f43f5e",
+    borderWidth: 1,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  declineBtnText: { color: "#fda4af", fontSize: 12, fontWeight: "700" },
 });
